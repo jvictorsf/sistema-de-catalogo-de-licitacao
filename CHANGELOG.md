@@ -2,6 +2,13 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.1.1] - 2026-06-03
+
+### Corrigido
+- Corrigido o carregamento de dados nas telas de visualizar e editar item, evitando conflito entre a variavel do produto e a variavel de navegacao do cabecalho.
+- Exibicao e busca do codigo de rastreio passam a usar fallback `CL000000` quando registros antigos ainda estiverem com `tracking_code` nulo.
+- Novos itens agora reforcam o preenchimento do codigo de rastreio apos o cadastro, mesmo quando o trigger do banco ainda nao tiver sido aplicado.
+
 ## [1.1.0] - 2026-06-03
 
 ### Adicionado

@@ -95,14 +95,14 @@ $navItems = [
 
             <div class="collapse navbar-collapse" id="mainNavbar">
                 <div class="navbar-nav ms-auto">
-                    <?php foreach ($navItems as $item): ?>
-                        <?php $active = in_array($currentPage, $item['active'], true); ?>
+                    <?php foreach ($navItems as $navItem): ?>
+                        <?php $active = in_array($currentPage, $navItem['active'], true); ?>
                         <a
-                            href="<?= e($item['href']) ?>"
+                            href="<?= e($navItem['href']) ?>"
                             class="nav-link d-flex align-items-center gap-2 <?= $active ? 'active' : '' ?>"
                             <?= $active ? 'aria-current="page"' : '' ?>>
-                            <i class="bi <?= e($item['icon']) ?>"></i>
-                            <span><?= e($item['label']) ?></span>
+                            <i class="bi <?= e($navItem['icon']) ?>"></i>
+                            <span><?= e($navItem['label']) ?></span>
                         </a>
                     <?php endforeach; ?>
                 </div>

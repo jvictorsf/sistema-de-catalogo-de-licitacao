@@ -8,7 +8,7 @@ require_once __DIR__ . '/helpers.php';
 function item_sort_options(): array
 {
     return [
-        'tracking_code' => 'i.tracking_code',
+        'tracking_code' => item_tracking_code_sql('i'),
         'name' => 'i.name',
         'category' => 'c.name',
         'unit_type' => 'ut.name',
@@ -17,6 +17,25 @@ function item_sort_options(): array
         'warranty' => 'i.warranty',
         'created_at' => 'i.created_at',
     ];
+}
+
+function item_tracking_code_sql(string $alias): string
+{
+    return "COALESCE({$alias}.tracking_code, 'CL' || LPAD({$alias}.id::TEXT, 6, '0'))";
+}
+
+function ensure_item_tracking_code(int $id): void
+{
+    $stmt = db()->prepare("
+        UPDATE procurement_items
+        SET tracking_code = 'CL' || LPAD(id::TEXT, 6, '0')
+        WHERE id = :id
+          AND (tracking_code IS NULL OR tracking_code = '')
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+    ]);
 }
 
 function get_categories(): array
@@ -73,9 +92,12 @@ function search_items(array|string|null $filters = null): array
         ];
     }
 
+    $trackingCodeSql = item_tracking_code_sql('i');
+
     $sql = "
         SELECT 
             i.*,
+            {$trackingCodeSql} AS tracking_code,
             c.name AS category_name,
             s.name AS subcategory_name,
             ut.name AS unit_type_name,
@@ -92,7 +114,7 @@ function search_items(array|string|null $filters = null): array
     if (!empty($filters['q'])) {
         $sql .= "
             AND (
-                i.tracking_code ILIKE :q OR
+                {$trackingCodeSql} ILIKE :q OR
                 i.name ILIKE :q OR
                 i.justification ILIKE :q OR
                 i.environmental_impacts ILIKE :q OR
@@ -151,9 +173,12 @@ function search_items(array|string|null $filters = null): array
 
 function find_item(int $id): ?array
 {
+    $trackingCodeSql = item_tracking_code_sql('i');
+
     $stmt = db()->prepare("
         SELECT 
             i.*,
+            {$trackingCodeSql} AS tracking_code,
             c.name AS category_name,
             s.name AS subcategory_name,
             ut.name AS unit_type_name,
@@ -219,7 +244,11 @@ function create_item(array $data): int
         'image_path' => $data['image_path'] ?? null,
     ]);
 
-    return (int) $stmt->fetchColumn();
+    $id = (int) $stmt->fetchColumn();
+
+    ensure_item_tracking_code($id);
+
+    return $id;
 }
 
 function update_item(int $id, array $data): void
@@ -499,11 +528,13 @@ function delete_demand_list(int $id): void
 
 function get_demand_items(int $demandListId): array
 {
+    $trackingCodeSql = item_tracking_code_sql('pi');
+
     $stmt = db()->prepare("
         SELECT
             di.*,
             pi.name AS item_name,
-            pi.tracking_code,
+            {$trackingCodeSql} AS tracking_code,
             pi.specification,
             pi.warranty,
             pi.environmental_impacts,
@@ -590,10 +621,12 @@ function update_demand_item(int $id, array $data): void
 
 function get_project_consolidated_items(int $projectId): array
 {
+    $trackingCodeSql = item_tracking_code_sql('pi');
+
     $stmt = db()->prepare("
         SELECT
             pi.id AS procurement_item_id,
-            pi.tracking_code,
+            {$trackingCodeSql} AS tracking_code,
             pi.name AS item_name,
             pi.justification,
             pi.environmental_impacts,
@@ -611,7 +644,7 @@ function get_project_consolidated_items(int $projectId): array
         WHERE dl.project_id = :project_id
         GROUP BY
             pi.id,
-            pi.tracking_code,
+            {$trackingCodeSql},
             pi.name,
             pi.justification,
             pi.environmental_impacts,
@@ -627,13 +660,15 @@ function get_project_consolidated_items(int $projectId): array
 
 function get_project_items_by_demand(int $projectId): array
 {
+    $trackingCodeSql = item_tracking_code_sql('pi');
+
     $stmt = db()->prepare("
         SELECT
             dl.id AS demand_id,
             dl.name AS demand_name,
             dl.requester_department,
             dl.responsible_name,
-            pi.tracking_code,
+            {$trackingCodeSql} AS tracking_code,
             pi.name AS item_name,
             ut.name AS unit_type_name,
             ut.abbreviation AS unit_type_abbreviation,
@@ -1151,11 +1186,13 @@ function create_item_kit(array $data): int
 
 function get_item_kit_items(int $kitId): array
 {
+    $trackingCodeSql = item_tracking_code_sql('pi');
+
     $stmt = db()->prepare("
         SELECT
             iki.*,
             pi.name AS item_name,
-            pi.tracking_code
+            {$trackingCodeSql} AS tracking_code
         FROM item_kit_items iki
         INNER JOIN procurement_items pi ON pi.id = iki.procurement_item_id
         WHERE iki.kit_id = :kit_id
@@ -1383,10 +1420,12 @@ function get_demand_financial_summary(int $demandListId): array
 
 function find_similar_items(string $name, ?int $ignoreId = null, float $threshold = 0.25): array
 {
+    $trackingCodeSql = item_tracking_code_sql('procurement_items');
+
     $sql = "
         SELECT
             id,
-            tracking_code,
+            {$trackingCodeSql} AS tracking_code,
             name,
             level,
             status,

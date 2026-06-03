@@ -120,7 +120,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (environmentalImpacts && data.environmental_impacts) {
-                environmentalImpacts.value = data.environmental_impacts;
+                environmentalImpacts.value = JSON.stringify(
+                    Array.isArray(data.environmental_impacts)
+                        ? data.environmental_impacts
+                        : [data.environmental_impacts]
+                );
+                environmentalImpacts.dispatchEvent(new Event('change'));
             }
 
             let message = 'Sugestão gerada. Revise os campos antes de salvar.';

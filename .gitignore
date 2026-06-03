@@ -1,3 +1,4 @@
+.env
 /public/uploads/items/*
 !/public/uploads/items/.gitkeep
 /storage/logs/*

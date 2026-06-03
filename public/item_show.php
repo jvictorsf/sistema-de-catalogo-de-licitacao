@@ -174,7 +174,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card">
             <div class="card-header fw-semibold">Possíveis impactos ambientais</div>
             <div class="card-body">
-                <p class="mb-0"><?= nl2br(e($item['environmental_impacts'])) ?></p>
+                <?= render_environmental_impacts_list($item['environmental_impacts']) ?>
             </div>
         </div>
     </div>

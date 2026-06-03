@@ -19,6 +19,7 @@ $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = [
+        'code' => strtoupper(trim($_POST['code'] ?? '')),
         'title' => trim($_POST['title'] ?? ''),
         'content' => trim($_POST['content'] ?? ''),
         'category_id' => (int) ($_POST['category_id'] ?? 0),
@@ -75,8 +76,18 @@ require __DIR__ . '/../app/views/header.php';
 
 <form method="post" class="card card-body shadow-sm">
     <div class="row g-3">
-        <div class="col-md-8">
-            <label class="form-label">Título</label>
+        <div class="col-md-3">
+            <label class="form-label">Codigo</label>
+            <input
+                type="text"
+                name="code"
+                class="form-control"
+                placeholder="IA001"
+                value="<?= e($template['code'] ?? '') ?>">
+        </div>
+
+        <div class="col-md-5">
+            <label class="form-label">Titulo</label>
             <input type="text" name="title" class="form-control" required value="<?= e($template['title'] ?? '') ?>">
         </div>
 

@@ -13,6 +13,8 @@ $filters = [
     'level' => trim($_GET['level'] ?? ''),
     'status' => trim($_GET['status'] ?? ''),
     'unit_type_id' => (int) ($_GET['unit_type_id'] ?? 0),
+    'sort' => trim($_GET['sort'] ?? 'created_at'),
+    'direction' => strtolower(trim($_GET['direction'] ?? 'desc')),
 ];
 
 $items = search_items($filters);
@@ -28,6 +30,30 @@ $statusLabels = [
     'deprecated' => 'Descontinuado',
     'blocked' => 'Bloqueado',
 ];
+
+function sort_header(string $column, string $label, array $filters): string
+{
+    $isCurrent = ($filters['sort'] ?? '') === $column;
+    $nextDirection = $isCurrent && ($filters['direction'] ?? 'desc') === 'asc' ? 'desc' : 'asc';
+    $icon = 'bi-arrow-down-up';
+
+    if ($isCurrent) {
+        $icon = ($filters['direction'] ?? 'desc') === 'asc'
+            ? 'bi-sort-alpha-down'
+            : 'bi-sort-alpha-up';
+    }
+
+    $params = array_filter($filters, static fn ($value) => $value !== '' && $value !== 0 && $value !== null);
+    $params['sort'] = $column;
+    $params['direction'] = $nextDirection;
+
+    return sprintf(
+        '<a class="table-sort-link" href="/?%s">%s <i class="bi %s"></i></a>',
+        e(http_build_query($params)),
+        e($label),
+        e($icon)
+    );
+}
 
 require __DIR__ . '/../app/views/header.php';
 
@@ -57,6 +83,9 @@ require __DIR__ . '/../app/views/header.php';
 </div>
 
 <form method="get" class="card card-body mb-4">
+    <input type="hidden" name="sort" value="<?= e($filters['sort']) ?>">
+    <input type="hidden" name="direction" value="<?= e($filters['direction']) ?>">
+
     <div class="row g-3">
         <div class="col-md-4">
             <label class="form-label">Busca livre</label>
@@ -182,13 +211,13 @@ require __DIR__ . '/../app/views/header.php';
             <thead class="table-light">
                 <tr>
                     <th>Imagem</th>
-                    <th>Código</th>
-                    <th>Nome</th>
-                    <th>Categoria</th>
-                    <th>Unidade</th>
-                    <th>Nível</th>
-                    <th>Status</th>
-                    <th>Garantia</th>
+                    <th><?= sort_header('tracking_code', 'Codigo', $filters) ?></th>
+                    <th><?= sort_header('name', 'Nome', $filters) ?></th>
+                    <th><?= sort_header('category', 'Categoria', $filters) ?></th>
+                    <th><?= sort_header('unit_type', 'Unidade', $filters) ?></th>
+                    <th><?= sort_header('level', 'Nivel', $filters) ?></th>
+                    <th><?= sort_header('status', 'Status', $filters) ?></th>
+                    <th><?= sort_header('warranty', 'Garantia', $filters) ?></th>
                     <th class="text-end">Ações</th>
                 </tr>
             </thead>

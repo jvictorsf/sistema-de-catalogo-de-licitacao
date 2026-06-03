@@ -172,6 +172,7 @@ CREATE TABLE IF NOT EXISTS justification_templates (
 
 CREATE TABLE IF NOT EXISTS environmental_impact_templates (
     id SERIAL PRIMARY KEY,
+    code VARCHAR(20),
     title VARCHAR(255) NOT NULL UNIQUE,
     content TEXT NOT NULL,
     category_id INTEGER NULL REFERENCES categories(id) ON DELETE SET NULL,
@@ -223,6 +224,13 @@ ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 
 ALTER TABLE environmental_impact_templates
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE environmental_impact_templates
+ADD COLUMN IF NOT EXISTS code VARCHAR(20);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_environmental_impact_templates_code
+ON environmental_impact_templates (code)
+WHERE code IS NOT NULL AND code <> '';
 
 ALTER TABLE item_kits
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
@@ -410,18 +418,23 @@ WHERE NOT EXISTS (
     WHERE jt.title = seed.title
 );
 
-INSERT INTO environmental_impact_templates (title, content)
-SELECT seed.title, seed.content
+INSERT INTO environmental_impact_templates (code, title, content)
+SELECT seed.code, seed.title, seed.content
 FROM (
     VALUES
-        ('Equipamentos eletroeletronicos', 'Possiveis impactos ambientais relacionados a geracao de residuos eletroeletronicos ao final da vida util, consumo de energia eletrica, uso de embalagens e necessidade de descarte ambientalmente adequado.'),
-        ('Materiais de consumo', 'Possiveis impactos relacionados ao descarte de embalagens, consumo de materia-prima e geracao de residuos, devendo ser observadas boas praticas de armazenamento, uso racional e descarte adequado.'),
-        ('Servicos', 'Possiveis impactos relacionados ao deslocamento, consumo de recursos, geracao de residuos e necessidade de adocao de praticas sustentaveis durante a execucao do servico.')
-) AS seed(title, content)
+        ('IA001', 'Residuos Eletronicos', 'O produto podera gerar residuos eletroeletronicos ao final de sua vida util, devendo receber destinacao ambientalmente adequada conforme legislacao vigente.'),
+        ('IA002', 'Consumo de Energia', 'O equipamento consome energia eletrica durante sua operacao, recomendando-se a utilizacao de recursos de economia de energia quando disponiveis.'),
+        ('IA003', 'Uso de Baterias', 'O produto utiliza baterias ou acumuladores que devem ser descartados em locais apropriados.'),
+        ('IA004', 'Uso de Plasticos', 'O produto possui componentes plasticos cuja reciclagem deve ser incentivada sempre que possivel.'),
+        ('IA005', 'Embalagens', 'As embalagens do produto devem ser destinadas a reciclagem ou reaproveitamento quando possivel.'),
+        ('IA006', 'Equipamento de Longa Vida Util', 'A contratacao prioriza equipamentos de maior durabilidade visando reduzir a geracao de residuos.'),
+        ('IA007', 'Reducao de Papel', 'O equipamento contribui para a digitalizacao de processos e consequente reducao do consumo de papel.'),
+        ('IA008', 'Eficiencia Energetica', 'Preferencialmente deverao ser fornecidos equipamentos com mecanismos de eficiencia energetica reconhecidos pelo mercado.')
+) AS seed(code, title, content)
 WHERE NOT EXISTS (
     SELECT 1
     FROM environmental_impact_templates eit
-    WHERE eit.title = seed.title
+    WHERE eit.code = seed.code OR eit.title = seed.title
 );
 
 CREATE INDEX IF NOT EXISTS idx_procurement_items_name_trgm

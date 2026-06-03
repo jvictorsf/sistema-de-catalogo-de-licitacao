@@ -81,6 +81,7 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
 <body>
 
 <div class="header">
+    <?= render_municipal_logo() ?>
     <h1>Prefeitura Municipal de Espírito Santo do Turvo</h1>
     <h2>Departamento de Tecnologia da Informação</h2>
     <h2>Catálogo de Itens para Licitação</h2>
@@ -112,7 +113,7 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
         <p><?= nl2br(e($item['warranty'])) ?></p>
 
         <h3>Possíveis impactos ambientais</h3>
-        <p><?= nl2br(e($item['environmental_impacts'])) ?></p>
+        <?= render_environmental_impacts_list($item['environmental_impacts']) ?>
     </div>
 <?php endforeach; ?>
 

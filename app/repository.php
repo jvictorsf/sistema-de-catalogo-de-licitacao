@@ -3,6 +3,21 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/helpers.php';
+
+function item_sort_options(): array
+{
+    return [
+        'tracking_code' => 'i.tracking_code',
+        'name' => 'i.name',
+        'category' => 'c.name',
+        'unit_type' => 'ut.name',
+        'level' => 'i.level',
+        'status' => 'i.status',
+        'warranty' => 'i.warranty',
+        'created_at' => 'i.created_at',
+    ];
+}
 
 function get_categories(): array
 {
@@ -114,7 +129,19 @@ function search_items(array|string|null $filters = null): array
         $params['unit_type_id'] = (int) $filters['unit_type_id'];
     }
 
-    $sql .= " ORDER BY i.id DESC";
+    $sortOptions = item_sort_options();
+    $sort = (string) ($filters['sort'] ?? 'created_at');
+    $direction = strtolower((string) ($filters['direction'] ?? 'desc'));
+
+    if (!isset($sortOptions[$sort])) {
+        $sort = 'created_at';
+    }
+
+    if (!in_array($direction, ['asc', 'desc'], true)) {
+        $direction = 'desc';
+    }
+
+    $sql .= ' ORDER BY ' . $sortOptions[$sort] . ' ' . strtoupper($direction) . ', i.id DESC';
 
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
@@ -146,6 +173,9 @@ function find_item(int $id): ?array
 
 function create_item(array $data): int
 {
+    $data['specification'] = normalize_item_specification_json((string) $data['specification']);
+    $data['environmental_impacts'] = normalize_environmental_impacts_json($data['environmental_impacts'] ?? '');
+
     $stmt = db()->prepare("
         INSERT INTO procurement_items (
             category_id,
@@ -194,6 +224,9 @@ function create_item(array $data): int
 
 function update_item(int $id, array $data): void
 {
+    $data['specification'] = normalize_item_specification_json((string) $data['specification']);
+    $data['environmental_impacts'] = normalize_environmental_impacts_json($data['environmental_impacts'] ?? '');
+
     $stmt = db()->prepare("
     UPDATE procurement_items SET
         category_id = :category_id,
@@ -887,6 +920,10 @@ function duplicate_item(int $id): int
         RETURNING id
     ");
 
+    $specification = is_string($item['specification'])
+        ? $item['specification']
+        : json_encode($item['specification'], JSON_UNESCAPED_UNICODE);
+
     $stmt->execute([
         'category_id' => $item['category_id'] ?: null,
         'subcategory_id' => $item['subcategory_id'] ?: null,
@@ -894,12 +931,10 @@ function duplicate_item(int $id): int
         'level' => $item['level'],
         'status' => $item['status'] ?? 'draft',
         'name' => $newName,
-        'specification' => is_string($item['specification'])
-            ? $item['specification']
-            : json_encode($item['specification'], JSON_UNESCAPED_UNICODE),
+        'specification' => normalize_item_specification_json((string) $specification),
         'justification' => $item['justification'],
         'warranty' => $item['warranty'],
-        'environmental_impacts' => $item['environmental_impacts'],
+        'environmental_impacts' => normalize_environmental_impacts_json($item['environmental_impacts'] ?? ''),
         'image_path' => $item['image_path'] ?? null,
     ]);
 
@@ -1062,12 +1097,13 @@ function create_justification_template(array $data): int
 function create_environmental_impact_template(array $data): int
 {
     $stmt = db()->prepare("
-        INSERT INTO environmental_impact_templates (title, content, category_id, is_active)
-        VALUES (:title, :content, :category_id, :is_active)
+        INSERT INTO environmental_impact_templates (code, title, content, category_id, is_active)
+        VALUES (:code, :title, :content, :category_id, :is_active)
         RETURNING id
     ");
 
     $stmt->execute([
+        'code' => $data['code'] ?? null,
         'title' => $data['title'],
         'content' => $data['content'],
         'category_id' => $data['category_id'] ?: null,
@@ -1247,6 +1283,7 @@ function update_environmental_impact_template(int $id, array $data): void
 {
     $stmt = db()->prepare("
         UPDATE environmental_impact_templates SET
+            code = :code,
             title = :title,
             content = :content,
             category_id = :category_id,
@@ -1256,6 +1293,7 @@ function update_environmental_impact_template(int $id, array $data): void
 
     $stmt->execute([
         'id' => $id,
+        'code' => $data['code'] ?? null,
         'title' => $data['title'],
         'content' => $data['content'],
         'category_id' => $data['category_id'] ?: null,
@@ -1519,12 +1557,12 @@ function restore_item_version(int $versionId): int
     $stmt->execute([
         'id' => $itemId,
         'name' => $version['name'],
-        'specification' => is_string($version['specification'])
+        'specification' => normalize_item_specification_json(is_string($version['specification'])
             ? $version['specification']
-            : json_encode($version['specification'], JSON_UNESCAPED_UNICODE),
+            : json_encode($version['specification'], JSON_UNESCAPED_UNICODE)),
         'justification' => $version['justification'],
         'warranty' => $version['warranty'],
-        'environmental_impacts' => $version['environmental_impacts'],
+        'environmental_impacts' => normalize_environmental_impacts_json($version['environmental_impacts'] ?? ''),
         'level' => $version['level'],
         'status' => $version['status'] ?? 'draft',
         'unit_type_id' => $version['unit_type_id'] ?? null,
@@ -1718,7 +1756,7 @@ function catalog_json_table_definitions(): array
         ],
         'environmental_impact_templates' => [
             'label' => 'Modelos de impacto ambiental',
-            'columns' => ['id', 'title', 'content', 'category_id', 'is_active', 'created_at', 'updated_at'],
+            'columns' => ['id', 'code', 'title', 'content', 'category_id', 'is_active', 'created_at', 'updated_at'],
             'json' => [],
         ],
         'item_kits' => [
@@ -1800,6 +1838,138 @@ function export_catalog_data(string $scope): array
         'format_version' => 1,
         'data' => $data,
     ];
+}
+
+function catalog_json_import_template(string $scope): array
+{
+    $definitions = catalog_json_table_definitions();
+    $tables = catalog_json_scope_tables($scope);
+    $data = [];
+
+    foreach ($tables as $table) {
+        $data[$table] = [
+            catalog_json_sample_row($table, $definitions[$table]['columns']),
+        ];
+    }
+
+    return [
+        'system' => APP_NAME,
+        'scope' => $scope,
+        'format_version' => 1,
+        'data' => $data,
+    ];
+}
+
+function catalog_json_sample_row(string $table, array $columns): array
+{
+    $row = [];
+
+    foreach ($columns as $column) {
+        $row[$column] = null;
+    }
+
+    unset($row['id'], $row['created_at'], $row['updated_at']);
+
+    if ($table === 'procurement_items') {
+        return array_merge($row, [
+            'tracking_code' => null,
+            'category_id' => null,
+            'subcategory_id' => null,
+            'unit_type_id' => null,
+            'level' => 'C',
+            'status' => 'draft',
+            'name' => 'Nome do item',
+            'specification' => default_item_specification(),
+            'justification' => 'Justificativa administrativa do item.',
+            'warranty' => 'Garantia minima de 12 meses, conforme padrao de mercado.',
+            'environmental_impacts' => [
+                'Selecionar impactos ambientais aplicaveis.',
+            ],
+            'image_path' => null,
+        ]);
+    }
+
+    if ($table === 'environmental_impact_templates') {
+        return array_merge($row, [
+            'code' => 'IA009',
+            'title' => 'Titulo do impacto',
+            'content' => 'Descricao reutilizavel do impacto ambiental.',
+            'category_id' => null,
+            'is_active' => true,
+        ]);
+    }
+
+    if ($table === 'justification_templates') {
+        return array_merge($row, [
+            'title' => 'Titulo da justificativa',
+            'content' => 'Texto reutilizavel de justificativa.',
+            'category_id' => null,
+            'is_active' => true,
+        ]);
+    }
+
+    if ($table === 'categories') {
+        return array_merge($row, [
+            'parent_id' => null,
+            'name' => 'Nome da categoria',
+        ]);
+    }
+
+    if ($table === 'unit_types') {
+        return array_merge($row, [
+            'name' => 'Unidade',
+            'abbreviation' => 'un',
+            'description' => 'Descricao do tipo de unidade.',
+        ]);
+    }
+
+    if ($table === 'procurement_projects') {
+        return array_merge($row, [
+            'name' => 'Nome do projeto',
+            'description' => 'Descricao do projeto de contratacao.',
+            'status' => 'draft',
+        ]);
+    }
+
+    if ($table === 'demand_lists') {
+        return array_merge($row, [
+            'project_id' => 1,
+            'name' => 'Nome da demanda',
+            'requester_department' => 'Unidade solicitante',
+            'responsible_name' => 'Responsavel',
+            'notes' => null,
+        ]);
+    }
+
+    if ($table === 'demand_items') {
+        return array_merge($row, [
+            'demand_list_id' => 1,
+            'procurement_item_id' => 1,
+            'quantity' => 1,
+            'approved_quantity' => 1,
+            'estimated_unit_price' => 0,
+            'notes' => null,
+        ]);
+    }
+
+    if ($table === 'item_kits') {
+        return array_merge($row, [
+            'name' => 'Nome do kit',
+            'description' => 'Descricao do kit.',
+            'is_active' => true,
+        ]);
+    }
+
+    if ($table === 'item_kit_items') {
+        return array_merge($row, [
+            'kit_id' => 1,
+            'procurement_item_id' => 1,
+            'quantity' => 1,
+            'notes' => null,
+        ]);
+    }
+
+    return $row;
 }
 
 function import_catalog_data(string $scope, array $payload): array
@@ -1888,6 +2058,20 @@ function import_catalog_table_rows(string $table, array $columns, array $jsonCol
 
         foreach ($columns as $column) {
             if (!array_key_exists($column, $row)) {
+                continue;
+            }
+
+            if ($table === 'procurement_items' && $column === 'specification') {
+                $rawSpecification = is_string($row[$column])
+                    ? $row[$column]
+                    : json_encode($row[$column], JSON_UNESCAPED_UNICODE);
+
+                $values[$column] = normalize_item_specification_json((string) $rawSpecification);
+                continue;
+            }
+
+            if ($table === 'procurement_items' && $column === 'environmental_impacts') {
+                $values[$column] = normalize_environmental_impacts_json($row[$column]);
                 continue;
             }
 

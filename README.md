@@ -17,7 +17,7 @@ https://catalogo-licitacao.esturvo.intra
 
 ## Banco de Dados
 - Nome do banco: catalogo_licitacao
-- Usuario do banco: postgres
+- Usuario do banco: user_catalogo_licitacao
 - Host: localhost
 
 ## Responsavel Tecnico
@@ -40,6 +40,7 @@ Salvar:
 - Arquivo `.env`.
 - Diretorio `public/uploads/`.
 - Diretorio `storage/`, quando houver arquivos de importacao, exportacao ou logs relevantes.
+- Brasao em `public/assets/brasao-municipio.png`, quando utilizado.
 
 Exemplo:
 
@@ -56,26 +57,63 @@ pg_restore -U postgres -h localhost -d catalogo_licitacao catalogo_licitacao.dum
 psql -U postgres -h localhost -d catalogo_licitacao -f database/schema.sql
 ```
 
-Depois, restaurar `public/uploads/` e `storage/` conforme o backup.
+Depois, restaurar `public/uploads/`, `storage/` e o brasao municipal, se houver.
 
 ## Observacoes
 - O Nginx deve apontar o `root` para `/srv/apps/internos/sistema-de-catalogo-de-licitacao/public`.
 - Arquivos de aplicacao, configuracao, schema e storage ficam fora da raiz publica.
 - O codigo de rastreio dos itens e gerado automaticamente no banco no formato `CL000001`.
 - A importacao/exportacao JSON esta disponivel no menu **Dados**.
+- A pagina **Dados** oferece um template JSON de importacao para cada escopo.
+- Os impactos ambientais dos itens sao armazenados como lista estruturada.
 - As sugestoes de IA sao apoio inicial e precisam de revisao tecnica antes de uso em processo licitatorio.
+
+## Padrao de Especificacao Tecnica
+Novos itens usam o seguinte JSON base:
+
+```json
+{
+  "marca_referencia": "",
+  "modelo_referencia": "",
+  "descricao_minima": "",
+  "caracteristicas_minimas": [],
+  "criterios_aceitacao": [],
+  "documentacao_exigida": [],
+  "certificados": [],
+  "observacoes": []
+}
+```
+
+As observacoes padrao sobre imagem ilustrativa, equivalencia tecnica, produtos novos, procedencia e suporte de garantia sao adicionadas automaticamente ao salvar o item.
+
+## Impactos Ambientais
+A biblioteca possui codigos reutilizaveis, como `IA001`, `IA002` e demais modelos criados em `database/schema.sql`.
+
+No cadastro do item, e possivel selecionar impactos da biblioteca ou adicionar impactos manualmente. O sistema salva os impactos como lista JSON.
+
+## Brasao do Municipio
+Para exibir o brasao nos relatorios:
+
+1. Salvar o arquivo oficial em `public/assets/brasao-municipio.png`.
+2. Conferir no `.env`:
+
+```env
+MUNICIPAL_LOGO_PATH=/assets/brasao-municipio.png
+```
+
+Se o arquivo nao existir, os relatorios continuam sendo gerados sem imagem.
 
 ## Estrutura
 
 ```txt
 sistema-de-catalogo-de-licitacao/
-├── app/
-├── public/
-├── storage/
-├── config/
-├── database/
-├── README.md
-└── .env
+|-- app/
+|-- public/
+|-- storage/
+|-- config/
+|-- database/
+|-- README.md
+`-- .env
 ```
 
 ## Configuracao para Nginx
@@ -104,7 +142,6 @@ server {
 ```
 
 ## Instalacao
-
 1. Criar o banco PostgreSQL.
 2. Copiar `.env.example` para `.env` e ajustar credenciais.
 3. Importar `database/schema.sql`.

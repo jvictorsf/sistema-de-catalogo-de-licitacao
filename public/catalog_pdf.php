@@ -106,6 +106,7 @@ $items = search_items();
 </div>
 
 <div class="header">
+    <?= render_municipal_logo() ?>
     <h1>Prefeitura Municipal de Espírito Santo do Turvo</h1>
     <h2>Departamento de Tecnologia da Informação</h2>
     <h2>Catálogo Institucional de Itens para Licitação</h2>
@@ -135,7 +136,7 @@ $items = search_items();
         <p><?= nl2br(e($item['warranty'])) ?></p>
 
         <h3>Possíveis impactos ambientais</h3>
-        <p><?= nl2br(e($item['environmental_impacts'])) ?></p>
+        <?= render_environmental_impacts_list($item['environmental_impacts']) ?>
     </div>
 <?php endforeach; ?>
 

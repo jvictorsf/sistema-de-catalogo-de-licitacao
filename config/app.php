@@ -44,6 +44,7 @@ defined('APP_NAME') || define('APP_NAME', env_value('APP_NAME', 'Catalogo de Lic
 defined('APP_URL') || define('APP_URL', env_value('APP_URL', 'https://catalogo-licitacao.esturvo.intra'));
 defined('APP_ENV') || define('APP_ENV', env_value('APP_ENV', 'production'));
 defined('APP_STORAGE_PATH') || define('APP_STORAGE_PATH', BASE_PATH . '/storage');
+defined('MUNICIPAL_LOGO_PATH') || define('MUNICIPAL_LOGO_PATH', env_value('MUNICIPAL_LOGO_PATH', '/assets/brasao-municipio.png'));
 
 defined('DB_HOST') || define('DB_HOST', env_value('DB_HOST', 'localhost'));
 defined('DB_PORT') || define('DB_PORT', env_value('DB_PORT', '5432'));

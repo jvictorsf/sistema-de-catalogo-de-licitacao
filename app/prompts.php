@@ -32,15 +32,18 @@ Formato obrigatório:
   "subcategory": "string",
   "level": "A|B|C",
   "specification": {
-    "tipo": "string",
+    "marca_referencia": "",
+    "modelo_referencia": "",
+    "descricao_minima": "string",
     "caracteristicas_minimas": [],
-    "requisitos_de_compatibilidade": [],
-    "requisitos_de_desempenho": [],
+    "criterios_aceitacao": [],
+    "documentacao_exigida": [],
+    "certificados": [],
     "observacoes": []
   },
   "justification": "string",
   "warranty": "string",
-  "environmental_impacts": "string",
+  "environmental_impacts": [],
   "warnings": []
 }
 TXT;

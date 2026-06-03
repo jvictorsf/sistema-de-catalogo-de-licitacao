@@ -128,4 +128,34 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 </div>
 
+<div class="card mt-4">
+    <div class="card-header fw-semibold">
+        <i class="bi bi-filetype-json me-2"></i>Templates de importacao
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Escopo</th>
+                    <th>Arquivo modelo</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                <?php foreach ($scopes as $value => $label): ?>
+                    <tr>
+                        <td><?= e($label) ?></td>
+                        <td>
+                            <a href="/import_template_json.php?scope=<?= e($value) ?>" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-download"></i>Baixar template
+                            </a>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <?php require __DIR__ . '/../app/views/footer.php'; ?>

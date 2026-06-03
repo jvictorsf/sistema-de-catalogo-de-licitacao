@@ -143,6 +143,7 @@ $summary = get_demand_financial_summary($id);
 </div>
 
 <div class="header">
+    <?= render_municipal_logo() ?>
     <h1>Prefeitura Municipal de Espírito Santo do Turvo</h1>
     <h2>Departamento de Tecnologia da Informação</h2>
     <h2>Relatório Individual de Demanda</h2>

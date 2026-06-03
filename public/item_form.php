@@ -97,7 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 require __DIR__ . '/../app/views/header.php';
 
-$specification = old($item ?? [], 'specification', "{\n  \"marca_referencia\": \"\",\n  \"modelo_referencia\": \"\",\n  \"caracteristicas_minimas\": []\n}");
+$specification = old($item ?? [], 'specification', default_item_specification_json());
+$environmentalImpactItems = environmental_impacts_to_array((string) old($item ?? [], 'environmental_impacts', ''));
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -279,22 +280,44 @@ $specification = old($item ?? [], 'specification', "{\n  \"marca_referencia\": \
         </div>
 
         <div class="col-md-6">
-            <label class="form-label">Possíveis impactos ambientais</label>
-            <textarea name="environmental_impacts" rows="4" class="form-control" placeholder="Ex.: geração de resíduos eletrônicos, embalagens, consumo de energia."><?= e(old($item ?? [], 'environmental_impacts')) ?></textarea>
-        </div>
+            <label class="form-label">Possiveis impactos ambientais</label>
 
-        <div class="col-12">
-            <label class="form-label">Usar impacto ambiental da biblioteca</label>
+            <input
+                type="hidden"
+                name="environmental_impacts"
+                id="environmentalImpactsInput"
+                value="<?= e(json_encode($environmentalImpactItems, JSON_UNESCAPED_UNICODE)) ?>">
 
-            <select id="impactTemplateSelect" class="form-select">
-                <option value="">Selecione para preencher...</option>
+            <div class="input-group mb-2">
+                <select id="impactTemplateSelect" class="form-select">
+                    <option value="">Selecionar impacto da biblioteca...</option>
 
-                <?php foreach ($impactTemplates as $template): ?>
-                    <option value="<?= e($template['content']) ?>">
-                        <?= e($template['title']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+                    <?php foreach ($impactTemplates as $template): ?>
+                        <option value="<?= e($template['content']) ?>">
+                            <?= e(trim(($template['code'] ?? '') . ' - ' . $template['title'], ' -')) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <button type="button" id="btnAddImpactTemplate" class="btn btn-outline-primary">
+                    <i class="bi bi-plus-lg"></i>Adicionar
+                </button>
+            </div>
+
+            <div class="input-group mb-2">
+                <input
+                    type="text"
+                    id="customImpactInput"
+                    class="form-control"
+                    placeholder="Adicionar impacto manualmente">
+
+                <button type="button" id="btnAddCustomImpact" class="btn btn-outline-secondary">
+                    <i class="bi bi-plus-lg"></i>Adicionar
+                </button>
+            </div>
+
+            <ul id="environmentalImpactList" class="list-group"></ul>
+            <div class="form-text">Os impactos serao salvos como lista estruturada.</div>
         </div>
 
         <?php if (!empty($similarItems)): ?>
@@ -334,6 +357,11 @@ $specification = old($item ?? [], 'specification', "{\n  \"marca_referencia\": \
     document.addEventListener('DOMContentLoaded', function() {
         const justificationSelect = document.getElementById('justificationTemplateSelect');
         const impactSelect = document.getElementById('impactTemplateSelect');
+        const impactInput = document.getElementById('environmentalImpactsInput');
+        const impactList = document.getElementById('environmentalImpactList');
+        const customImpactInput = document.getElementById('customImpactInput');
+        const btnAddImpactTemplate = document.getElementById('btnAddImpactTemplate');
+        const btnAddCustomImpact = document.getElementById('btnAddCustomImpact');
 
         if (justificationSelect) {
             justificationSelect.addEventListener('change', function() {
@@ -345,15 +373,112 @@ $specification = old($item ?? [], 'specification', "{\n  \"marca_referencia\": \
             });
         }
 
-        if (impactSelect) {
-            impactSelect.addEventListener('change', function() {
-                const textarea = document.querySelector('[name="environmental_impacts"]');
+        function getImpacts() {
+            if (!impactInput || !impactInput.value) {
+                return [];
+            }
 
-                if (textarea && this.value) {
-                    textarea.value = this.value;
+            try {
+                const parsed = JSON.parse(impactInput.value);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+                return [];
+            }
+        }
+
+        function setImpacts(items) {
+            if (!impactInput || !impactList) {
+                return;
+            }
+
+            const normalized = items
+                .map(item => String(item).trim())
+                .filter(item => item.length > 0);
+
+            impactInput.value = JSON.stringify([...new Set(normalized)]);
+            renderImpacts();
+        }
+
+        function addImpact(value) {
+            const text = String(value || '').trim();
+
+            if (!text) {
+                return;
+            }
+
+            setImpacts([...getImpacts(), text]);
+        }
+
+        function renderImpacts() {
+            if (!impactList) {
+                return;
+            }
+
+            impactList.innerHTML = '';
+
+            const impacts = getImpacts();
+
+            if (impacts.length === 0) {
+                const empty = document.createElement('li');
+                empty.className = 'list-group-item text-muted';
+                empty.textContent = 'Nenhum impacto adicionado.';
+                impactList.appendChild(empty);
+                return;
+            }
+
+            impacts.forEach((impact, index) => {
+                const item = document.createElement('li');
+                item.className = 'list-group-item d-flex justify-content-between align-items-start gap-3';
+
+                const text = document.createElement('span');
+                text.textContent = impact;
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-sm btn-outline-danger';
+                button.innerHTML = '<i class="bi bi-trash"></i>Remover';
+                button.addEventListener('click', () => {
+                    const updated = getImpacts();
+                    updated.splice(index, 1);
+                    setImpacts(updated);
+                });
+
+                item.appendChild(text);
+                item.appendChild(button);
+                impactList.appendChild(item);
+            });
+        }
+
+        if (btnAddImpactTemplate && impactSelect) {
+            btnAddImpactTemplate.addEventListener('click', function() {
+                addImpact(impactSelect.value);
+                impactSelect.value = '';
+            });
+        }
+
+        if (btnAddCustomImpact && customImpactInput) {
+            btnAddCustomImpact.addEventListener('click', function() {
+                addImpact(customImpactInput.value);
+                customImpactInput.value = '';
+                customImpactInput.focus();
+            });
+        }
+
+        if (customImpactInput) {
+            customImpactInput.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addImpact(customImpactInput.value);
+                    customImpactInput.value = '';
                 }
             });
         }
+
+        if (impactInput) {
+            impactInput.addEventListener('change', renderImpacts);
+        }
+
+        renderImpacts();
     });
 </script>
 

@@ -37,6 +37,161 @@ function pretty_json(mixed $value): string
     return json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 }
 
+function standard_item_observations(): array
+{
+    return [
+        'A imagem do produto, quando utilizada no processo administrativo, será meramente ilustrativa, sem vinculação obrigatória de marca ou fabricante.',
+        'Serão aceitos produtos equivalentes ou superiores desde que atendam integralmente às especificações mínimas exigidas.',
+        'Não serão aceitos produtos remanufaturados, recondicionados, usados ou de procedência duvidosa.',
+        'Todos os equipamentos deverão ser novos, de primeiro uso e entregues em embalagem original do fabricante.',
+        'O fornecedor deverá assegurar assistência técnica e suporte durante o período de garantia.',
+    ];
+}
+
+function default_item_specification(): array
+{
+    return [
+        'marca_referencia' => '',
+        'modelo_referencia' => '',
+        'descricao_minima' => '',
+        'caracteristicas_minimas' => [],
+        'criterios_aceitacao' => [],
+        'documentacao_exigida' => [],
+        'certificados' => [],
+        'observacoes' => standard_item_observations(),
+    ];
+}
+
+function default_item_specification_json(): string
+{
+    return pretty_json(default_item_specification());
+}
+
+function normalize_item_specification_json(string $json): string
+{
+    $decoded = json_decode($json, true);
+
+    if (!is_array($decoded)) {
+        $decoded = [];
+    }
+
+    $normalized = array_merge(default_item_specification(), $decoded);
+
+    foreach ([
+        'caracteristicas_minimas',
+        'criterios_aceitacao',
+        'documentacao_exigida',
+        'certificados',
+        'observacoes',
+    ] as $key) {
+        if (!isset($normalized[$key]) || !is_array($normalized[$key])) {
+            $normalized[$key] = [];
+        }
+    }
+
+    foreach (standard_item_observations() as $observation) {
+        if (!in_array($observation, $normalized['observacoes'], true)) {
+            $normalized['observacoes'][] = $observation;
+        }
+    }
+
+    return pretty_json($normalized);
+}
+
+function environmental_impacts_to_array(mixed $value): array
+{
+    if (is_array($value)) {
+        if (array_is_list($value)) {
+            return array_values(array_filter(array_map('strval', $value)));
+        }
+
+        return array_values(array_filter(array_map('strval', $value['itens'] ?? [])));
+    }
+
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return [];
+    }
+
+    $decoded = json_decode($value, true);
+
+    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+        if (array_is_list($decoded)) {
+            return array_values(array_filter(array_map('strval', $decoded)));
+        }
+
+        return array_values(array_filter(array_map('strval', $decoded['itens'] ?? [])));
+    }
+
+    $lines = preg_split('/\r\n|\r|\n/', $value) ?: [];
+    $items = [];
+
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+
+        if ($line !== '') {
+            $items[] = ltrim($line, "- \t");
+        }
+    }
+
+    return $items ?: [$value];
+}
+
+function normalize_environmental_impacts_json(mixed $value): string
+{
+    return json_encode(
+        environmental_impacts_to_array($value),
+        JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+    );
+}
+
+function environmental_impacts_as_text(?string $value): string
+{
+    return implode(PHP_EOL, environmental_impacts_to_array($value));
+}
+
+function render_environmental_impacts_list(?string $value): string
+{
+    $items = environmental_impacts_to_array($value);
+
+    if (!$items) {
+        return '<span class="text-muted">-</span>';
+    }
+
+    $html = '<ul class="mb-0 ps-3">';
+
+    foreach ($items as $item) {
+        $html .= '<li>' . e($item) . '</li>';
+    }
+
+    return $html . '</ul>';
+}
+
+function municipal_logo_public_path(): ?string
+{
+    $path = (string) (defined('MUNICIPAL_LOGO_PATH') ? MUNICIPAL_LOGO_PATH : '');
+
+    if ($path === '') {
+        return null;
+    }
+
+    $filePath = dirname(__DIR__) . '/public' . $path;
+
+    return is_file($filePath) ? $path : null;
+}
+
+function render_municipal_logo(string $class = 'report-logo'): string
+{
+    $path = municipal_logo_public_path();
+
+    if (!$path) {
+        return '';
+    }
+
+    return '<img src="' . e($path) . '" class="' . e($class) . '" alt="Brasao do municipio" style="width:80px;height:auto;margin-bottom:8px;">';
+}
+
 function upload_item_image(array $file): ?string
 {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {

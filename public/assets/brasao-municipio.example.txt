@@ -1,0 +1,7 @@
+Coloque o brasao oficial do municipio nesta pasta com o nome:
+
+brasao-municipio.png
+
+O caminho padrao usado pelos relatorios e:
+
+/assets/brasao-municipio.png

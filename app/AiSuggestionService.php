@@ -56,16 +56,22 @@ function generate_ai_suggestion(string $itemName): array
                             'type' => 'object',
                             'additionalProperties' => false,
                             'properties' => [
-                                'tipo' => ['type' => 'string'],
+                                'marca_referencia' => ['type' => 'string'],
+                                'modelo_referencia' => ['type' => 'string'],
+                                'descricao_minima' => ['type' => 'string'],
                                 'caracteristicas_minimas' => [
                                     'type' => 'array',
                                     'items' => ['type' => 'string'],
                                 ],
-                                'requisitos_de_compatibilidade' => [
+                                'criterios_aceitacao' => [
                                     'type' => 'array',
                                     'items' => ['type' => 'string'],
                                 ],
-                                'requisitos_de_desempenho' => [
+                                'documentacao_exigida' => [
+                                    'type' => 'array',
+                                    'items' => ['type' => 'string'],
+                                ],
+                                'certificados' => [
                                     'type' => 'array',
                                     'items' => ['type' => 'string'],
                                 ],
@@ -75,16 +81,22 @@ function generate_ai_suggestion(string $itemName): array
                                 ],
                             ],
                             'required' => [
-                                'tipo',
+                                'marca_referencia',
+                                'modelo_referencia',
+                                'descricao_minima',
                                 'caracteristicas_minimas',
-                                'requisitos_de_compatibilidade',
-                                'requisitos_de_desempenho',
+                                'criterios_aceitacao',
+                                'documentacao_exigida',
+                                'certificados',
                                 'observacoes',
                             ],
                         ],
                         'justification' => ['type' => 'string'],
                         'warranty' => ['type' => 'string'],
-                        'environmental_impacts' => ['type' => 'string'],
+                        'environmental_impacts' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                        ],
                         'warnings' => [
                             'type' => 'array',
                             'items' => ['type' => 'string'],

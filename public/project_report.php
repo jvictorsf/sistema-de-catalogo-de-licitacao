@@ -318,7 +318,7 @@ require __DIR__ . '/../app/views/header.php';
                                 <td><?= e($item['tracking_code']) ?></td>
                                 <td><?= e($item['item_name']) ?></td>
                                 <td><?= nl2br(e($item['justification'])) ?></td>
-                                <td><?= nl2br(e($item['environmental_impacts'])) ?></td>
+                                <td><?= render_environmental_impacts_list($item['environmental_impacts']) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

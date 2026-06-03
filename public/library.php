@@ -43,7 +43,7 @@ require __DIR__ . '/../app/views/header.php';
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Título</th>
+                            <th>Titulo</th>
                             <th>Categoria</th>
                             <th>Status</th>
                             <th class="text-end">Ações</th>
@@ -106,7 +106,8 @@ require __DIR__ . '/../app/views/header.php';
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Título</th>
+                            <th>Codigo</th>
+                            <th>Titulo</th>
                             <th>Categoria</th>
                             <th>Status</th>
                             <th class="text-end">Ações</th>
@@ -116,6 +117,10 @@ require __DIR__ . '/../app/views/header.php';
                     <tbody>
                         <?php foreach ($impacts as $template): ?>
                             <tr>
+                                <td>
+                                    <span class="badge text-bg-dark"><?= e($template['code'] ?? '-') ?></span>
+                                </td>
+
                                 <td>
                                     <strong><?= e($template['title']) ?></strong>
                                     <div class="small text-muted">
@@ -148,7 +153,7 @@ require __DIR__ . '/../app/views/header.php';
 
                         <?php if (!$impacts): ?>
                             <tr>
-                                <td colspan="4" class="text-center text-muted py-4">
+                                <td colspan="5" class="text-center text-muted py-4">
                                     Nenhum impacto cadastrado.
                                 </td>
                             </tr>

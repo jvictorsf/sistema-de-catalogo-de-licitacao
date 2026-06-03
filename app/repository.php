@@ -1,0 +1,1991 @@
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/database.php';
+
+function get_categories(): array
+{
+    $stmt = db()->query("
+        SELECT id, parent_id, name
+        FROM categories
+        ORDER BY parent_id NULLS FIRST, name
+    ");
+
+    return $stmt->fetchAll();
+}
+
+function get_parent_categories(): array
+{
+    $stmt = db()->query("
+        SELECT id, name
+        FROM categories
+        WHERE parent_id IS NULL
+        ORDER BY name
+    ");
+
+    return $stmt->fetchAll();
+}
+
+function get_subcategories(?int $parentId = null): array
+{
+    if ($parentId) {
+        $stmt = db()->prepare("
+            SELECT id, name
+            FROM categories
+            WHERE parent_id = :parent_id
+            ORDER BY name
+        ");
+        $stmt->execute(['parent_id' => $parentId]);
+        return $stmt->fetchAll();
+    }
+
+    $stmt = db()->query("
+        SELECT id, parent_id, name
+        FROM categories
+        WHERE parent_id IS NOT NULL
+        ORDER BY name
+    ");
+
+    return $stmt->fetchAll();
+}
+
+function search_items(array|string|null $filters = null): array
+{
+    if (is_string($filters) || $filters === null) {
+        $filters = [
+            'q' => $filters,
+        ];
+    }
+
+    $sql = "
+        SELECT 
+            i.*,
+            c.name AS category_name,
+            s.name AS subcategory_name,
+            ut.name AS unit_type_name,
+            ut.abbreviation AS unit_type_abbreviation
+        FROM procurement_items i
+        LEFT JOIN categories c ON c.id = i.category_id
+        LEFT JOIN categories s ON s.id = i.subcategory_id
+        LEFT JOIN unit_types ut ON ut.id = i.unit_type_id
+        WHERE 1 = 1
+    ";
+
+    $params = [];
+
+    if (!empty($filters['q'])) {
+        $sql .= "
+            AND (
+                i.tracking_code ILIKE :q OR
+                i.name ILIKE :q OR
+                i.justification ILIKE :q OR
+                i.environmental_impacts ILIKE :q OR
+                c.name ILIKE :q OR
+                s.name ILIKE :q
+            )
+        ";
+
+        $params['q'] = '%' . $filters['q'] . '%';
+    }
+
+    if (!empty($filters['category_id'])) {
+        $sql .= " AND i.category_id = :category_id";
+        $params['category_id'] = (int) $filters['category_id'];
+    }
+
+    if (!empty($filters['subcategory_id'])) {
+        $sql .= " AND i.subcategory_id = :subcategory_id";
+        $params['subcategory_id'] = (int) $filters['subcategory_id'];
+    }
+
+    if (!empty($filters['level'])) {
+        $sql .= " AND i.level = :level";
+        $params['level'] = $filters['level'];
+    }
+
+    if (!empty($filters['status'])) {
+        $sql .= " AND i.status = :status";
+        $params['status'] = $filters['status'];
+    }
+
+    if (!empty($filters['unit_type_id'])) {
+        $sql .= " AND i.unit_type_id = :unit_type_id";
+        $params['unit_type_id'] = (int) $filters['unit_type_id'];
+    }
+
+    $sql .= " ORDER BY i.id DESC";
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    return $stmt->fetchAll();
+}
+
+function find_item(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT 
+            i.*,
+            c.name AS category_name,
+            s.name AS subcategory_name,
+            ut.name AS unit_type_name,
+            ut.abbreviation AS unit_type_abbreviation
+        FROM procurement_items i
+        LEFT JOIN categories c ON c.id = i.category_id
+        LEFT JOIN categories s ON s.id = i.subcategory_id
+        LEFT JOIN unit_types ut ON ut.id = i.unit_type_id
+        WHERE i.id = :id
+    ");
+    $stmt->execute(['id' => $id]);
+
+    $item = $stmt->fetch();
+
+    return $item ?: null;
+}
+
+function create_item(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO procurement_items (
+            category_id,
+            subcategory_id,
+            unit_type_id,
+            level,
+            status,
+            name,
+            specification,
+            justification,
+            warranty,
+            environmental_impacts,
+            image_path
+        ) VALUES (
+            :category_id,
+            :subcategory_id,
+            :unit_type_id,
+            :level,
+            :status,
+            :name,
+            :specification::jsonb,
+            :justification,
+            :warranty,
+            :environmental_impacts,
+            :image_path
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'category_id' => $data['category_id'] ?: null,
+        'subcategory_id' => $data['subcategory_id'] ?: null,
+        'unit_type_id' => $data['unit_type_id'] ?: null,
+        'level' => $data['level'],
+        'status' => $data['status'],
+        'name' => $data['name'],
+        'specification' => $data['specification'],
+        'justification' => $data['justification'],
+        'warranty' => $data['warranty'],
+        'environmental_impacts' => $data['environmental_impacts'],
+        'image_path' => $data['image_path'] ?? null,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function update_item(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+    UPDATE procurement_items SET
+        category_id = :category_id,
+        subcategory_id = :subcategory_id,
+        unit_type_id = :unit_type_id,
+        level = :level,
+        status = :status,
+        name = :name,
+        specification = :specification::jsonb,
+        justification = :justification,
+        warranty = :warranty,
+        environmental_impacts = :environmental_impacts,
+        image_path = :image_path
+    WHERE id = :id
+");
+
+    $stmt->execute([
+        'id' => $id,
+        'category_id' => $data['category_id'] ?: null,
+        'subcategory_id' => $data['subcategory_id'] ?: null,
+        'unit_type_id' => $data['unit_type_id'] ?: null,
+        'level' => $data['level'],
+        'status' => $data['status'],
+        'name' => $data['name'],
+        'specification' => $data['specification'],
+        'justification' => $data['justification'],
+        'warranty' => $data['warranty'],
+        'environmental_impacts' => $data['environmental_impacts'],
+        'image_path' => $data['image_path'] ?? null,
+    ]);
+}
+
+function delete_item(int $id): void
+{
+    $stmt = db()->prepare("DELETE FROM procurement_items WHERE id = :id");
+    $stmt->execute(['id' => $id]);
+}
+
+function create_category(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO categories (
+            parent_id,
+            name
+        ) VALUES (
+            :parent_id,
+            :name
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'parent_id' => $data['parent_id'] ?: null,
+        'name' => $data['name'],
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function update_category(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE categories
+        SET
+            parent_id = :parent_id,
+            name = :name
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'parent_id' => $data['parent_id'] ?: null,
+        'name' => $data['name'],
+    ]);
+}
+
+function delete_category(int $id): void
+{
+    $stmt = db()->prepare("
+        DELETE FROM categories
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+    ]);
+}
+
+function find_category(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM categories
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+    ]);
+
+    $category = $stmt->fetch();
+
+    return $category ?: null;
+}
+
+function get_categories_tree(): array
+{
+    $stmt = db()->query("
+        SELECT
+            c.id,
+            c.name,
+            c.parent_id,
+            p.name AS parent_name
+        FROM categories c
+        LEFT JOIN categories p ON p.id = c.parent_id
+        ORDER BY
+            p.name NULLS FIRST,
+            c.name
+    ");
+
+    return $stmt->fetchAll();
+}
+
+function get_projects(): array
+{
+    $stmt = db()->query("
+        SELECT *
+        FROM procurement_projects
+        ORDER BY id DESC
+    ");
+
+    return $stmt->fetchAll();
+}
+
+function find_project(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM procurement_projects
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+
+    $project = $stmt->fetch();
+
+    return $project ?: null;
+}
+
+function create_project(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO procurement_projects (
+            name,
+            description,
+            status
+        ) VALUES (
+            :name,
+            :description,
+            :status
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'name' => $data['name'],
+        'description' => $data['description'] ?? null,
+        'status' => $data['status'] ?? 'draft',
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function update_project(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE procurement_projects SET
+            name = :name,
+            description = :description,
+            status = :status
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'name' => $data['name'],
+        'description' => $data['description'] ?? null,
+        'status' => $data['status'] ?? 'draft',
+    ]);
+}
+
+function delete_project(int $id): void
+{
+    $stmt = db()->prepare("
+        DELETE FROM procurement_projects
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function get_project_demands(int $projectId): array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM demand_lists
+        WHERE project_id = :project_id
+        ORDER BY id ASC
+    ");
+
+    $stmt->execute(['project_id' => $projectId]);
+
+    return $stmt->fetchAll();
+}
+
+function find_demand_list(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM demand_lists
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+
+    $demand = $stmt->fetch();
+
+    return $demand ?: null;
+}
+
+function create_demand_list(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO demand_lists (
+            project_id,
+            name,
+            requester_department,
+            responsible_name,
+            notes
+        ) VALUES (
+            :project_id,
+            :name,
+            :requester_department,
+            :responsible_name,
+            :notes
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'project_id' => $data['project_id'],
+        'name' => $data['name'],
+        'requester_department' => $data['requester_department'] ?? null,
+        'responsible_name' => $data['responsible_name'] ?? null,
+        'notes' => $data['notes'] ?? null,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function delete_demand_list(int $id): void
+{
+    $stmt = db()->prepare("
+        DELETE FROM demand_lists
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function get_demand_items(int $demandListId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            di.*,
+            pi.name AS item_name,
+            pi.tracking_code,
+            pi.specification,
+            pi.warranty,
+            pi.environmental_impacts,
+            (COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)) AS estimated_total,
+            ut.name AS unit_type_name,
+            ut.abbreviation AS unit_type_abbreviation
+        FROM demand_items di
+        INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
+        LEFT JOIN unit_types ut ON ut.id = pi.unit_type_id
+        WHERE di.demand_list_id = :demand_list_id
+        ORDER BY pi.name
+    ");
+
+    $stmt->execute(['demand_list_id' => $demandListId]);
+
+    return $stmt->fetchAll();
+}
+
+function add_demand_item(array $data): void
+{
+    $stmt = db()->prepare("
+        INSERT INTO demand_items (
+            demand_list_id,
+            procurement_item_id,
+            quantity,
+            approved_quantity,
+            estimated_unit_price,
+            notes
+        ) VALUES (
+            :demand_list_id,
+            :procurement_item_id,
+            :quantity,
+            :approved_quantity,
+            :estimated_unit_price,
+            :notes
+        )
+        ON CONFLICT (demand_list_id, procurement_item_id)
+        DO UPDATE SET
+            quantity = demand_items.quantity + EXCLUDED.quantity,
+            approved_quantity = COALESCE(demand_items.approved_quantity, 0) + EXCLUDED.approved_quantity,
+            estimated_unit_price = EXCLUDED.estimated_unit_price,
+            notes = EXCLUDED.notes
+    ");
+
+    $stmt->execute([
+        'demand_list_id' => $data['demand_list_id'],
+        'procurement_item_id' => $data['procurement_item_id'],
+        'quantity' => $data['quantity'],
+        'approved_quantity' => $data['approved_quantity'] ?? $data['quantity'],
+        'estimated_unit_price' => $data['estimated_unit_price'] ?? null,
+        'notes' => $data['notes'] ?? null,
+    ]);
+}
+
+function delete_demand_item(int $id): void
+{
+    $stmt = db()->prepare("
+        DELETE FROM demand_items
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function update_demand_item(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE demand_items SET
+            quantity = :quantity,
+            approved_quantity = :approved_quantity,
+            estimated_unit_price = :estimated_unit_price,
+            notes = :notes
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'quantity' => $data['quantity'],
+        'approved_quantity' => $data['approved_quantity'],
+        'estimated_unit_price' => $data['estimated_unit_price'],
+        'notes' => $data['notes'] ?? null,
+    ]);
+}
+
+function get_project_consolidated_items(int $projectId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            pi.id AS procurement_item_id,
+            pi.tracking_code,
+            pi.name AS item_name,
+            pi.justification,
+            pi.environmental_impacts,
+            ut.name AS unit_type_name,
+            ut.abbreviation AS unit_type_abbreviation,
+            SUM(di.quantity) AS total_quantity,
+            SUM(COALESCE(di.approved_quantity, di.quantity)) AS total_approved_quantity,
+            AVG(COALESCE(di.estimated_unit_price, 0)) AS average_unit_price,
+            SUM(COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)) AS estimated_total,
+            COUNT(DISTINCT dl.id) AS demand_count
+        FROM demand_items di
+        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+        INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
+        LEFT JOIN unit_types ut ON ut.id = pi.unit_type_id
+        WHERE dl.project_id = :project_id
+        GROUP BY
+            pi.id,
+            pi.tracking_code,
+            pi.name,
+            pi.justification,
+            pi.environmental_impacts,
+            ut.name,
+            ut.abbreviation
+        ORDER BY pi.name
+    ");
+
+    $stmt->execute(['project_id' => $projectId]);
+
+    return $stmt->fetchAll();
+}
+
+function get_project_items_by_demand(int $projectId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            dl.id AS demand_id,
+            dl.name AS demand_name,
+            dl.requester_department,
+            dl.responsible_name,
+            pi.tracking_code,
+            pi.name AS item_name,
+            ut.name AS unit_type_name,
+            ut.abbreviation AS unit_type_abbreviation,
+            di.quantity,
+            COALESCE(di.approved_quantity, di.quantity) AS approved_quantity,
+            di.estimated_unit_price,
+            (COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)) AS estimated_total,
+            di.notes
+        FROM demand_items di
+        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+        INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
+        LEFT JOIN unit_types ut ON ut.id = pi.unit_type_id
+        WHERE dl.project_id = :project_id
+        ORDER BY dl.name, pi.name
+    ");
+
+    $stmt->execute(['project_id' => $projectId]);
+
+    return $stmt->fetchAll();
+}
+
+function get_project_financial_summary(int $projectId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            SUM(di.quantity) AS total_requested_quantity,
+            SUM(COALESCE(di.approved_quantity, di.quantity)) AS total_approved_quantity,
+            SUM(COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)) AS total_estimated_value
+        FROM demand_items di
+        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+        WHERE dl.project_id = :project_id
+    ");
+
+    $stmt->execute([
+        'project_id' => $projectId,
+    ]);
+
+    return $stmt->fetch() ?: [
+        'total_requested_quantity' => 0,
+        'total_approved_quantity' => 0,
+        'total_estimated_value' => 0,
+    ];
+}
+
+function duplicate_project(int $projectId): int
+{
+    $project = find_project($projectId);
+
+    if (!$project) {
+        throw new RuntimeException('Projeto não encontrado.');
+    }
+
+    db()->beginTransaction();
+
+    try {
+        $newProjectId = create_project([
+            'name' => $project['name'] . ' - Cópia',
+            'description' => $project['description'],
+            'status' => 'draft',
+        ]);
+
+        $demands = get_project_demands($projectId);
+
+        foreach ($demands as $demand) {
+            $newDemandId = create_demand_list([
+                'project_id' => $newProjectId,
+                'name' => $demand['name'],
+                'requester_department' => $demand['requester_department'],
+                'responsible_name' => $demand['responsible_name'],
+                'notes' => $demand['notes'],
+            ]);
+
+            $items = get_demand_items((int) $demand['id']);
+
+            foreach ($items as $item) {
+                add_demand_item([
+                    'demand_list_id' => $newDemandId,
+                    'procurement_item_id' => $item['procurement_item_id'],
+                    'quantity' => $item['quantity'],
+                    'approved_quantity' => $item['approved_quantity'] ?? $item['quantity'],
+                    'estimated_unit_price' => $item['estimated_unit_price'] ?? null,
+                    'notes' => $item['notes'] ?? null,
+                ]);
+            }
+        }
+
+        db()->commit();
+
+        return $newProjectId;
+    } catch (Throwable $exception) {
+        db()->rollBack();
+        throw $exception;
+    }
+}
+
+function get_item_images(int $itemId): array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM procurement_item_images
+        WHERE procurement_item_id = :item_id
+        ORDER BY is_primary DESC, id ASC
+    ");
+
+    $stmt->execute([
+        'item_id' => $itemId,
+    ]);
+
+    return $stmt->fetchAll();
+}
+
+function get_item_primary_image(int $itemId): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM procurement_item_images
+        WHERE procurement_item_id = :item_id
+        ORDER BY is_primary DESC, id ASC
+        LIMIT 1
+    ");
+
+    $stmt->execute([
+        'item_id' => $itemId,
+    ]);
+
+    $image = $stmt->fetch();
+
+    return $image ?: null;
+}
+
+function add_item_images(int $itemId, array $paths): void
+{
+    if (!$paths) {
+        return;
+    }
+
+    $hasPrimary = get_item_primary_image($itemId) !== null;
+
+    foreach ($paths as $index => $path) {
+        $isPrimary = !$hasPrimary && $index === 0;
+
+        $stmt = db()->prepare("
+            INSERT INTO procurement_item_images (
+                procurement_item_id,
+                image_path,
+                is_primary
+            ) VALUES (
+                :procurement_item_id,
+                :image_path,
+                :is_primary
+            )
+        ");
+
+        $stmt->execute([
+            'procurement_item_id' => $itemId,
+            'image_path' => $path,
+            'is_primary' => $isPrimary ? 'true' : 'false',
+        ]);
+    }
+}
+
+function set_item_primary_image(int $itemId, int $imageId): void
+{
+    db()->beginTransaction();
+
+    try {
+        $stmt = db()->prepare("
+            UPDATE procurement_item_images
+            SET is_primary = FALSE
+            WHERE procurement_item_id = :item_id
+        ");
+
+        $stmt->execute([
+            'item_id' => $itemId,
+        ]);
+
+        $stmt = db()->prepare("
+            UPDATE procurement_item_images
+            SET is_primary = TRUE
+            WHERE id = :image_id
+              AND procurement_item_id = :item_id
+        ");
+
+        $stmt->execute([
+            'image_id' => $imageId,
+            'item_id' => $itemId,
+        ]);
+
+        db()->commit();
+    } catch (Throwable $exception) {
+        db()->rollBack();
+        throw $exception;
+    }
+}
+
+function delete_item_image(int $imageId): void
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM procurement_item_images
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $imageId,
+    ]);
+
+    $image = $stmt->fetch();
+
+    if (!$image) {
+        return;
+    }
+
+    $filePath = __DIR__ . '/../public' . $image['image_path'];
+
+    $stmt = db()->prepare("
+        DELETE FROM procurement_item_images
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $imageId,
+    ]);
+
+    if (is_file($filePath)) {
+        unlink($filePath);
+    }
+
+    $remaining = get_item_images((int) $image['procurement_item_id']);
+
+    $hasPrimary = false;
+
+    foreach ($remaining as $itemImage) {
+        if ($itemImage['is_primary']) {
+            $hasPrimary = true;
+            break;
+        }
+    }
+
+    if (!$hasPrimary && $remaining) {
+        set_item_primary_image(
+            (int) $image['procurement_item_id'],
+            (int) $remaining[0]['id']
+        );
+    }
+}
+
+function duplicate_item(int $id): int
+{
+    $item = find_item($id);
+
+    if (!$item) {
+        throw new RuntimeException('Item não encontrado.');
+    }
+
+    $newName = $item['name'] . ' - Cópia';
+
+    $stmt = db()->prepare("
+        INSERT INTO procurement_items (
+            category_id,
+            subcategory_id,
+            unit_type_id,
+            level,
+            status,
+            name,
+            specification,
+            justification,
+            warranty,
+            environmental_impacts,
+            image_path
+        ) VALUES (
+            :category_id,
+            :subcategory_id,
+            :unit_type_id,
+            :level,
+            :status,
+            :name,
+            :specification::jsonb,
+            :justification,
+            :warranty,
+            :environmental_impacts,
+            :image_path
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'category_id' => $item['category_id'] ?: null,
+        'subcategory_id' => $item['subcategory_id'] ?: null,
+        'unit_type_id' => $item['unit_type_id'] ?: null,
+        'level' => $item['level'],
+        'status' => $item['status'] ?? 'draft',
+        'name' => $newName,
+        'specification' => is_string($item['specification'])
+            ? $item['specification']
+            : json_encode($item['specification'], JSON_UNESCAPED_UNICODE),
+        'justification' => $item['justification'],
+        'warranty' => $item['warranty'],
+        'environmental_impacts' => $item['environmental_impacts'],
+        'image_path' => $item['image_path'] ?? null,
+    ]);
+
+    $newId = (int) $stmt->fetchColumn();
+
+    $images = get_item_images($id);
+
+    foreach ($images as $image) {
+        $oldFile = __DIR__ . '/../public' . $image['image_path'];
+
+        if (!is_file($oldFile)) {
+            continue;
+        }
+
+        $extension = pathinfo($oldFile, PATHINFO_EXTENSION);
+        $newFilename = 'item_' . date('YmdHis') . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+        $newRelativePath = '/uploads/items/' . $newFilename;
+        $newFile = __DIR__ . '/../public' . $newRelativePath;
+
+        copy($oldFile, $newFile);
+
+        $stmtImage = db()->prepare("
+            INSERT INTO procurement_item_images (
+                procurement_item_id,
+                image_path,
+                is_primary
+            ) VALUES (
+                :procurement_item_id,
+                :image_path,
+                :is_primary
+            )
+        ");
+
+        $stmtImage->execute([
+            'procurement_item_id' => $newId,
+            'image_path' => $newRelativePath,
+            'is_primary' => $image['is_primary'] ? 'true' : 'false',
+        ]);
+    }
+
+    return $newId;
+}
+
+function get_unit_types(): array
+{
+    $stmt = db()->query("
+        SELECT *
+        FROM unit_types
+        ORDER BY name
+    ");
+
+    return $stmt->fetchAll();
+}
+
+function find_unit_type(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM unit_types
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+
+    $unitType = $stmt->fetch();
+
+    return $unitType ?: null;
+}
+
+function create_unit_type(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO unit_types (
+            name,
+            abbreviation,
+            description
+        ) VALUES (
+            :name,
+            :abbreviation,
+            :description
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'name' => $data['name'],
+        'abbreviation' => $data['abbreviation'] ?? null,
+        'description' => $data['description'] ?? null,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function update_unit_type(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE unit_types SET
+            name = :name,
+            abbreviation = :abbreviation,
+            description = :description
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'name' => $data['name'],
+        'abbreviation' => $data['abbreviation'] ?? null,
+        'description' => $data['description'] ?? null,
+    ]);
+}
+
+function delete_unit_type(int $id): void
+{
+    $stmt = db()->prepare("
+        DELETE FROM unit_types
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function get_justification_templates(): array
+{
+    return db()->query("
+        SELECT jt.*, c.name AS category_name
+        FROM justification_templates jt
+        LEFT JOIN categories c ON c.id = jt.category_id
+        ORDER BY jt.title
+    ")->fetchAll();
+}
+
+function get_environmental_impact_templates(): array
+{
+    return db()->query("
+        SELECT eit.*, c.name AS category_name
+        FROM environmental_impact_templates eit
+        LEFT JOIN categories c ON c.id = eit.category_id
+        ORDER BY eit.title
+    ")->fetchAll();
+}
+
+function create_justification_template(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO justification_templates (title, content, category_id, is_active)
+        VALUES (:title, :content, :category_id, :is_active)
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'title' => $data['title'],
+        'content' => $data['content'],
+        'category_id' => $data['category_id'] ?: null,
+        'is_active' => $data['is_active'] ?? true,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function create_environmental_impact_template(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO environmental_impact_templates (title, content, category_id, is_active)
+        VALUES (:title, :content, :category_id, :is_active)
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'title' => $data['title'],
+        'content' => $data['content'],
+        'category_id' => $data['category_id'] ?: null,
+        'is_active' => $data['is_active'] ?? true,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function get_item_kits(): array
+{
+    return db()->query("
+        SELECT *
+        FROM item_kits
+        ORDER BY name
+    ")->fetchAll();
+}
+
+function find_item_kit(int $id): ?array
+{
+    $stmt = db()->prepare("SELECT * FROM item_kits WHERE id = :id");
+    $stmt->execute(['id' => $id]);
+
+    $kit = $stmt->fetch();
+
+    return $kit ?: null;
+}
+
+function create_item_kit(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO item_kits (name, description, is_active)
+        VALUES (:name, :description, :is_active)
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'name' => $data['name'],
+        'description' => $data['description'] ?? null,
+        'is_active' => $data['is_active'] ?? true,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function get_item_kit_items(int $kitId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            iki.*,
+            pi.name AS item_name,
+            pi.tracking_code
+        FROM item_kit_items iki
+        INNER JOIN procurement_items pi ON pi.id = iki.procurement_item_id
+        WHERE iki.kit_id = :kit_id
+        ORDER BY pi.name
+    ");
+
+    $stmt->execute(['kit_id' => $kitId]);
+
+    return $stmt->fetchAll();
+}
+
+function add_item_to_kit(array $data): void
+{
+    $stmt = db()->prepare("
+        INSERT INTO item_kit_items (
+            kit_id,
+            procurement_item_id,
+            quantity,
+            notes
+        ) VALUES (
+            :kit_id,
+            :procurement_item_id,
+            :quantity,
+            :notes
+        )
+        ON CONFLICT (kit_id, procurement_item_id)
+        DO UPDATE SET
+            quantity = EXCLUDED.quantity,
+            notes = EXCLUDED.notes
+    ");
+
+    $stmt->execute([
+        'kit_id' => $data['kit_id'],
+        'procurement_item_id' => $data['procurement_item_id'],
+        'quantity' => $data['quantity'],
+        'notes' => $data['notes'] ?? null,
+    ]);
+}
+
+function delete_item_kit_item(int $id): void
+{
+    $stmt = db()->prepare("DELETE FROM item_kit_items WHERE id = :id");
+    $stmt->execute(['id' => $id]);
+}
+
+function add_kit_to_demand(int $demandListId, int $kitId, float $multiplier = 1): void
+{
+    $items = get_item_kit_items($kitId);
+
+    foreach ($items as $item) {
+        $quantity = (float) $item['quantity'] * $multiplier;
+
+        add_demand_item([
+            'demand_list_id' => $demandListId,
+            'procurement_item_id' => $item['procurement_item_id'],
+            'quantity' => $quantity,
+            'approved_quantity' => $quantity,
+            'estimated_unit_price' => null,
+            'notes' => $item['notes'] ?? null,
+        ]);
+    }
+}
+
+function find_justification_template(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM justification_templates
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+
+    $template = $stmt->fetch();
+
+    return $template ?: null;
+}
+
+function update_justification_template(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE justification_templates SET
+            title = :title,
+            content = :content,
+            category_id = :category_id,
+            is_active = :is_active
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'title' => $data['title'],
+        'content' => $data['content'],
+        'category_id' => $data['category_id'] ?: null,
+        'is_active' => $data['is_active'] ?? true,
+    ]);
+}
+
+function delete_justification_template(int $id): void
+{
+    $stmt = db()->prepare("
+        DELETE FROM justification_templates
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function find_environmental_impact_template(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM environmental_impact_templates
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+
+    $template = $stmt->fetch();
+
+    return $template ?: null;
+}
+
+function update_environmental_impact_template(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE environmental_impact_templates SET
+            title = :title,
+            content = :content,
+            category_id = :category_id,
+            is_active = :is_active
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'title' => $data['title'],
+        'content' => $data['content'],
+        'category_id' => $data['category_id'] ?: null,
+        'is_active' => $data['is_active'] ?? true,
+    ]);
+}
+
+function delete_environmental_impact_template(int $id): void
+{
+    $stmt = db()->prepare("
+        DELETE FROM environmental_impact_templates
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function update_item_kit(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE item_kits SET
+            name = :name,
+            description = :description,
+            is_active = :is_active
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'name' => $data['name'],
+        'description' => $data['description'] ?? null,
+        'is_active' => $data['is_active'] ?? true,
+    ]);
+}
+
+function delete_item_kit(int $id): void
+{
+    $stmt = db()->prepare("
+        DELETE FROM item_kits
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function get_project_signature_blocks(int $projectId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            id,
+            name,
+            requester_department,
+            responsible_name
+        FROM demand_lists
+        WHERE project_id = :project_id
+        ORDER BY name
+    ");
+
+    $stmt->execute([
+        'project_id' => $projectId,
+    ]);
+
+    return $stmt->fetchAll();
+}
+
+function get_demand_financial_summary(int $demandListId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            SUM(quantity) AS total_requested_quantity,
+            SUM(COALESCE(approved_quantity, quantity)) AS total_approved_quantity,
+            SUM(COALESCE(approved_quantity, quantity) * COALESCE(estimated_unit_price, 0)) AS total_estimated_value
+        FROM demand_items
+        WHERE demand_list_id = :demand_list_id
+    ");
+
+    $stmt->execute([
+        'demand_list_id' => $demandListId,
+    ]);
+
+    return $stmt->fetch() ?: [
+        'total_requested_quantity' => 0,
+        'total_approved_quantity' => 0,
+        'total_estimated_value' => 0,
+    ];
+}
+
+function find_similar_items(string $name, ?int $ignoreId = null, float $threshold = 0.25): array
+{
+    $sql = "
+        SELECT
+            id,
+            tracking_code,
+            name,
+            level,
+            status,
+            similarity(name, :name) AS similarity_score
+        FROM procurement_items
+        WHERE similarity(name, :name) >= :threshold
+    ";
+
+    $params = [
+        'name' => $name,
+        'threshold' => $threshold,
+    ];
+
+    if ($ignoreId) {
+        $sql .= " AND id <> :ignore_id";
+        $params['ignore_id'] = $ignoreId;
+    }
+
+    $sql .= "
+        ORDER BY similarity_score DESC, name ASC
+        LIMIT 10
+    ";
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    return $stmt->fetchAll();
+}
+
+function get_item_versions(int $itemId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            v.*,
+            ut.name AS unit_type_name,
+            ut.abbreviation AS unit_type_abbreviation
+        FROM procurement_item_versions v
+        LEFT JOIN unit_types ut ON ut.id = v.unit_type_id
+        WHERE v.procurement_item_id = :item_id
+        ORDER BY v.version_number DESC
+    ");
+
+    $stmt->execute([
+        'item_id' => $itemId,
+    ]);
+
+    return $stmt->fetchAll();
+}
+
+function find_item_version(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM procurement_item_versions
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+    ]);
+
+    $version = $stmt->fetch();
+
+    return $version ?: null;
+}
+
+function get_next_item_version_number(int $itemId): int
+{
+    $stmt = db()->prepare("
+        SELECT COALESCE(MAX(version_number), 0) + 1
+        FROM procurement_item_versions
+        WHERE procurement_item_id = :item_id
+    ");
+
+    $stmt->execute([
+        'item_id' => $itemId,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function create_item_version(int $itemId, ?string $notes = null): int
+{
+    $item = find_item($itemId);
+
+    if (!$item) {
+        throw new RuntimeException('Item não encontrado.');
+    }
+
+    $versionNumber = get_next_item_version_number($itemId);
+
+    $stmt = db()->prepare("
+        INSERT INTO procurement_item_versions (
+            procurement_item_id,
+            version_number,
+            name,
+            specification,
+            justification,
+            warranty,
+            environmental_impacts,
+            level,
+            status,
+            unit_type_id,
+            notes
+        ) VALUES (
+            :procurement_item_id,
+            :version_number,
+            :name,
+            :specification::jsonb,
+            :justification,
+            :warranty,
+            :environmental_impacts,
+            :level,
+            :status,
+            :unit_type_id,
+            :notes
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'procurement_item_id' => $itemId,
+        'version_number' => $versionNumber,
+        'name' => $item['name'],
+        'specification' => is_string($item['specification'])
+            ? $item['specification']
+            : json_encode($item['specification'], JSON_UNESCAPED_UNICODE),
+        'justification' => $item['justification'],
+        'warranty' => $item['warranty'],
+        'environmental_impacts' => $item['environmental_impacts'],
+        'level' => $item['level'],
+        'status' => $item['status'] ?? 'draft',
+        'unit_type_id' => $item['unit_type_id'] ?? null,
+        'notes' => $notes,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function restore_item_version(int $versionId): int
+{
+    $version = find_item_version($versionId);
+
+    if (!$version) {
+        throw new RuntimeException('Versão não encontrada.');
+    }
+
+    $itemId = (int) $version['procurement_item_id'];
+
+    create_item_version(
+        $itemId,
+        'Snapshot automático antes de restaurar a versão ' . $version['version_number']
+    );
+
+    $stmt = db()->prepare("
+        UPDATE procurement_items SET
+            name = :name,
+            specification = :specification::jsonb,
+            justification = :justification,
+            warranty = :warranty,
+            environmental_impacts = :environmental_impacts,
+            level = :level,
+            status = :status,
+            unit_type_id = :unit_type_id
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $itemId,
+        'name' => $version['name'],
+        'specification' => is_string($version['specification'])
+            ? $version['specification']
+            : json_encode($version['specification'], JSON_UNESCAPED_UNICODE),
+        'justification' => $version['justification'],
+        'warranty' => $version['warranty'],
+        'environmental_impacts' => $version['environmental_impacts'],
+        'level' => $version['level'],
+        'status' => $version['status'] ?? 'draft',
+        'unit_type_id' => $version['unit_type_id'] ?? null,
+    ]);
+
+    return $itemId;
+}
+
+function get_dashboard_summary(): array
+{
+    $summary = [];
+
+    $summary['total_items'] = (int) db()->query("
+        SELECT COUNT(*) FROM procurement_items
+    ")->fetchColumn();
+
+    $summary['total_projects'] = (int) db()->query("
+        SELECT COUNT(*) FROM procurement_projects
+    ")->fetchColumn();
+
+    $summary['total_demands'] = (int) db()->query("
+        SELECT COUNT(*) FROM demand_lists
+    ")->fetchColumn();
+
+    $summary['total_kits'] = (int) db()->query("
+        SELECT COUNT(*) FROM item_kits
+    ")->fetchColumn();
+
+    $summary['total_estimated_value'] = (float) db()->query("
+        SELECT COALESCE(
+            SUM(COALESCE(approved_quantity, quantity) * COALESCE(estimated_unit_price, 0)),
+            0
+        )
+        FROM demand_items
+    ")->fetchColumn();
+
+    return $summary;
+}
+
+function get_items_by_status(): array
+{
+    return db()->query("
+        SELECT status, COUNT(*) AS total
+        FROM procurement_items
+        GROUP BY status
+        ORDER BY total DESC
+    ")->fetchAll();
+}
+
+function get_items_by_category(): array
+{
+    return db()->query("
+        SELECT
+            COALESCE(c.name, 'Sem categoria') AS category_name,
+            COUNT(*) AS total
+        FROM procurement_items i
+        LEFT JOIN categories c ON c.id = i.category_id
+        GROUP BY c.name
+        ORDER BY total DESC, category_name
+    ")->fetchAll();
+}
+
+function get_project_financial_ranking(): array
+{
+    return db()->query("
+        SELECT
+            p.id,
+            p.name,
+            COALESCE(
+                SUM(COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)),
+                0
+            ) AS total_estimated_value
+        FROM procurement_projects p
+        LEFT JOIN demand_lists dl ON dl.project_id = p.id
+        LEFT JOIN demand_items di ON di.demand_list_id = dl.id
+        GROUP BY p.id, p.name
+        ORDER BY total_estimated_value DESC, p.name
+        LIMIT 10
+    ")->fetchAll();
+}
+
+function catalog_json_scopes(): array
+{
+    return [
+        'all' => 'Base completa',
+        'items' => 'Itens',
+        'projects' => 'Projetos e demandas',
+        'categories' => 'Categorias',
+        'unit_types' => 'Tipos de unidade',
+        'kits' => 'Kits',
+        'templates' => 'Biblioteca',
+    ];
+}
+
+function catalog_json_table_definitions(): array
+{
+    return [
+        'categories' => [
+            'label' => 'Categorias',
+            'columns' => ['id', 'parent_id', 'name', 'created_at', 'updated_at'],
+            'json' => [],
+        ],
+        'unit_types' => [
+            'label' => 'Tipos de unidade',
+            'columns' => ['id', 'name', 'abbreviation', 'description', 'created_at', 'updated_at'],
+            'json' => [],
+        ],
+        'procurement_items' => [
+            'label' => 'Itens',
+            'columns' => [
+                'id',
+                'tracking_code',
+                'category_id',
+                'subcategory_id',
+                'unit_type_id',
+                'level',
+                'status',
+                'name',
+                'specification',
+                'justification',
+                'warranty',
+                'environmental_impacts',
+                'image_path',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => ['specification'],
+        ],
+        'procurement_item_images' => [
+            'label' => 'Imagens dos itens',
+            'columns' => ['id', 'procurement_item_id', 'image_path', 'is_primary', 'created_at'],
+            'json' => [],
+        ],
+        'procurement_item_versions' => [
+            'label' => 'Versoes dos itens',
+            'columns' => [
+                'id',
+                'procurement_item_id',
+                'version_number',
+                'name',
+                'specification',
+                'justification',
+                'warranty',
+                'environmental_impacts',
+                'level',
+                'status',
+                'unit_type_id',
+                'notes',
+                'created_at',
+            ],
+            'json' => ['specification'],
+        ],
+        'procurement_projects' => [
+            'label' => 'Projetos',
+            'columns' => ['id', 'name', 'description', 'status', 'created_at', 'updated_at'],
+            'json' => [],
+        ],
+        'demand_lists' => [
+            'label' => 'Demandas',
+            'columns' => [
+                'id',
+                'project_id',
+                'name',
+                'requester_department',
+                'responsible_name',
+                'notes',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
+        'demand_items' => [
+            'label' => 'Itens das demandas',
+            'columns' => [
+                'id',
+                'demand_list_id',
+                'procurement_item_id',
+                'quantity',
+                'approved_quantity',
+                'estimated_unit_price',
+                'notes',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
+        'justification_templates' => [
+            'label' => 'Modelos de justificativa',
+            'columns' => ['id', 'title', 'content', 'category_id', 'is_active', 'created_at', 'updated_at'],
+            'json' => [],
+        ],
+        'environmental_impact_templates' => [
+            'label' => 'Modelos de impacto ambiental',
+            'columns' => ['id', 'title', 'content', 'category_id', 'is_active', 'created_at', 'updated_at'],
+            'json' => [],
+        ],
+        'item_kits' => [
+            'label' => 'Kits',
+            'columns' => ['id', 'name', 'description', 'is_active', 'created_at', 'updated_at'],
+            'json' => [],
+        ],
+        'item_kit_items' => [
+            'label' => 'Itens dos kits',
+            'columns' => ['id', 'kit_id', 'procurement_item_id', 'quantity', 'notes', 'created_at', 'updated_at'],
+            'json' => [],
+        ],
+    ];
+}
+
+function catalog_json_scope_tables(string $scope): array
+{
+    $scopes = [
+        'all' => [
+            'categories',
+            'unit_types',
+            'procurement_items',
+            'procurement_item_images',
+            'procurement_item_versions',
+            'procurement_projects',
+            'demand_lists',
+            'demand_items',
+            'justification_templates',
+            'environmental_impact_templates',
+            'item_kits',
+            'item_kit_items',
+        ],
+        'items' => [
+            'categories',
+            'unit_types',
+            'procurement_items',
+            'procurement_item_images',
+            'procurement_item_versions',
+        ],
+        'projects' => [
+            'procurement_projects',
+            'demand_lists',
+            'demand_items',
+        ],
+        'categories' => ['categories'],
+        'unit_types' => ['unit_types'],
+        'kits' => [
+            'item_kits',
+            'item_kit_items',
+        ],
+        'templates' => [
+            'justification_templates',
+            'environmental_impact_templates',
+        ],
+    ];
+
+    if (!isset($scopes[$scope])) {
+        throw new InvalidArgumentException('Tipo de exportacao/importacao invalido.');
+    }
+
+    return $scopes[$scope];
+}
+
+function export_catalog_data(string $scope): array
+{
+    $definitions = catalog_json_table_definitions();
+    $tables = catalog_json_scope_tables($scope);
+    $data = [];
+
+    foreach ($tables as $table) {
+        $columns = implode(', ', $definitions[$table]['columns']);
+        $data[$table] = db()->query("SELECT {$columns} FROM {$table} ORDER BY id")->fetchAll();
+    }
+
+    return [
+        'system' => APP_NAME,
+        'scope' => $scope,
+        'exported_at' => date(DATE_ATOM),
+        'format_version' => 1,
+        'data' => $data,
+    ];
+}
+
+function import_catalog_data(string $scope, array $payload): array
+{
+    $definitions = catalog_json_table_definitions();
+    $tables = catalog_json_scope_tables($scope);
+    $summary = [];
+
+    db()->beginTransaction();
+
+    try {
+        foreach ($tables as $table) {
+            $rows = extract_catalog_import_rows($scope, $table, $tables, $payload);
+
+            if (!$rows) {
+                $summary[$table] = 0;
+                continue;
+            }
+
+            $summary[$table] = import_catalog_table_rows(
+                $table,
+                $definitions[$table]['columns'],
+                $definitions[$table]['json'],
+                $rows
+            );
+
+            refresh_catalog_table_sequence($table);
+        }
+
+        db()->commit();
+    } catch (Throwable $exception) {
+        db()->rollBack();
+        throw $exception;
+    }
+
+    return $summary;
+}
+
+function extract_catalog_import_rows(string $scope, string $table, array $tables, array $payload): array
+{
+    if (isset($payload['data'][$table]) && is_array($payload['data'][$table])) {
+        return $payload['data'][$table];
+    }
+
+    if (isset($payload['tables'][$table]) && is_array($payload['tables'][$table])) {
+        return $payload['tables'][$table];
+    }
+
+    if (isset($payload[$table]) && is_array($payload[$table])) {
+        return $payload[$table];
+    }
+
+    $singleScopeTable = [
+        'items' => 'procurement_items',
+        'projects' => 'procurement_projects',
+        'categories' => 'categories',
+        'unit_types' => 'unit_types',
+        'kits' => 'item_kits',
+    ];
+
+    if (
+        isset($singleScopeTable[$scope]) &&
+        $singleScopeTable[$scope] === $table &&
+        array_is_list($payload)
+    ) {
+        return $payload;
+    }
+
+    if (count($tables) === 1 && array_is_list($payload)) {
+        return $payload;
+    }
+
+    return [];
+}
+
+function import_catalog_table_rows(string $table, array $columns, array $jsonColumns, array $rows): int
+{
+    $imported = 0;
+
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $values = [];
+
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $row)) {
+                continue;
+            }
+
+            $values[$column] = normalize_catalog_import_value($row[$column], in_array($column, $jsonColumns, true));
+        }
+
+        if (!$values) {
+            continue;
+        }
+
+        $insertColumns = array_keys($values);
+        $placeholders = [];
+
+        foreach ($insertColumns as $column) {
+            $placeholders[] = in_array($column, $jsonColumns, true)
+                ? ':' . $column . '::jsonb'
+                : ':' . $column;
+        }
+
+        if (array_key_exists('id', $values) && $values['id']) {
+            $updates = [];
+
+            foreach ($insertColumns as $column) {
+                if ($column === 'id') {
+                    continue;
+                }
+
+                $updates[] = $column . ' = EXCLUDED.' . $column;
+            }
+
+            $sql = $updates
+                ? sprintf(
+                    'INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (id) DO UPDATE SET %s',
+                    $table,
+                    implode(', ', $insertColumns),
+                    implode(', ', $placeholders),
+                    implode(', ', $updates)
+                )
+                : sprintf(
+                    'INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (id) DO NOTHING',
+                    $table,
+                    implode(', ', $insertColumns),
+                    implode(', ', $placeholders)
+                );
+        } else {
+            unset($values['id']);
+            $insertColumns = array_keys($values);
+            $placeholders = [];
+
+            foreach ($insertColumns as $column) {
+                $placeholders[] = in_array($column, $jsonColumns, true)
+                    ? ':' . $column . '::jsonb'
+                    : ':' . $column;
+            }
+
+            $sql = sprintf(
+                'INSERT INTO %s (%s) VALUES (%s)',
+                $table,
+                implode(', ', $insertColumns),
+                implode(', ', $placeholders)
+            );
+        }
+
+        $stmt = db()->prepare($sql);
+        $stmt->execute($values);
+        $imported++;
+    }
+
+    return $imported;
+}
+
+function normalize_catalog_import_value(mixed $value, bool $isJson): mixed
+{
+    if ($isJson) {
+        if (is_string($value)) {
+            return $value === '' ? '{}' : $value;
+        }
+
+        return json_encode($value, JSON_UNESCAPED_UNICODE);
+    }
+
+    if (is_bool($value)) {
+        return $value ? 'true' : 'false';
+    }
+
+    return $value;
+}
+
+function refresh_catalog_table_sequence(string $table): void
+{
+    $sql = "
+        SELECT setval(
+            pg_get_serial_sequence('{$table}', 'id'),
+            GREATEST(COALESCE(MAX(id), 0), 1),
+            COALESCE(MAX(id), 0) > 0
+        )
+        FROM {$table}
+    ";
+
+    db()->query($sql);
+}

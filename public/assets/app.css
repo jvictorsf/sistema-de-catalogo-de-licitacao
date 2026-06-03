@@ -1,0 +1,106 @@
+body {
+    background: #f5f7fa;
+    color: #1f2937;
+}
+
+.app-navbar {
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.app-shell {
+    max-width: 1480px;
+    padding-right: 1.5rem;
+    padding-left: 1.5rem;
+}
+
+.card {
+    border: 1px solid #e5e7eb;
+    border-radius: .5rem;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+}
+
+.card-header {
+    background: #fff;
+    border-bottom-color: #e5e7eb;
+}
+
+.table {
+    --bs-table-hover-bg: #f8fafc;
+}
+
+.table > :not(caption) > * > * {
+    padding: .85rem 1rem;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+}
+
+.btn-sm {
+    gap: .3rem;
+}
+
+.form-label {
+    font-weight: 600;
+    color: #374151;
+}
+
+.form-text,
+.text-muted {
+    color: #6b7280 !important;
+}
+
+.badge {
+    font-weight: 600;
+}
+
+.empty-state {
+    padding: 2rem;
+    text-align: center;
+    color: #6b7280;
+}
+
+.stat-card {
+    min-height: 112px;
+}
+
+.item-thumb {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+}
+
+pre {
+    white-space: pre-wrap;
+}
+
+@media (max-width: 767.98px) {
+    .app-shell {
+        padding-right: 1rem;
+        padding-left: 1rem;
+    }
+
+    .table > :not(caption) > * > * {
+        padding: .75rem;
+    }
+}
+
+@media print {
+    .print-hide,
+    nav,
+    .btn {
+        display: none !important;
+    }
+
+    body {
+        background: #fff;
+    }
+
+    .card {
+        border: 1px solid #ddd !important;
+        box-shadow: none !important;
+    }
+}

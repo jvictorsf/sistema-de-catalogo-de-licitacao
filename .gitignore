@@ -1,0 +1,8 @@
+/public/uploads/items/*
+!/public/uploads/items/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
+/storage/imports/*
+!/storage/imports/.gitkeep
+/storage/exports/*
+!/storage/exports/.gitkeep

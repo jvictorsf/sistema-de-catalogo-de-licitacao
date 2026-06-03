@@ -1,0 +1,113 @@
+<?php
+
+require_once __DIR__ . '/../config.php';
+
+$currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$currentPage = $currentPath === '/' ? 'index.php' : basename($currentPath);
+
+$navItems = [
+    [
+        'href' => '/dashboard.php',
+        'label' => 'Dashboard',
+        'icon' => 'bi-speedometer2',
+        'active' => ['dashboard.php'],
+    ],
+    [
+        'href' => '/',
+        'label' => 'Itens',
+        'icon' => 'bi-box-seam',
+        'active' => ['index.php', 'item_form.php', 'item_show.php'],
+    ],
+    [
+        'href' => '/projects.php',
+        'label' => 'Projetos',
+        'icon' => 'bi-folder2-open',
+        'active' => ['projects.php', 'project_form.php', 'project_show.php', 'project_report.php'],
+    ],
+    [
+        'href' => '/kits.php',
+        'label' => 'Kits',
+        'icon' => 'bi-collection',
+        'active' => ['kits.php', 'kit_form.php', 'kit_show.php'],
+    ],
+    [
+        'href' => '/categories.php',
+        'label' => 'Categorias',
+        'icon' => 'bi-tags',
+        'active' => ['categories.php', 'category_form.php'],
+    ],
+    [
+        'href' => '/unit_types.php',
+        'label' => 'Unidades',
+        'icon' => 'bi-rulers',
+        'active' => ['unit_types.php', 'unit_type_form.php'],
+    ],
+    [
+        'href' => '/library.php',
+        'label' => 'Biblioteca',
+        'icon' => 'bi-journal-text',
+        'active' => ['library.php', 'justification_template_form.php', 'impact_template_form.php'],
+    ],
+    [
+        'href' => '/similar_items.php',
+        'label' => 'Semelhantes',
+        'icon' => 'bi-intersect',
+        'active' => ['similar_items.php'],
+    ],
+    [
+        'href' => '/data.php',
+        'label' => 'Dados',
+        'icon' => 'bi-database',
+        'active' => ['data.php'],
+    ],
+];
+?>
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <title><?= e(APP_NAME) ?></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="/assets/app.css" rel="stylesheet">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-xl navbar-dark bg-dark app-navbar mb-4">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="/">
+                <i class="bi bi-boxes"></i>
+                <span><?= e(APP_NAME) ?></span>
+            </a>
+
+            <button
+                class="navbar-toggler"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#mainNavbar"
+                aria-controls="mainNavbar"
+                aria-expanded="false"
+                aria-label="Alternar navegacao">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="mainNavbar">
+                <div class="navbar-nav ms-auto">
+                    <?php foreach ($navItems as $item): ?>
+                        <?php $active = in_array($currentPage, $item['active'], true); ?>
+                        <a
+                            href="<?= e($item['href']) ?>"
+                            class="nav-link d-flex align-items-center gap-2 <?= $active ? 'active' : '' ?>"
+                            <?= $active ? 'aria-current="page"' : '' ?>>
+                            <i class="bi <?= e($item['icon']) ?>"></i>
+                            <span><?= e($item['label']) ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container-fluid app-shell mb-5">

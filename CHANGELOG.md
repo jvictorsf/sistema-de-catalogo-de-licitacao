@@ -2,6 +2,12 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.1.2] - 2026-06-03
+
+### Corrigido
+- Especificacao tecnica agora e exibida no formulario, visualizacao, versoes e exportacoes mantendo a ordem padrao das chaves, com `observacoes` ao final.
+- Formatacao da especificacao deixa de depender da ordem retornada pelo tipo `JSONB` do PostgreSQL.
+
 ## [1.1.1] - 2026-06-03
 
 ### Corrigido

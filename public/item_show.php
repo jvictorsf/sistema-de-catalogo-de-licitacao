@@ -151,7 +151,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card mb-4">
             <div class="card-header fw-semibold">Especificação técnica</div>
             <div class="card-body">
-                <pre class="bg-light p-3 rounded mb-0"><code><?= e(pretty_json($item['specification'])) ?></code></pre>
+                <pre class="bg-light p-3 rounded mb-0"><code><?= e(format_item_specification_json($item['specification'])) ?></code></pre>
             </div>
         </div>
     </div>

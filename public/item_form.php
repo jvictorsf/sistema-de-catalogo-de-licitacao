@@ -251,7 +251,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
 
         <div class="col-12">
             <label class="form-label">Especificação técnica em JSON</label>
-            <textarea name="specification" id="specification" rows="10" class="form-control font-monospace" required><?= e(pretty_json($specification)) ?></textarea>
+            <textarea name="specification" id="specification" rows="10" class="form-control font-monospace" required><?= e(format_item_specification_json($specification)) ?></textarea>
             <div id="jsonFeedback" class="form-text">Informe um JSON válido com as características técnicas mínimas.</div>
         </div>
 

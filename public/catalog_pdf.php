@@ -127,7 +127,7 @@ $items = search_items();
         </div>
 
         <h3>Especificação técnica</h3>
-        <pre><?= e(pretty_json($item['specification'])) ?></pre>
+        <pre><?= e(format_item_specification_json($item['specification'])) ?></pre>
 
         <h3>Justificativa</h3>
         <p><?= nl2br(e($item['justification'])) ?></p>

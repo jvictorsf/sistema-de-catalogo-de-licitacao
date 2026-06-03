@@ -86,7 +86,7 @@ require __DIR__ . '/../app/views/header.php';
             </div>
 
             <div class="card-body">
-                <pre class="bg-light p-3 rounded mb-0"><code><?= e(pretty_json($version['specification'])) ?></code></pre>
+                <pre class="bg-light p-3 rounded mb-0"><code><?= e(format_item_specification_json($version['specification'])) ?></code></pre>
             </div>
         </div>
     </div>

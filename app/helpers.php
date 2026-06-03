@@ -67,14 +67,22 @@ function default_item_specification_json(): string
     return pretty_json(default_item_specification());
 }
 
-function normalize_item_specification_json(string $json): string
+function item_specification_key_order(): array
 {
-    $decoded = json_decode($json, true);
+    return [
+        'marca_referencia',
+        'modelo_referencia',
+        'descricao_minima',
+        'caracteristicas_minimas',
+        'criterios_aceitacao',
+        'documentacao_exigida',
+        'certificados',
+        'observacoes',
+    ];
+}
 
-    if (!is_array($decoded)) {
-        $decoded = [];
-    }
-
+function normalize_item_specification_array(array $decoded): array
+{
     $normalized = array_merge(default_item_specification(), $decoded);
 
     foreach ([
@@ -95,7 +103,50 @@ function normalize_item_specification_json(string $json): string
         }
     }
 
-    return pretty_json($normalized);
+    $ordered = [];
+    $knownKeys = item_specification_key_order();
+
+    foreach ($knownKeys as $key) {
+        if ($key !== 'observacoes') {
+            $ordered[$key] = $normalized[$key];
+        }
+    }
+
+    foreach ($normalized as $key => $value) {
+        if (!in_array($key, $knownKeys, true)) {
+            $ordered[$key] = $value;
+        }
+    }
+
+    $ordered['observacoes'] = $normalized['observacoes'];
+
+    return $ordered;
+}
+
+function normalize_item_specification_json(string $json): string
+{
+    $decoded = json_decode($json, true);
+
+    if (!is_array($decoded)) {
+        $decoded = [];
+    }
+
+    return pretty_json(normalize_item_specification_array($decoded));
+}
+
+function format_item_specification_json(mixed $value): string
+{
+    if (is_string($value)) {
+        $decoded = json_decode($value, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return $value;
+        }
+
+        return pretty_json(normalize_item_specification_array(is_array($decoded) ? $decoded : []));
+    }
+
+    return pretty_json(normalize_item_specification_array(is_array($value) ? $value : []));
 }
 
 function environmental_impacts_to_array(mixed $value): array

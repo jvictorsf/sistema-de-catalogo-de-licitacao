@@ -2,6 +2,11 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.2.1] - 2026-06-08
+
+### Alterado
+- Biblioteca de impactos ambientais agora e listada pelo codigo (`IA001`, `IA002`, etc.) antes do titulo, facilitando a selecao no cadastro de itens.
+
 ## [1.2.0] - 2026-06-08
 
 ### Adicionado

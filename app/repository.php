@@ -1107,7 +1107,7 @@ function get_environmental_impact_templates(): array
         SELECT eit.*, c.name AS category_name
         FROM environmental_impact_templates eit
         LEFT JOIN categories c ON c.id = eit.category_id
-        ORDER BY eit.title
+        ORDER BY NULLIF(to_jsonb(eit)->>'code', '') NULLS LAST, eit.title
     ")->fetchAll();
 }
 

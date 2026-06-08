@@ -99,6 +99,7 @@ require __DIR__ . '/../app/views/header.php';
                     <thead class="table-light">
                         <tr>
                             <th>Demanda</th>
+                            <th>Secretaria</th>
                             <th>Responsável</th>
                             <th class="text-end">Ações</th>
                         </tr>
@@ -107,7 +108,7 @@ require __DIR__ . '/../app/views/header.php';
                     <tbody>
                         <?php if (!$demands): ?>
                             <tr>
-                                <td colspan="3" class="text-center text-muted py-4">
+                                <td colspan="4" class="text-center text-muted py-4">
                                     Nenhuma demanda cadastrada.
                                 </td>
                             </tr>
@@ -121,6 +122,10 @@ require __DIR__ . '/../app/views/header.php';
                                     <div class="small text-muted">
                                         <?= e($demand['requester_department']) ?>
                                     </div>
+                                </td>
+
+                                <td>
+                                    <?= e($demand['secretariat_name'] ?? '-') ?>
                                 </td>
 
                                 <td>

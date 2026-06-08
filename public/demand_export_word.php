@@ -104,6 +104,7 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
 
 <p><strong>Projeto:</strong> <?= e($project['name'] ?? '-') ?></p>
 <p><strong>Unidade/Setor:</strong> <?= e($demand['requester_department']) ?></p>
+<p><strong>Secretaria:</strong> <?= e($demand['secretariat_name'] ?? 'Sem secretaria vinculada') ?></p>
 <p><strong>Responsável:</strong> <?= e($demand['responsible_name']) ?></p>
 <p><strong>Observações:</strong> <?= nl2br(e($demand['notes'])) ?></p>
 

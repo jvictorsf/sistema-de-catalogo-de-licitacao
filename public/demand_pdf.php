@@ -164,6 +164,11 @@ $summary = get_demand_financial_summary($id);
 </p>
 
 <p>
+    <strong>Secretaria:</strong>
+    <?= e($demand['secretariat_name'] ?? 'Sem secretaria vinculada') ?>
+</p>
+
+<p>
     <strong>Responsável:</strong>
     <?= e($demand['responsible_name']) ?>
 </p>

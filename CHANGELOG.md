@@ -2,6 +2,18 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.3.0] - 2026-06-08
+
+### Adicionado
+- Cadastro de secretarias e unidades/setores demandantes com responsavel padrao.
+- Vinculo de demandas a unidade/setor demandante e secretaria.
+- Autopreenchimento da secretaria e do responsavel no cadastro da demanda ao selecionar a unidade/setor.
+- Resumo por secretaria no relatorio do projeto e nas exportacoes institucionais.
+
+### Alterado
+- Demandas passam a exibir secretaria, unidade/setor e responsavel de forma estruturada.
+- Exportacao/importacao JSON passa a incluir secretarias, unidades demandantes e os novos vinculos das demandas.
+
 ## [1.2.1] - 2026-06-08
 
 ### Alterado

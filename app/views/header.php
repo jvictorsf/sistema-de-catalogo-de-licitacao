@@ -43,6 +43,12 @@ $navItems = [
         'active' => ['unit_types.php', 'unit_type_form.php'],
     ],
     [
+        'href' => '/requester_units.php',
+        'label' => 'Demandantes',
+        'icon' => 'bi-building',
+        'active' => ['requester_units.php', 'requester_unit_form.php', 'secretariat_form.php'],
+    ],
+    [
         'href' => '/library.php',
         'label' => 'Biblioteca',
         'icon' => 'bi-journal-text',

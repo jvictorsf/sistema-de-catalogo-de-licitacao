@@ -457,13 +457,217 @@ function delete_project(int $id): void
     $stmt->execute(['id' => $id]);
 }
 
-function get_project_demands(int $projectId): array
+function get_secretariats(bool $activeOnly = false): array
+{
+    $sql = "
+        SELECT *
+        FROM secretariats
+    ";
+
+    if ($activeOnly) {
+        $sql .= " WHERE is_active = TRUE";
+    }
+
+    $sql .= " ORDER BY name";
+
+    return db()->query($sql)->fetchAll();
+}
+
+function find_secretariat(int $id): ?array
 {
     $stmt = db()->prepare("
         SELECT *
-        FROM demand_lists
-        WHERE project_id = :project_id
-        ORDER BY id ASC
+        FROM secretariats
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+
+    $secretariat = $stmt->fetch();
+
+    return $secretariat ?: null;
+}
+
+function create_secretariat(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO secretariats (name, is_active)
+        VALUES (:name, :is_active)
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'name' => $data['name'],
+        'is_active' => $data['is_active'] ?? true,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function update_secretariat(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE secretariats SET
+            name = :name,
+            is_active = :is_active
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'name' => $data['name'],
+        'is_active' => $data['is_active'] ?? true,
+    ]);
+}
+
+function deactivate_secretariat(int $id): void
+{
+    $stmt = db()->prepare("
+        UPDATE secretariats
+        SET is_active = FALSE
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function get_requester_units(bool $activeOnly = false): array
+{
+    $sql = "
+        SELECT
+            ru.*,
+            s.name AS secretariat_name,
+            s.is_active AS secretariat_is_active
+        FROM requester_units ru
+        LEFT JOIN secretariats s ON s.id = ru.secretariat_id
+    ";
+
+    if ($activeOnly) {
+        $sql .= " WHERE ru.is_active = TRUE AND COALESCE(s.is_active, TRUE) = TRUE";
+    }
+
+    $sql .= " ORDER BY s.name NULLS LAST, ru.name";
+
+    return db()->query($sql)->fetchAll();
+}
+
+function find_requester_unit(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT
+            ru.*,
+            s.name AS secretariat_name
+        FROM requester_units ru
+        LEFT JOIN secretariats s ON s.id = ru.secretariat_id
+        WHERE ru.id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+
+    $unit = $stmt->fetch();
+
+    return $unit ?: null;
+}
+
+function create_requester_unit(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO requester_units (
+            secretariat_id,
+            name,
+            default_responsible_name,
+            is_active
+        ) VALUES (
+            :secretariat_id,
+            :name,
+            :default_responsible_name,
+            :is_active
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'secretariat_id' => $data['secretariat_id'] ?: null,
+        'name' => $data['name'],
+        'default_responsible_name' => $data['default_responsible_name'] ?? null,
+        'is_active' => $data['is_active'] ?? true,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function update_requester_unit(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE requester_units SET
+            secretariat_id = :secretariat_id,
+            name = :name,
+            default_responsible_name = :default_responsible_name,
+            is_active = :is_active
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'secretariat_id' => $data['secretariat_id'] ?: null,
+        'name' => $data['name'],
+        'default_responsible_name' => $data['default_responsible_name'] ?? null,
+        'is_active' => $data['is_active'] ?? true,
+    ]);
+}
+
+function deactivate_requester_unit(int $id): void
+{
+    $stmt = db()->prepare("
+        UPDATE requester_units
+        SET is_active = FALSE
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function normalize_demand_requester_data(array $data): array
+{
+    $unitId = (int) ($data['requester_unit_id'] ?? 0);
+
+    if (!$unitId) {
+        $data['requester_unit_id'] = null;
+        $data['secretariat_id'] = !empty($data['secretariat_id']) ? (int) $data['secretariat_id'] : null;
+        return $data;
+    }
+
+    $unit = find_requester_unit($unitId);
+
+    if (!$unit) {
+        $data['requester_unit_id'] = null;
+        return $data;
+    }
+
+    $data['requester_unit_id'] = (int) $unit['id'];
+    $data['secretariat_id'] = $unit['secretariat_id'] ? (int) $unit['secretariat_id'] : null;
+    $data['requester_department'] = $unit['name'];
+
+    if (empty($data['responsible_name']) && !empty($unit['default_responsible_name'])) {
+        $data['responsible_name'] = $unit['default_responsible_name'];
+    }
+
+    return $data;
+}
+
+function get_project_demands(int $projectId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            dl.*,
+            ru.name AS requester_unit_name,
+            ru.default_responsible_name,
+            s.name AS secretariat_name
+        FROM demand_lists dl
+        LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
+        LEFT JOIN secretariats s ON s.id = dl.secretariat_id
+        WHERE dl.project_id = :project_id
+        ORDER BY s.name NULLS LAST, dl.name
     ");
 
     $stmt->execute(['project_id' => $projectId]);
@@ -474,9 +678,15 @@ function get_project_demands(int $projectId): array
 function find_demand_list(int $id): ?array
 {
     $stmt = db()->prepare("
-        SELECT *
-        FROM demand_lists
-        WHERE id = :id
+        SELECT
+            dl.*,
+            ru.name AS requester_unit_name,
+            ru.default_responsible_name,
+            s.name AS secretariat_name
+        FROM demand_lists dl
+        LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
+        LEFT JOIN secretariats s ON s.id = dl.secretariat_id
+        WHERE dl.id = :id
     ");
 
     $stmt->execute(['id' => $id]);
@@ -488,15 +698,21 @@ function find_demand_list(int $id): ?array
 
 function create_demand_list(array $data): int
 {
+    $data = normalize_demand_requester_data($data);
+
     $stmt = db()->prepare("
         INSERT INTO demand_lists (
             project_id,
+            requester_unit_id,
+            secretariat_id,
             name,
             requester_department,
             responsible_name,
             notes
         ) VALUES (
             :project_id,
+            :requester_unit_id,
+            :secretariat_id,
             :name,
             :requester_department,
             :responsible_name,
@@ -507,6 +723,8 @@ function create_demand_list(array $data): int
 
     $stmt->execute([
         'project_id' => $data['project_id'],
+        'requester_unit_id' => $data['requester_unit_id'] ?? null,
+        'secretariat_id' => $data['secretariat_id'] ?? null,
         'name' => $data['name'],
         'requester_department' => $data['requester_department'] ?? null,
         'responsible_name' => $data['responsible_name'] ?? null,
@@ -666,6 +884,7 @@ function get_project_items_by_demand(int $projectId): array
         SELECT
             dl.id AS demand_id,
             dl.name AS demand_name,
+            s.name AS secretariat_name,
             dl.requester_department,
             dl.responsible_name,
             {$trackingCodeSql} AS tracking_code,
@@ -680,9 +899,10 @@ function get_project_items_by_demand(int $projectId): array
         FROM demand_items di
         INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
         INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
+        LEFT JOIN secretariats s ON s.id = dl.secretariat_id
         LEFT JOIN unit_types ut ON ut.id = pi.unit_type_id
         WHERE dl.project_id = :project_id
-        ORDER BY dl.name, pi.name
+        ORDER BY s.name NULLS LAST, dl.name, pi.name
     ");
 
     $stmt->execute(['project_id' => $projectId]);
@@ -713,6 +933,30 @@ function get_project_financial_summary(int $projectId): array
     ];
 }
 
+function get_project_secretariat_summary(int $projectId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            COALESCE(s.name, 'Sem secretaria vinculada') AS secretariat_name,
+            COUNT(DISTINCT dl.id) AS demand_count,
+            SUM(di.quantity) AS total_requested_quantity,
+            SUM(COALESCE(di.approved_quantity, di.quantity)) AS total_approved_quantity,
+            SUM(COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)) AS total_estimated_value
+        FROM demand_lists dl
+        LEFT JOIN secretariats s ON s.id = dl.secretariat_id
+        LEFT JOIN demand_items di ON di.demand_list_id = dl.id
+        WHERE dl.project_id = :project_id
+        GROUP BY COALESCE(s.name, 'Sem secretaria vinculada')
+        ORDER BY secretariat_name
+    ");
+
+    $stmt->execute([
+        'project_id' => $projectId,
+    ]);
+
+    return $stmt->fetchAll();
+}
+
 function duplicate_project(int $projectId): int
 {
     $project = find_project($projectId);
@@ -736,6 +980,8 @@ function duplicate_project(int $projectId): int
             $newDemandId = create_demand_list([
                 'project_id' => $newProjectId,
                 'name' => $demand['name'],
+                'requester_unit_id' => $demand['requester_unit_id'] ?? null,
+                'secretariat_id' => $demand['secretariat_id'] ?? null,
                 'requester_department' => $demand['requester_department'],
                 'responsible_name' => $demand['responsible_name'],
                 'notes' => $demand['notes'],
@@ -1380,13 +1626,15 @@ function get_project_signature_blocks(int $projectId): array
 {
     $stmt = db()->prepare("
         SELECT
-            id,
-            name,
-            requester_department,
-            responsible_name
-        FROM demand_lists
-        WHERE project_id = :project_id
-        ORDER BY name
+            dl.id,
+            dl.name,
+            s.name AS secretariat_name,
+            dl.requester_department,
+            dl.responsible_name
+        FROM demand_lists dl
+        LEFT JOIN secretariats s ON s.id = dl.secretariat_id
+        WHERE dl.project_id = :project_id
+        ORDER BY s.name NULLS LAST, dl.name
     ");
 
     $stmt->execute([
@@ -1689,6 +1937,7 @@ function catalog_json_scopes(): array
         'all' => 'Base completa',
         'items' => 'Itens',
         'projects' => 'Projetos e demandas',
+        'requesters' => 'Secretarias e unidades demandantes',
         'categories' => 'Categorias',
         'unit_types' => 'Tipos de unidade',
         'kits' => 'Kits',
@@ -1759,11 +2008,31 @@ function catalog_json_table_definitions(): array
             'columns' => ['id', 'name', 'description', 'status', 'created_at', 'updated_at'],
             'json' => [],
         ],
+        'secretariats' => [
+            'label' => 'Secretarias',
+            'columns' => ['id', 'name', 'is_active', 'created_at', 'updated_at'],
+            'json' => [],
+        ],
+        'requester_units' => [
+            'label' => 'Unidades demandantes',
+            'columns' => [
+                'id',
+                'secretariat_id',
+                'name',
+                'default_responsible_name',
+                'is_active',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
         'demand_lists' => [
             'label' => 'Demandas',
             'columns' => [
                 'id',
                 'project_id',
+                'requester_unit_id',
+                'secretariat_id',
                 'name',
                 'requester_department',
                 'responsible_name',
@@ -1821,6 +2090,8 @@ function catalog_json_scope_tables(string $scope): array
             'procurement_item_images',
             'procurement_item_versions',
             'procurement_projects',
+            'secretariats',
+            'requester_units',
             'demand_lists',
             'demand_items',
             'justification_templates',
@@ -1837,8 +2108,14 @@ function catalog_json_scope_tables(string $scope): array
         ],
         'projects' => [
             'procurement_projects',
+            'secretariats',
+            'requester_units',
             'demand_lists',
             'demand_items',
+        ],
+        'requesters' => [
+            'secretariats',
+            'requester_units',
         ],
         'categories' => ['categories'],
         'unit_types' => ['unit_types'],
@@ -1970,9 +2247,27 @@ function catalog_json_sample_row(string $table, array $columns): array
         ]);
     }
 
+    if ($table === 'secretariats') {
+        return array_merge($row, [
+            'name' => 'Nome da secretaria',
+            'is_active' => true,
+        ]);
+    }
+
+    if ($table === 'requester_units') {
+        return array_merge($row, [
+            'secretariat_id' => 1,
+            'name' => 'Nome da unidade ou setor',
+            'default_responsible_name' => 'Responsavel padrao',
+            'is_active' => true,
+        ]);
+    }
+
     if ($table === 'demand_lists') {
         return array_merge($row, [
             'project_id' => 1,
+            'requester_unit_id' => 1,
+            'secretariat_id' => 1,
             'name' => 'Nome da demanda',
             'requester_department' => 'Unidade solicitante',
             'responsible_name' => 'Responsavel',
@@ -2064,6 +2359,7 @@ function extract_catalog_import_rows(string $scope, string $table, array $tables
     $singleScopeTable = [
         'items' => 'procurement_items',
         'projects' => 'procurement_projects',
+        'requesters' => 'requester_units',
         'categories' => 'categories',
         'unit_types' => 'unit_types',
         'kits' => 'item_kits',

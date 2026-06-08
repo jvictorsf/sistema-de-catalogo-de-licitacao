@@ -18,6 +18,7 @@ if (!$project) {
 $consolidatedItems = get_project_consolidated_items($id);
 $itemsByDemand = get_project_items_by_demand($id);
 $financialSummary = get_project_financial_summary($id);
+$secretariatSummary = get_project_secretariat_summary($id);
 $signatures = get_project_signature_blocks($id);
 
 $filename = 'relatorio-projeto-' . $id . '.doc';
@@ -155,6 +156,32 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
     </tr>
 </table>
 
+<div class="section-title">Resumo por Secretaria</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Secretaria</th>
+            <th>Demandas</th>
+            <th>Qtd. solicitada</th>
+            <th>Qtd. aprovada</th>
+            <th>Total estimado</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        <?php foreach ($secretariatSummary as $row): ?>
+            <tr>
+                <td><?= e($row['secretariat_name']) ?></td>
+                <td><?= e((string) $row['demand_count']) ?></td>
+                <td><?= e((string) ($row['total_requested_quantity'] ?? 0)) ?></td>
+                <td><?= e((string) ($row['total_approved_quantity'] ?? 0)) ?></td>
+                <td>R$ <?= number_format((float) ($row['total_estimated_value'] ?? 0), 2, ',', '.') ?></td>
+            </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
+
 <div class="section-title">Consolidação Geral dos Itens</div>
 
 <table>
@@ -215,6 +242,7 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
     <thead>
         <tr>
             <th>Demanda</th>
+            <th>Secretaria</th>
             <th>Setor/Unidade</th>
             <th>Responsável</th>
             <th>Código</th>
@@ -231,6 +259,7 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
         <?php foreach ($itemsByDemand as $item): ?>
             <tr>
                 <td><?= e($item['demand_name']) ?></td>
+                <td><?= e($item['secretariat_name'] ?? '-') ?></td>
                 <td><?= e($item['requester_department']) ?></td>
                 <td><?= e($item['responsible_name']) ?></td>
                 <td><?= e($item['tracking_code']) ?></td>
@@ -252,6 +281,7 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
         <div class="signature-line">
             <?= e($signature['responsible_name'] ?: 'Responsável pela demanda') ?><br>
             <span class="text-small">
+                <?= e($signature['secretariat_name'] ?? 'Sem secretaria') ?><br>
                 <?= e($signature['requester_department'] ?: $signature['name']) ?>
             </span>
         </div>

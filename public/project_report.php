@@ -18,6 +18,7 @@ if (!$project) {
 $consolidatedItems = get_project_consolidated_items($id);
 $itemsByDemand = get_project_items_by_demand($id);
 $financialSummary = get_project_financial_summary($id);
+$secretariatSummary = get_project_secretariat_summary($id);
 $signatures = get_project_signature_blocks($id);
 
 require __DIR__ . '/../app/views/header.php';
@@ -72,6 +73,18 @@ require __DIR__ . '/../app/views/header.php';
             type="button"
             role="tab">
             Resumo
+        </button>
+    </li>
+
+    <li class="nav-item" role="presentation">
+        <button
+            class="nav-link"
+            id="secretariats-tab"
+            data-bs-toggle="tab"
+            data-bs-target="#secretariats-tab-pane"
+            type="button"
+            role="tab">
+            Por Secretaria
         </button>
     </li>
 
@@ -172,6 +185,55 @@ require __DIR__ . '/../app/views/header.php';
 
     <div
         class="tab-pane fade"
+        id="secretariats-tab-pane"
+        role="tabpanel"
+        tabindex="0">
+
+        <div class="card">
+            <div class="card-header fw-semibold">
+                Resumo por Secretaria
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Secretaria</th>
+                            <th>Demandas</th>
+                            <th>Qtd. solicitada</th>
+                            <th>Qtd. aprovada</th>
+                            <th>Total estimado</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <?php if (!$secretariatSummary): ?>
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    Nenhuma demanda vinculada a secretaria.
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+
+                        <?php foreach ($secretariatSummary as $row): ?>
+                            <tr>
+                                <td><?= e($row['secretariat_name']) ?></td>
+                                <td><?= e((string) $row['demand_count']) ?></td>
+                                <td><?= e((string) ($row['total_requested_quantity'] ?? 0)) ?></td>
+                                <td><?= e((string) ($row['total_approved_quantity'] ?? 0)) ?></td>
+                                <td class="fw-semibold">
+                                    R$ <?= number_format((float) ($row['total_estimated_value'] ?? 0), 2, ',', '.') ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div
+        class="tab-pane fade"
         id="consolidated-tab-pane"
         role="tabpanel"
         tabindex="0">
@@ -239,6 +301,7 @@ require __DIR__ . '/../app/views/header.php';
                     <thead class="table-light">
                         <tr>
                             <th>Demanda</th>
+                            <th>Secretaria</th>
                             <th>Setor/Unidade</th>
                             <th>Responsável</th>
                             <th>Código</th>
@@ -255,7 +318,7 @@ require __DIR__ . '/../app/views/header.php';
                     <tbody>
                         <?php if (!$itemsByDemand): ?>
                             <tr>
-                                <td colspan="11" class="text-center text-muted py-4">
+                                <td colspan="12" class="text-center text-muted py-4">
                                     Nenhum item por demanda.
                                 </td>
                             </tr>
@@ -264,6 +327,7 @@ require __DIR__ . '/../app/views/header.php';
                         <?php foreach ($itemsByDemand as $item): ?>
                             <tr>
                                 <td><?= e($item['demand_name']) ?></td>
+                                <td><?= e($item['secretariat_name'] ?? '-') ?></td>
                                 <td><?= e($item['requester_department']) ?></td>
                                 <td><?= e($item['responsible_name']) ?></td>
                                 <td><?= e($item['tracking_code']) ?></td>
@@ -349,6 +413,7 @@ require __DIR__ . '/../app/views/header.php';
                                     </strong>
 
                                     <div class="text-muted small">
+                                        <?= e($signature['secretariat_name'] ?? 'Sem secretaria') ?><br>
                                         <?= e($signature['requester_department'] ?: $signature['name']) ?>
                                     </div>
                                 </div>

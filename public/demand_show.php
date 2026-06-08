@@ -49,6 +49,25 @@ require __DIR__ . '/../app/views/header.php';
 </div>
 
 <div class="card card-body mb-4">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="text-muted small">Secretaria</div>
+            <div class="fw-semibold"><?= e($demand['secretariat_name'] ?? 'Sem secretaria vinculada') ?></div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="text-muted small">Unidade/Setor demandante</div>
+            <div class="fw-semibold"><?= e($demand['requester_department'] ?: '-') ?></div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="text-muted small">Responsável</div>
+            <div class="fw-semibold"><?= e($demand['responsible_name'] ?: '-') ?></div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-body mb-4">
     <h2 class="h5 mb-3">Adicionar item à demanda</h2>
 
     <div class="row g-3 mb-3">

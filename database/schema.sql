@@ -126,9 +126,30 @@ CREATE TABLE IF NOT EXISTS procurement_projects (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS secretariats (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS requester_units (
+    id SERIAL PRIMARY KEY,
+    secretariat_id INTEGER NULL REFERENCES secretariats(id) ON DELETE SET NULL,
+    name VARCHAR(255) NOT NULL,
+    default_responsible_name VARCHAR(255),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (secretariat_id, name)
+);
+
 CREATE TABLE IF NOT EXISTS demand_lists (
     id SERIAL PRIMARY KEY,
     project_id INTEGER NOT NULL REFERENCES procurement_projects(id) ON DELETE CASCADE,
+    requester_unit_id INTEGER NULL REFERENCES requester_units(id) ON DELETE SET NULL,
+    secretariat_id INTEGER NULL REFERENCES secretariats(id) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
     requester_department VARCHAR(255),
     responsible_name VARCHAR(255),
@@ -210,6 +231,47 @@ ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ALTER TABLE procurement_projects
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
+ALTER TABLE secretariats
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE secretariats
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE requester_units
+ADD COLUMN IF NOT EXISTS default_responsible_name VARCHAR(255);
+
+ALTER TABLE requester_units
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE requester_units
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE demand_lists
+ADD COLUMN IF NOT EXISTS requester_unit_id INTEGER NULL;
+
+ALTER TABLE demand_lists
+ADD COLUMN IF NOT EXISTS secretariat_id INTEGER NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_demand_lists_requester_unit'
+    ) THEN
+        ALTER TABLE demand_lists
+        ADD CONSTRAINT fk_demand_lists_requester_unit
+        FOREIGN KEY (requester_unit_id) REFERENCES requester_units(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_demand_lists_secretariat'
+    ) THEN
+        ALTER TABLE demand_lists
+        ADD CONSTRAINT fk_demand_lists_secretariat
+        FOREIGN KEY (secretariat_id) REFERENCES secretariats(id) ON DELETE SET NULL;
+    END IF;
+END
+$$;
+
 ALTER TABLE demand_lists
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
@@ -289,6 +351,18 @@ EXECUTE FUNCTION touch_updated_at();
 DROP TRIGGER IF EXISTS trg_touch_updated_at_projects ON procurement_projects;
 CREATE TRIGGER trg_touch_updated_at_projects
 BEFORE UPDATE ON procurement_projects
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_secretariats ON secretariats;
+CREATE TRIGGER trg_touch_updated_at_secretariats
+BEFORE UPDATE ON secretariats
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_requester_units ON requester_units;
+CREATE TRIGGER trg_touch_updated_at_requester_units
+BEFORE UPDATE ON requester_units
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 
@@ -378,6 +452,34 @@ WHERE c.name = 'Perifericos'
         AND child.name = 'Teclados e Mouses'
   );
 
+INSERT INTO secretariats (name)
+VALUES ('Secretaria nao informada')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO requester_units (secretariat_id, name, default_responsible_name)
+SELECT
+    (SELECT id FROM secretariats WHERE name = 'Secretaria nao informada'),
+    legacy.requester_department,
+    MAX(NULLIF(legacy.responsible_name, '')) AS default_responsible_name
+FROM demand_lists legacy
+WHERE legacy.requester_department IS NOT NULL
+  AND legacy.requester_department <> ''
+GROUP BY legacy.requester_department
+ON CONFLICT (secretariat_id, name) DO UPDATE SET
+    default_responsible_name = COALESCE(
+        requester_units.default_responsible_name,
+        EXCLUDED.default_responsible_name
+    );
+
+UPDATE demand_lists dl
+SET
+    requester_unit_id = ru.id,
+    secretariat_id = ru.secretariat_id
+FROM requester_units ru
+WHERE dl.requester_unit_id IS NULL
+  AND dl.requester_department = ru.name
+  AND ru.secretariat_id = (SELECT id FROM secretariats WHERE name = 'Secretaria nao informada');
+
 UPDATE procurement_items
 SET unit_type_id = (SELECT id FROM unit_types WHERE name = 'Unidade')
 WHERE unit_type_id IS NULL;
@@ -454,12 +556,23 @@ ON demand_items (demand_list_id);
 CREATE INDEX IF NOT EXISTS idx_demand_lists_project
 ON demand_lists (project_id);
 
+CREATE INDEX IF NOT EXISTS idx_demand_lists_secretariat
+ON demand_lists (secretariat_id);
+
+CREATE INDEX IF NOT EXISTS idx_demand_lists_requester_unit
+ON demand_lists (requester_unit_id);
+
+CREATE INDEX IF NOT EXISTS idx_requester_units_secretariat_name
+ON requester_units (secretariat_id, lower(name));
+
 SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
 SELECT setval(pg_get_serial_sequence('unit_types', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM unit_types), 0), 1), COALESCE((SELECT MAX(id) FROM unit_types), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_items), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_item_images', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_item_images), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_item_images), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_item_versions', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_item_versions), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_item_versions), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_projects', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_projects), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_projects), 0) > 0);
+SELECT setval(pg_get_serial_sequence('secretariats', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM secretariats), 0), 1), COALESCE((SELECT MAX(id) FROM secretariats), 0) > 0);
+SELECT setval(pg_get_serial_sequence('requester_units', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM requester_units), 0), 1), COALESCE((SELECT MAX(id) FROM requester_units), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_lists', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_lists), 0), 1), COALESCE((SELECT MAX(id) FROM demand_lists), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('justification_templates', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM justification_templates), 0), 1), COALESCE((SELECT MAX(id) FROM justification_templates), 0) > 0);

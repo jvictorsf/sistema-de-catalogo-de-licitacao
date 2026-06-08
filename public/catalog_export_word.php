@@ -7,7 +7,6 @@ require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';
 
 $items = search_items();
-
 $filename = 'catalogo-itens-licitacao.doc';
 
 header('Content-Type: application/msword; charset=utf-8');
@@ -21,20 +20,24 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
 
     <style>
         body {
+            color: #1f2937;
             font-family: Arial, sans-serif;
             font-size: 10pt;
+            line-height: 1.35;
         }
 
         h1,
-        h2 {
-            text-align: center;
+        h2,
+        h3,
+        h4 {
+            color: #111827;
         }
 
         .header {
+            border-bottom: 3px solid #111827;
+            margin-bottom: 16pt;
+            padding-bottom: 12pt;
             text-align: center;
-            border-bottom: 2px solid #111;
-            padding-bottom: 12px;
-            margin-bottom: 24px;
         }
 
         .header h1 {
@@ -45,35 +48,96 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
 
         .header h2 {
             font-size: 12pt;
-            margin: 4px 0 0;
             font-weight: normal;
+            margin: 4pt 0 0;
+        }
+
+        .document-title {
+            font-size: 14pt;
+            margin: 0 0 10pt;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .summary-table,
+        .meta-table,
+        .spec-table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .summary-table {
+            margin-bottom: 16pt;
+        }
+
+        .summary-table th,
+        .summary-table td,
+        .meta-table th,
+        .meta-table td,
+        .spec-table th,
+        .spec-table td {
+            border: 1px solid #d1d5db;
+            padding: 5pt 6pt;
+            vertical-align: top;
+        }
+
+        .summary-table th,
+        .meta-table th,
+        .spec-table th {
+            background: #f3f4f6;
+            font-weight: bold;
+            text-align: left;
         }
 
         .item {
+            border: 1px solid #9ca3af;
+            border-left: 4px solid #111827;
+            margin-bottom: 18pt;
+            padding: 12pt;
             page-break-inside: avoid;
-            border: 1px solid #333;
-            margin-bottom: 18px;
-            padding: 10px;
         }
 
         .item-title {
             font-size: 13pt;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 8pt;
         }
 
-        .badge {
-            background: #eee;
-            border: 1px solid #333;
-            padding: 2px 5px;
+        .item-code {
+            background: #111827;
+            color: #ffffff;
             font-size: 9pt;
+            padding: 2pt 5pt;
         }
 
-        pre {
-            background: #f5f5f5;
-            padding: 8px;
-            border: 1px solid #ccc;
-            white-space: pre-wrap;
+        h3 {
+            border-bottom: 1px solid #d1d5db;
+            font-size: 11pt;
+            margin: 12pt 0 6pt;
+            padding-bottom: 3pt;
+            text-transform: uppercase;
+        }
+
+        .spec-section {
+            margin-bottom: 9pt;
+        }
+
+        .spec-section h4 {
+            font-size: 10pt;
+            margin: 0 0 4pt;
+        }
+
+        .spec-list {
+            margin: 4pt 0 0 18pt;
+            padding: 0;
+        }
+
+        .spec-list li {
+            margin-bottom: 3pt;
+        }
+
+        .text-muted {
+            color: #6b7280;
         }
     </style>
 </head>
@@ -81,30 +145,51 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
 <body>
 
 <div class="header">
-    <?= render_municipal_logo() ?>
+    <?= render_municipal_logo('document-logo') ?>
     <h1>Prefeitura Municipal de Espírito Santo do Turvo</h1>
     <h2>Departamento de Tecnologia da Informação</h2>
     <h2>Catálogo de Itens para Licitação</h2>
 </div>
 
-<h1>Catálogo de Itens</h1>
+<h1 class="document-title">Catálogo de Itens</h1>
+
+<table class="summary-table">
+    <tr>
+        <th>Total de itens</th>
+        <td><?= count($items) ?></td>
+        <th>Emitido em</th>
+        <td><?= e(date('d/m/Y H:i')) ?></td>
+    </tr>
+</table>
 
 <?php foreach ($items as $item): ?>
     <div class="item">
         <div class="item-title">
-            <?= e($item['tracking_code']) ?> - <?= e($item['name']) ?>
+            <span class="item-code"><?= e($item['tracking_code']) ?></span>
+            <?= e($item['name']) ?>
         </div>
 
-        <p>
-            <span class="badge">Categoria: <?= e($item['category_name'] ?? '-') ?></span>
-            <span class="badge">Subcategoria: <?= e($item['subcategory_name'] ?? '-') ?></span>
-            <span class="badge">Unidade: <?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?></span>
-            <span class="badge">Nível: <?= e($item['level']) ?></span>
-            <span class="badge">Status: <?= e($item['status']) ?></span>
-        </p>
+        <table class="meta-table">
+            <tr>
+                <th>Categoria</th>
+                <td><?= e($item['category_name'] ?? '-') ?></td>
+                <th>Subcategoria</th>
+                <td><?= e($item['subcategory_name'] ?? '-') ?></td>
+            </tr>
+            <tr>
+                <th>Unidade</th>
+                <td><?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?></td>
+                <th>Nível</th>
+                <td><?= e($item['level']) ?></td>
+            </tr>
+            <tr>
+                <th>Status</th>
+                <td colspan="3"><?= e(item_status_label($item['status'] ?? null)) ?></td>
+            </tr>
+        </table>
 
         <h3>Especificação técnica</h3>
-        <pre><?= e(format_item_specification_json($item['specification'])) ?></pre>
+        <?= render_item_specification_html($item['specification']) ?>
 
         <h3>Justificativa</h3>
         <p><?= nl2br(e($item['justification'])) ?></p>

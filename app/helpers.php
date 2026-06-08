@@ -149,6 +149,181 @@ function format_item_specification_json(mixed $value): string
     return pretty_json(normalize_item_specification_array(is_array($value) ? $value : []));
 }
 
+function item_specification_array_from_value(mixed $value): array
+{
+    if (is_string($value)) {
+        $decoded = json_decode($value, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return normalize_item_specification_array([]);
+        }
+
+        return normalize_item_specification_array(is_array($decoded) ? $decoded : []);
+    }
+
+    return normalize_item_specification_array(is_array($value) ? $value : []);
+}
+
+function item_specification_label(string $key): string
+{
+    $labels = [
+        'marca_referencia' => 'Marca de referencia',
+        'modelo_referencia' => 'Modelo de referencia',
+        'descricao_minima' => 'Descricao minima',
+        'caracteristicas_minimas' => 'Caracteristicas minimas',
+        'criterios_aceitacao' => 'Criterios de aceitacao',
+        'documentacao_exigida' => 'Documentacao exigida',
+        'certificados' => 'Certificados',
+        'observacoes' => 'Observacoes',
+    ];
+
+    if (isset($labels[$key])) {
+        return $labels[$key];
+    }
+
+    return ucwords(str_replace('_', ' ', $key));
+}
+
+function item_specification_value_is_empty(mixed $value): bool
+{
+    if ($value === null) {
+        return true;
+    }
+
+    if (is_string($value)) {
+        return trim($value) === '';
+    }
+
+    if (is_array($value)) {
+        foreach ($value as $item) {
+            if (!item_specification_value_is_empty($item)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+function render_item_specification_value(mixed $value): string
+{
+    if (item_specification_value_is_empty($value)) {
+        return '<span class="text-muted">Nao informado.</span>';
+    }
+
+    if (is_array($value)) {
+        if (array_is_list($value)) {
+            $html = '<ul class="spec-list">';
+
+            foreach ($value as $item) {
+                if (item_specification_value_is_empty($item)) {
+                    continue;
+                }
+
+                $html .= '<li>' . render_item_specification_value($item) . '</li>';
+            }
+
+            return $html . '</ul>';
+        }
+
+        $html = '<table class="spec-table">';
+
+        foreach ($value as $key => $item) {
+            if (item_specification_value_is_empty($item)) {
+                continue;
+            }
+
+            $html .= '<tr>';
+            $html .= '<th>' . e(item_specification_label((string) $key)) . '</th>';
+            $html .= '<td>' . render_item_specification_value($item) . '</td>';
+            $html .= '</tr>';
+        }
+
+        return $html . '</table>';
+    }
+
+    return nl2br(e((string) $value));
+}
+
+function render_item_specification_section(string $title, mixed $value): string
+{
+    if (item_specification_value_is_empty($value)) {
+        return '';
+    }
+
+    return '<div class="spec-section"><h4>' . e($title) . '</h4>' . render_item_specification_value($value) . '</div>';
+}
+
+function render_item_specification_html(mixed $value): string
+{
+    $specification = item_specification_array_from_value($value);
+    $knownKeys = item_specification_key_order();
+    $html = '<div class="spec-readable">';
+
+    if (
+        !item_specification_value_is_empty($specification['marca_referencia'] ?? null) ||
+        !item_specification_value_is_empty($specification['modelo_referencia'] ?? null)
+    ) {
+        $html .= '<table class="spec-table spec-reference">';
+
+        foreach (['marca_referencia', 'modelo_referencia'] as $key) {
+            if (item_specification_value_is_empty($specification[$key] ?? null)) {
+                continue;
+            }
+
+            $html .= '<tr>';
+            $html .= '<th>' . e(item_specification_label($key)) . '</th>';
+            $html .= '<td>' . render_item_specification_value($specification[$key]) . '</td>';
+            $html .= '</tr>';
+        }
+
+        $html .= '</table>';
+    }
+
+    foreach ([
+        'descricao_minima',
+        'caracteristicas_minimas',
+        'criterios_aceitacao',
+        'documentacao_exigida',
+        'certificados',
+    ] as $key) {
+        $html .= render_item_specification_section(
+            item_specification_label($key),
+            $specification[$key] ?? null
+        );
+    }
+
+    foreach ($specification as $key => $item) {
+        if (in_array($key, $knownKeys, true)) {
+            continue;
+        }
+
+        $html .= render_item_specification_section(item_specification_label((string) $key), $item);
+    }
+
+    $html .= render_item_specification_section(
+        item_specification_label('observacoes'),
+        $specification['observacoes'] ?? []
+    );
+
+    return $html . '</div>';
+}
+
+function item_status_label(?string $status): string
+{
+    $labels = [
+        'draft' => 'Rascunho',
+        'review' => 'Em revisao',
+        'standardized' => 'Padronizado',
+        'deprecated' => 'Descontinuado',
+        'blocked' => 'Bloqueado',
+    ];
+
+    return $labels[$status ?? ''] ?? (string) $status;
+}
+
 function environmental_impacts_to_array(mixed $value): array
 {
     if (is_array($value)) {

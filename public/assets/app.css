@@ -90,14 +90,135 @@ pre {
     white-space: pre-wrap;
 }
 
+.spec-readable {
+    font-size: .95rem;
+}
+
+.spec-section {
+    margin-bottom: 1rem;
+}
+
+.spec-section:last-child {
+    margin-bottom: 0;
+}
+
+.spec-section h4 {
+    color: #111827;
+    font-size: .95rem;
+    font-weight: 700;
+    margin: 0 0 .4rem;
+}
+
+.spec-list {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.spec-list li {
+    margin-bottom: .35rem;
+}
+
+.spec-list li:last-child {
+    margin-bottom: 0;
+}
+
+.spec-table {
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    width: 100%;
+}
+
+.spec-table th,
+.spec-table td {
+    border: 1px solid #e5e7eb;
+    padding: .55rem .65rem;
+    vertical-align: top;
+}
+
+.spec-table th {
+    background: #f8fafc;
+    color: #374151;
+    font-weight: 700;
+    width: 28%;
+}
+
 @media (max-width: 767.98px) {
     .app-shell {
         padding-right: 1rem;
         padding-left: 1rem;
     }
 
+    .app-shell > .d-flex.justify-content-between,
+    .card-header.d-flex {
+        align-items: stretch !important;
+        flex-direction: column;
+        gap: .75rem;
+    }
+
+    .app-shell > .d-flex.justify-content-between > .d-flex,
+    .card-header.d-flex > .d-flex {
+        flex-wrap: wrap;
+    }
+
+    .app-shell > .d-flex.justify-content-between .btn {
+        width: 100%;
+    }
+
+    .app-shell > .d-flex.justify-content-between form,
+    .app-shell > .d-flex.justify-content-between form .btn {
+        width: 100%;
+    }
+
+    .btn {
+        min-height: 2.5rem;
+        white-space: normal;
+    }
+
+    .card-body {
+        padding: 1rem;
+    }
+
+    .table-responsive {
+        border: 1px solid #e5e7eb;
+        border-radius: .5rem;
+    }
+
+    .table-responsive > .table {
+        min-width: 720px;
+    }
+
     .table > :not(caption) > * > * {
         padding: .75rem;
+    }
+
+    .input-group {
+        flex-wrap: wrap;
+        gap: .5rem;
+    }
+
+    .input-group > .form-control,
+    .input-group > .form-select,
+    .input-group > .btn {
+        border-radius: .375rem !important;
+        flex: 1 0 100%;
+        width: 100%;
+    }
+
+    textarea.form-control {
+        min-height: 12rem;
+    }
+
+    .spec-table,
+    .spec-table tbody,
+    .spec-table tr,
+    .spec-table th,
+    .spec-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .spec-table th {
+        border-bottom: 0;
     }
 }
 

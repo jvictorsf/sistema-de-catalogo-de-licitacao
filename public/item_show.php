@@ -80,6 +80,7 @@ require __DIR__ . '/../app/views/header.php';
     <?php $images = get_item_images((int) $item['id']); ?>
 
     <?php if ($images): ?>
+        <div class="col-12">
         <div class="card mb-4">
             <div class="card-header fw-semibold">
                 Imagens ilustrativas
@@ -145,13 +146,14 @@ require __DIR__ . '/../app/views/header.php';
                 </p>
             </div>
         </div>
+        </div>
     <?php endif; ?>
 
     <div class="col-lg-8">
         <div class="card mb-4">
             <div class="card-header fw-semibold">Especificação técnica</div>
             <div class="card-body">
-                <pre class="bg-light p-3 rounded mb-0"><code><?= e(format_item_specification_json($item['specification'])) ?></code></pre>
+                <?= render_item_specification_html($item['specification']) ?>
             </div>
         </div>
     </div>
@@ -181,6 +183,7 @@ require __DIR__ . '/../app/views/header.php';
 
     <?php $versions = get_item_versions((int) $item['id']); ?>
 
+    <div class="col-12">
     <div class="card mt-4">
         <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
             <span>Versionamento do Item</span>
@@ -266,6 +269,7 @@ require __DIR__ . '/../app/views/header.php';
 
             </table>
         </div>
+    </div>
     </div>
 
     <div

@@ -2,6 +2,16 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.2.0] - 2026-06-08
+
+### Adicionado
+- Exibicao legivel das especificacoes tecnicas em blocos, tabelas e listas, sem expor JSON nas telas de leitura e exportacoes.
+- Estilos especificos para especificacoes tecnicas estruturadas na interface web, Word e PDF.
+
+### Alterado
+- Exportacoes Word e PDF reformuladas com cabecalho institucional, resumo da emissao, metadados em tabela e melhor hierarquia visual.
+- Responsividade geral aprimorada para mobile, com botoes empilhados, tabelas com rolagem previsivel, inputs mais confortaveis e cards mais consistentes.
+
 ## [1.1.2] - 2026-06-03
 
 ### Corrigido

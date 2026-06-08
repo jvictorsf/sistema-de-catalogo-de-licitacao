@@ -6,7 +6,22 @@ require_once __DIR__ . '/../app/config.php';
 require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';
 
-$projectId = (int) ($_GET['project_id'] ?? $_POST['project_id'] ?? 0);
+$id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
+$isEditing = $id > 0;
+$demand = [];
+
+if ($isEditing) {
+    $demand = find_demand_list($id);
+
+    if (!$demand) {
+        http_response_code(404);
+        exit('Demanda não encontrada.');
+    }
+}
+
+$projectId = (int) ($isEditing
+    ? ($demand['project_id'] ?? 0)
+    : ($_GET['project_id'] ?? $_POST['project_id'] ?? 0));
 $project = find_project($projectId);
 
 if (!$project) {
@@ -15,8 +30,10 @@ if (!$project) {
 }
 
 $errors = [];
-$requesterUnits = get_requester_units(true);
-$demand = [];
+$requesterUnits = get_requester_units(!$isEditing);
+$cancelUrl = $isEditing
+    ? '/demand_show.php?id=' . (int) $id
+    : '/project_show.php?id=' . (int) $project['id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $demand = [
@@ -38,7 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
-        $demandId = create_demand_list($demand);
+        if ($isEditing) {
+            update_demand_list($id, $demand);
+            $demandId = $id;
+        } else {
+            $demandId = create_demand_list($demand);
+        }
+
         redirect('/demand_show.php?id=' . $demandId);
     }
 }
@@ -48,13 +71,13 @@ require __DIR__ . '/../app/views/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 class="h3 mb-1">Nova demanda</h1>
+        <h1 class="h3 mb-1"><?= $isEditing ? 'Editar demanda' : 'Nova demanda' ?></h1>
         <p class="text-muted mb-0">
             Projeto: <?= e($project['name']) ?>
         </p>
     </div>
 
-    <a href="/project_show.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-secondary">
+    <a href="<?= e($cancelUrl) ?>" class="btn btn-outline-secondary">
         Voltar
     </a>
 </div>
@@ -70,6 +93,10 @@ require __DIR__ . '/../app/views/header.php';
 <?php endif; ?>
 
 <form method="post" class="card card-body shadow-sm">
+    <?php if ($isEditing): ?>
+        <input type="hidden" name="id" value="<?= (int) $id ?>">
+    <?php endif; ?>
+
     <input type="hidden" name="project_id" value="<?= (int) $project['id'] ?>">
     <input type="hidden" name="secretariat_id" id="secretariatId" value="<?= (int) old($demand, 'secretariat_id') ?>">
 
@@ -92,13 +119,18 @@ require __DIR__ . '/../app/views/header.php';
                     <option value="">Selecione...</option>
 
                     <?php foreach ($requesterUnits as $unit): ?>
+                        <?php
+                            $unitActive = pg_bool($unit['is_active'] ?? true) === 'true';
+                            $secretariatActive = pg_bool($unit['secretariat_is_active'] ?? true) === 'true';
+                            $isInactive = !$unitActive || !$secretariatActive;
+                        ?>
                         <option
                             value="<?= (int) $unit['id'] ?>"
                             data-secretariat-id="<?= (int) ($unit['secretariat_id'] ?? 0) ?>"
                             data-secretariat-name="<?= e($unit['secretariat_name'] ?? '') ?>"
                             data-responsible-name="<?= e($unit['default_responsible_name'] ?? '') ?>"
                             <?= (int) old($demand, 'requester_unit_id') === (int) $unit['id'] ? 'selected' : '' ?>>
-                            <?= e($unit['name']) ?><?= $unit['secretariat_name'] ? ' - ' . e($unit['secretariat_name']) : '' ?>
+                            <?= e($unit['name']) ?><?= $unit['secretariat_name'] ? ' - ' . e($unit['secretariat_name']) : '' ?><?= $isInactive ? ' (desativada)' : '' ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -144,12 +176,12 @@ require __DIR__ . '/../app/views/header.php';
         </div>
 
         <div class="col-12 d-flex justify-content-end gap-2">
-            <a href="/project_show.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-secondary">
+            <a href="<?= e($cancelUrl) ?>" class="btn btn-outline-secondary">
                 Cancelar
             </a>
 
             <button class="btn btn-primary">
-                Salvar
+                <?= $isEditing ? 'Salvar alterações' : 'Salvar' ?>
             </button>
         </div>
     </div>

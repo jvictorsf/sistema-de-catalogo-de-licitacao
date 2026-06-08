@@ -33,7 +33,11 @@ require __DIR__ . '/../app/views/header.php';
         </p>
     </div>
 
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
+        <a href="/demand_form.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-secondary">
+            Editar dados
+        </a>
+
         <a href="/demand_export_word.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-primary">
             Exportar Word
         </a>

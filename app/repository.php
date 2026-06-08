@@ -5,6 +5,23 @@ declare(strict_types=1);
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/helpers.php';
 
+function pg_bool(mixed $value): string
+{
+    if (is_string($value)) {
+        $normalized = strtolower(trim($value));
+
+        if (in_array($normalized, ['1', 'true', 't', 'yes', 'on'], true)) {
+            return 'true';
+        }
+
+        if (in_array($normalized, ['0', 'false', 'f', 'no', 'off', ''], true)) {
+            return 'false';
+        }
+    }
+
+    return $value ? 'true' : 'false';
+}
+
 function item_sort_options(): array
 {
     return [
@@ -498,7 +515,7 @@ function create_secretariat(array $data): int
 
     $stmt->execute([
         'name' => $data['name'],
-        'is_active' => $data['is_active'] ?? true,
+        'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 
     return (int) $stmt->fetchColumn();
@@ -516,7 +533,7 @@ function update_secretariat(int $id, array $data): void
     $stmt->execute([
         'id' => $id,
         'name' => $data['name'],
-        'is_active' => $data['is_active'] ?? true,
+        'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 }
 
@@ -590,7 +607,7 @@ function create_requester_unit(array $data): int
         'secretariat_id' => $data['secretariat_id'] ?: null,
         'name' => $data['name'],
         'default_responsible_name' => $data['default_responsible_name'] ?? null,
-        'is_active' => $data['is_active'] ?? true,
+        'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 
     return (int) $stmt->fetchColumn();
@@ -612,7 +629,7 @@ function update_requester_unit(int $id, array $data): void
         'secretariat_id' => $data['secretariat_id'] ?: null,
         'name' => $data['name'],
         'default_responsible_name' => $data['default_responsible_name'] ?? null,
-        'is_active' => $data['is_active'] ?? true,
+        'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 }
 
@@ -732,6 +749,32 @@ function create_demand_list(array $data): int
     ]);
 
     return (int) $stmt->fetchColumn();
+}
+
+function update_demand_list(int $id, array $data): void
+{
+    $data = normalize_demand_requester_data($data);
+
+    $stmt = db()->prepare("
+        UPDATE demand_lists SET
+            requester_unit_id = :requester_unit_id,
+            secretariat_id = :secretariat_id,
+            name = :name,
+            requester_department = :requester_department,
+            responsible_name = :responsible_name,
+            notes = :notes
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'requester_unit_id' => $data['requester_unit_id'] ?? null,
+        'secretariat_id' => $data['secretariat_id'] ?? null,
+        'name' => $data['name'],
+        'requester_department' => $data['requester_department'] ?? null,
+        'responsible_name' => $data['responsible_name'] ?? null,
+        'notes' => $data['notes'] ?? null,
+    ]);
 }
 
 function delete_demand_list(int $id): void
@@ -1369,7 +1412,7 @@ function create_justification_template(array $data): int
         'title' => $data['title'],
         'content' => $data['content'],
         'category_id' => $data['category_id'] ?: null,
-        'is_active' => $data['is_active'] ?? true,
+        'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 
     return (int) $stmt->fetchColumn();
@@ -1388,7 +1431,7 @@ function create_environmental_impact_template(array $data): int
         'title' => $data['title'],
         'content' => $data['content'],
         'category_id' => $data['category_id'] ?: null,
-        'is_active' => $data['is_active'] ?? true,
+        'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 
     return (int) $stmt->fetchColumn();
@@ -1424,7 +1467,7 @@ function create_item_kit(array $data): int
     $stmt->execute([
         'name' => $data['name'],
         'description' => $data['description'] ?? null,
-        'is_active' => $data['is_active'] ?? true,
+        'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 
     return (int) $stmt->fetchColumn();
@@ -1533,7 +1576,7 @@ function update_justification_template(int $id, array $data): void
         'title' => $data['title'],
         'content' => $data['content'],
         'category_id' => $data['category_id'] ?: null,
-        'is_active' => $data['is_active'] ?? true,
+        'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 }
 
@@ -1580,7 +1623,7 @@ function update_environmental_impact_template(int $id, array $data): void
         'title' => $data['title'],
         'content' => $data['content'],
         'category_id' => $data['category_id'] ?: null,
-        'is_active' => $data['is_active'] ?? true,
+        'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 }
 
@@ -1608,7 +1651,7 @@ function update_item_kit(int $id, array $data): void
         'id' => $id,
         'name' => $data['name'],
         'description' => $data['description'] ?? null,
-        'is_active' => $data['is_active'] ?? true,
+        'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 }
 

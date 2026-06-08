@@ -2,6 +2,14 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.3.1] - 2026-06-08
+
+### Alterado
+- Demandas cadastradas agora podem ter unidade/setor demandante, secretaria, responsavel e observacoes editados sem recriacao.
+
+### Corrigido
+- Corrigido o envio de campos booleanos para PostgreSQL ao editar unidades demandantes desativadas, secretarias, bibliotecas e kits.
+
 ## [1.3.0] - 2026-06-08
 
 ### Adicionado

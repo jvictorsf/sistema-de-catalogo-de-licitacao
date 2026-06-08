@@ -46,7 +46,9 @@ require __DIR__ . '/../app/views/header.php';
                 type="search"
                 id="kitItemSearch"
                 class="form-control"
-                placeholder="Digite codigo, nome ou categoria">
+                placeholder="Digite codigo, nome ou categoria"
+                autofocus
+            >
         </div>
 
         <div class="col-md-7">

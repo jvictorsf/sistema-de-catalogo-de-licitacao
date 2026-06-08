@@ -6,6 +6,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
 ### Alterado
 - Demandas cadastradas agora podem ter unidade/setor demandante, secretaria, responsavel e observacoes editados sem recriacao.
+- Campo de busca para adicionar itens ao kit agora recebe foco automaticamente ao abrir o kit.
 
 ### Corrigido
 - Corrigido o envio de campos booleanos para PostgreSQL ao editar unidades demandantes desativadas, secretarias, bibliotecas e kits.

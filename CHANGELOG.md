@@ -2,6 +2,20 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.1] - 2026-06-09
+
+### Adicionado
+- Log interno da aplicacao em `storage/logs/app.log` e log nativo do PHP em `storage/logs/php-error.log`.
+- Cadastro de subunidades/departamentos vinculados a uma unidade demandante principal.
+- Exportacao/importacao JSON de unidades demandantes passa a incluir `parent_id`.
+
+### Alterado
+- Demandas e listagens passam a exibir unidade/subunidade em formato composto quando houver unidade pai.
+- Schema de demandantes foi ajustado para permitir nomes repetidos em unidades pai diferentes.
+
+### Corrigido
+- Tela de demanda registra falhas de schema pendente e evita quebra em recursos opcionais de orcamento ainda nao aplicados.
+
 ## [1.5.0] - 2026-06-09
 
 ### Adicionado

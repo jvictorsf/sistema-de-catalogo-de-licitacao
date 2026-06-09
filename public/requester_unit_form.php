@@ -15,10 +15,12 @@ if ($id && !$unit) {
 }
 
 $secretariats = get_secretariats();
+$parentUnits = get_requester_parent_units($unit ? (int) $unit['id'] : null);
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = [
+        'parent_id' => (int) ($_POST['parent_id'] ?? 0),
         'secretariat_id' => (int) ($_POST['secretariat_id'] ?? 0),
         'name' => trim($_POST['name'] ?? ''),
         'default_responsible_name' => trim($_POST['default_responsible_name'] ?? ''),
@@ -30,7 +32,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$data['name']) {
-        $errors[] = 'O nome da unidade/setor e obrigatorio.';
+        $errors[] = 'O nome da unidade, setor ou subunidade e obrigatorio.';
+    }
+
+    if ($data['parent_id']) {
+        $parentUnit = find_requester_unit($data['parent_id']);
+
+        if (!$parentUnit || !empty($parentUnit['parent_id'])) {
+            $errors[] = 'Selecione uma unidade pai valida.';
+        } elseif ((int) ($parentUnit['secretariat_id'] ?? 0) !== $data['secretariat_id']) {
+            $errors[] = 'A unidade pai precisa pertencer a mesma secretaria.';
+        }
     }
 
     if (!$errors) {
@@ -52,7 +64,7 @@ require __DIR__ . '/../app/views/header.php';
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1 class="h3 mb-1"><?= $unit ? 'Editar unidade demandante' : 'Nova unidade demandante' ?></h1>
-        <p class="text-muted mb-0">Vincule a unidade a uma secretaria e defina o responsavel padrao.</p>
+        <p class="text-muted mb-0">Vincule a unidade a uma secretaria, informe subunidades quando houver e defina o responsavel padrao.</p>
     </div>
 
     <a href="/requester_units.php" class="btn btn-outline-secondary">
@@ -74,7 +86,7 @@ require __DIR__ . '/../app/views/header.php';
     <div class="row g-3">
         <div class="col-md-6">
             <label class="form-label">Secretaria</label>
-            <select name="secretariat_id" class="form-select" required>
+            <select name="secretariat_id" id="secretariatSelect" class="form-select" required>
                 <option value="">Selecione...</option>
 
                 <?php foreach ($secretariats as $secretariat): ?>
@@ -89,7 +101,26 @@ require __DIR__ . '/../app/views/header.php';
         </div>
 
         <div class="col-md-6">
-            <label class="form-label">Unidade/Setor demandante</label>
+            <label class="form-label">Unidade pai</label>
+            <select name="parent_id" id="parentUnitSelect" class="form-select">
+                <option value="">Nenhuma - unidade principal</option>
+
+                <?php foreach ($parentUnits as $parentUnit): ?>
+                    <option
+                        value="<?= (int) $parentUnit['id'] ?>"
+                        data-secretariat-id="<?= (int) ($parentUnit['secretariat_id'] ?? 0) ?>"
+                        <?= (int) old($unit ?? [], 'parent_id') === (int) $parentUnit['id'] ? 'selected' : '' ?>>
+                        <?= e($parentUnit['name']) ?>
+                        <?= $parentUnit['secretariat_name'] ? ' - ' . e($parentUnit['secretariat_name']) : '' ?>
+                        <?= !$parentUnit['is_active'] ? ' (inativa)' : '' ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <div class="form-text">Use para cadastrar Farmacia, Recepcao, Odontologia e outros departamentos dentro de uma unidade.</div>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Unidade/Setor/Subunidade</label>
             <input type="text" name="name" class="form-control" required value="<?= e(old($unit ?? [], 'name')) ?>">
         </div>
 
@@ -122,5 +153,42 @@ require __DIR__ . '/../app/views/header.php';
         </div>
     </div>
 </form>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const secretariatSelect = document.getElementById('secretariatSelect');
+        const parentUnitSelect = document.getElementById('parentUnitSelect');
+
+        if (!secretariatSelect || !parentUnitSelect) {
+            return;
+        }
+
+        function syncParentOptions() {
+            const selectedSecretariatId = secretariatSelect.value;
+            let selectedParentIsInvalid = false;
+
+            Array.from(parentUnitSelect.options).forEach(function(option) {
+                if (!option.value) {
+                    return;
+                }
+
+                const isVisible = !selectedSecretariatId || option.dataset.secretariatId === selectedSecretariatId;
+                option.hidden = !isVisible;
+                option.disabled = !isVisible;
+
+                if (option.selected && !isVisible) {
+                    selectedParentIsInvalid = true;
+                }
+            });
+
+            if (selectedParentIsInvalid) {
+                parentUnitSelect.value = '';
+            }
+        }
+
+        secretariatSelect.addEventListener('change', syncParentOptions);
+        syncParentOptions();
+    });
+</script>
 
 <?php require __DIR__ . '/../app/views/footer.php'; ?>

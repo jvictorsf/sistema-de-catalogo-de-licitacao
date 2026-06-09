@@ -22,6 +22,24 @@ function pg_bool(mixed $value): string
     return $value ? 'true' : 'false';
 }
 
+function is_missing_database_relation(Throwable $exception): bool
+{
+    $message = $exception->getMessage();
+
+    return str_contains($message, 'SQLSTATE[42P01]')
+        || (str_contains($message, 'relation') && str_contains($message, 'does not exist'))
+        || (str_contains($message, 'relação') && str_contains($message, 'não existe'));
+}
+
+function log_optional_schema_issue(string $feature, Throwable $exception): void
+{
+    if (function_exists('app_log')) {
+        app_log('warning', 'Recurso indisponivel por schema pendente: ' . $feature, [
+            'error' => $exception->getMessage(),
+        ]);
+    }
+}
+
 function item_sort_options(): array
 {
     return [
@@ -553,19 +571,52 @@ function get_requester_units(bool $activeOnly = false): array
     $sql = "
         SELECT
             ru.*,
+            p.name AS parent_unit_name,
+            p.default_responsible_name AS parent_responsible_name,
+            CASE
+                WHEN p.id IS NOT NULL THEN p.name || ' - ' || ru.name
+                ELSE ru.name
+            END AS display_name,
             s.name AS secretariat_name,
             s.is_active AS secretariat_is_active
         FROM requester_units ru
+        LEFT JOIN requester_units p ON p.id = ru.parent_id
         LEFT JOIN secretariats s ON s.id = ru.secretariat_id
     ";
 
     if ($activeOnly) {
-        $sql .= " WHERE ru.is_active = TRUE AND COALESCE(s.is_active, TRUE) = TRUE";
+        $sql .= " WHERE ru.is_active = TRUE AND COALESCE(p.is_active, TRUE) = TRUE AND COALESCE(s.is_active, TRUE) = TRUE";
+    }
+
+    $sql .= " ORDER BY s.name NULLS LAST, p.name NULLS FIRST, ru.name";
+
+    return db()->query($sql)->fetchAll();
+}
+
+function get_requester_parent_units(?int $excludeId = null): array
+{
+    $sql = "
+        SELECT
+            ru.*,
+            s.name AS secretariat_name
+        FROM requester_units ru
+        LEFT JOIN secretariats s ON s.id = ru.secretariat_id
+        WHERE ru.parent_id IS NULL
+    ";
+
+    $params = [];
+
+    if ($excludeId) {
+        $sql .= " AND ru.id <> :exclude_id";
+        $params['exclude_id'] = $excludeId;
     }
 
     $sql .= " ORDER BY s.name NULLS LAST, ru.name";
 
-    return db()->query($sql)->fetchAll();
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    return $stmt->fetchAll();
 }
 
 function find_requester_unit(int $id): ?array
@@ -573,8 +624,15 @@ function find_requester_unit(int $id): ?array
     $stmt = db()->prepare("
         SELECT
             ru.*,
+            p.name AS parent_unit_name,
+            p.default_responsible_name AS parent_responsible_name,
+            CASE
+                WHEN p.id IS NOT NULL THEN p.name || ' - ' || ru.name
+                ELSE ru.name
+            END AS display_name,
             s.name AS secretariat_name
         FROM requester_units ru
+        LEFT JOIN requester_units p ON p.id = ru.parent_id
         LEFT JOIN secretariats s ON s.id = ru.secretariat_id
         WHERE ru.id = :id
     ");
@@ -590,11 +648,13 @@ function create_requester_unit(array $data): int
 {
     $stmt = db()->prepare("
         INSERT INTO requester_units (
+            parent_id,
             secretariat_id,
             name,
             default_responsible_name,
             is_active
         ) VALUES (
+            :parent_id,
             :secretariat_id,
             :name,
             :default_responsible_name,
@@ -604,6 +664,7 @@ function create_requester_unit(array $data): int
     ");
 
     $stmt->execute([
+        'parent_id' => $data['parent_id'] ?: null,
         'secretariat_id' => $data['secretariat_id'] ?: null,
         'name' => $data['name'],
         'default_responsible_name' => $data['default_responsible_name'] ?? null,
@@ -617,6 +678,7 @@ function update_requester_unit(int $id, array $data): void
 {
     $stmt = db()->prepare("
         UPDATE requester_units SET
+            parent_id = :parent_id,
             secretariat_id = :secretariat_id,
             name = :name,
             default_responsible_name = :default_responsible_name,
@@ -626,6 +688,7 @@ function update_requester_unit(int $id, array $data): void
 
     $stmt->execute([
         'id' => $id,
+        'parent_id' => $data['parent_id'] ?: null,
         'secretariat_id' => $data['secretariat_id'] ?: null,
         'name' => $data['name'],
         'default_responsible_name' => $data['default_responsible_name'] ?? null,
@@ -779,10 +842,14 @@ function normalize_demand_requester_data(array $data): array
 
     $data['requester_unit_id'] = (int) $unit['id'];
     $data['secretariat_id'] = $unit['secretariat_id'] ? (int) $unit['secretariat_id'] : null;
-    $data['requester_department'] = $unit['name'];
+    $data['requester_department'] = $unit['display_name'] ?? $unit['name'];
 
     if (empty($data['responsible_name']) && !empty($unit['default_responsible_name'])) {
         $data['responsible_name'] = $unit['default_responsible_name'];
+    }
+
+    if (empty($data['responsible_name']) && !empty($unit['parent_responsible_name'])) {
+        $data['responsible_name'] = $unit['parent_responsible_name'];
     }
 
     return $data;
@@ -793,11 +860,15 @@ function get_project_demands(int $projectId): array
     $stmt = db()->prepare("
         SELECT
             dl.*,
-            ru.name AS requester_unit_name,
+            CASE
+                WHEN parent_ru.id IS NOT NULL THEN parent_ru.name || ' - ' || ru.name
+                ELSE ru.name
+            END AS requester_unit_name,
             ru.default_responsible_name,
             s.name AS secretariat_name
         FROM demand_lists dl
         LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
+        LEFT JOIN requester_units parent_ru ON parent_ru.id = ru.parent_id
         LEFT JOIN secretariats s ON s.id = dl.secretariat_id
         WHERE dl.project_id = :project_id
         ORDER BY s.name NULLS LAST, dl.name
@@ -813,11 +884,15 @@ function find_demand_list(int $id): ?array
     $stmt = db()->prepare("
         SELECT
             dl.*,
-            ru.name AS requester_unit_name,
+            CASE
+                WHEN parent_ru.id IS NOT NULL THEN parent_ru.name || ' - ' || ru.name
+                ELSE ru.name
+            END AS requester_unit_name,
             ru.default_responsible_name,
             s.name AS secretariat_name
         FROM demand_lists dl
         LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
+        LEFT JOIN requester_units parent_ru ON parent_ru.id = ru.parent_id
         LEFT JOIN secretariats s ON s.id = dl.secretariat_id
         WHERE dl.id = :id
     ");
@@ -1025,29 +1100,38 @@ function normalize_optional_date(mixed $value): ?string
 
 function get_demand_supplier_quotes(int $demandListId): array
 {
-    $stmt = db()->prepare("
-        SELECT
-            q.*,
-            s.name AS supplier_name,
-            s.document AS supplier_document,
-            COUNT(qi.id) FILTER (WHERE qi.unit_price IS NOT NULL) AS priced_items_count,
-            COALESCE(
-                SUM(qi.unit_price * COALESCE(di.approved_quantity, di.quantity))
-                    FILTER (WHERE qi.unit_price IS NOT NULL),
-                0
-            ) AS total_quote_value
-        FROM demand_supplier_quotes q
-        INNER JOIN suppliers s ON s.id = q.supplier_id
-        LEFT JOIN demand_supplier_quote_items qi ON qi.demand_supplier_quote_id = q.id
-        LEFT JOIN demand_items di ON di.id = qi.demand_item_id
-        WHERE q.demand_list_id = :demand_list_id
-        GROUP BY q.id, s.name, s.document
-        ORDER BY s.name
-    ");
+    try {
+        $stmt = db()->prepare("
+            SELECT
+                q.*,
+                s.name AS supplier_name,
+                s.document AS supplier_document,
+                COUNT(qi.id) FILTER (WHERE qi.unit_price IS NOT NULL) AS priced_items_count,
+                COALESCE(
+                    SUM(qi.unit_price * COALESCE(di.approved_quantity, di.quantity))
+                        FILTER (WHERE qi.unit_price IS NOT NULL),
+                    0
+                ) AS total_quote_value
+            FROM demand_supplier_quotes q
+            INNER JOIN suppliers s ON s.id = q.supplier_id
+            LEFT JOIN demand_supplier_quote_items qi ON qi.demand_supplier_quote_id = q.id
+            LEFT JOIN demand_items di ON di.id = qi.demand_item_id
+            WHERE q.demand_list_id = :demand_list_id
+            GROUP BY q.id, s.name, s.document
+            ORDER BY s.name
+        ");
 
-    $stmt->execute(['demand_list_id' => $demandListId]);
+        $stmt->execute(['demand_list_id' => $demandListId]);
 
-    return $stmt->fetchAll();
+        return $stmt->fetchAll();
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('orcamentos de fornecedores', $exception);
+        return [];
+    }
 }
 
 function find_demand_supplier_quote(int $id): ?array
@@ -1196,158 +1280,185 @@ function get_demand_supplier_quote_items(int $quoteId): array
 
 function get_reusable_project_quote_items_for_demand(int $demandListId): array
 {
-    $stmt = db()->prepare("
-        SELECT
-            target_di.id AS target_demand_item_id,
-            qi.id AS source_quote_item_id,
-            qi.unit_price,
-            qi.notes,
-            q.id AS source_quote_id,
-            q.supplier_id,
-            q.quote_number,
-            q.quote_date,
-            q.validity_date,
-            q.attachment_path,
-            s.name AS supplier_name,
-            s.document AS supplier_document,
-            source_dl.id AS source_demand_id,
-            source_dl.name AS source_demand_name
-        FROM demand_items target_di
-        INNER JOIN demand_lists target_dl ON target_dl.id = target_di.demand_list_id
-        INNER JOIN demand_lists source_dl
-            ON source_dl.project_id = target_dl.project_id
-           AND source_dl.id <> target_dl.id
-        INNER JOIN demand_items source_di
-            ON source_di.demand_list_id = source_dl.id
-           AND source_di.procurement_item_id = target_di.procurement_item_id
-        INNER JOIN demand_supplier_quote_items qi
-            ON qi.demand_item_id = source_di.id
-           AND qi.unit_price IS NOT NULL
-        INNER JOIN demand_supplier_quotes q
-            ON q.id = qi.demand_supplier_quote_id
-           AND q.status <> 'discarded'
-        INNER JOIN suppliers s ON s.id = q.supplier_id
-        WHERE target_dl.id = :demand_list_id
-        ORDER BY
-            target_di.id,
-            q.quote_date DESC NULLS LAST,
-            qi.created_at DESC,
-            s.name
-    ");
+    try {
+        $stmt = db()->prepare("
+            SELECT
+                target_di.id AS target_demand_item_id,
+                qi.id AS source_quote_item_id,
+                qi.unit_price,
+                qi.notes,
+                q.id AS source_quote_id,
+                q.supplier_id,
+                q.quote_number,
+                q.quote_date,
+                q.validity_date,
+                q.attachment_path,
+                s.name AS supplier_name,
+                s.document AS supplier_document,
+                source_dl.id AS source_demand_id,
+                source_dl.name AS source_demand_name
+            FROM demand_items target_di
+            INNER JOIN demand_lists target_dl ON target_dl.id = target_di.demand_list_id
+            INNER JOIN demand_lists source_dl
+                ON source_dl.project_id = target_dl.project_id
+               AND source_dl.id <> target_dl.id
+            INNER JOIN demand_items source_di
+                ON source_di.demand_list_id = source_dl.id
+               AND source_di.procurement_item_id = target_di.procurement_item_id
+            INNER JOIN demand_supplier_quote_items qi
+                ON qi.demand_item_id = source_di.id
+               AND qi.unit_price IS NOT NULL
+            INNER JOIN demand_supplier_quotes q
+                ON q.id = qi.demand_supplier_quote_id
+               AND q.status <> 'discarded'
+            INNER JOIN suppliers s ON s.id = q.supplier_id
+            WHERE target_dl.id = :demand_list_id
+            ORDER BY
+                target_di.id,
+                q.quote_date DESC NULLS LAST,
+                qi.created_at DESC,
+                s.name
+        ");
 
-    $stmt->execute(['demand_list_id' => $demandListId]);
+        $stmt->execute(['demand_list_id' => $demandListId]);
 
-    $items = [];
+        $items = [];
 
-    foreach ($stmt->fetchAll() as $item) {
-        $items[(int) $item['target_demand_item_id']][] = $item;
+        foreach ($stmt->fetchAll() as $item) {
+            $items[(int) $item['target_demand_item_id']][] = $item;
+        }
+
+        return $items;
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('reaproveitamento de precos', $exception);
+        return [];
     }
-
-    return $items;
 }
 
 function get_selected_demand_price_references(int $demandListId): array
 {
-    $stmt = db()->prepare("
-        SELECT
-            pr.*,
-            source_qi.unit_price,
-            source_qi.notes AS source_notes,
-            q.quote_number,
-            q.quote_date,
-            q.validity_date,
-            q.attachment_path,
-            s.name AS supplier_name,
-            s.document AS supplier_document,
-            source_dl.name AS source_demand_name,
-            source_p.name AS source_project_name
-        FROM demand_price_references pr
-        INNER JOIN demand_items target_di ON target_di.id = pr.demand_item_id
-        INNER JOIN demand_supplier_quote_items source_qi ON source_qi.id = pr.source_quote_item_id
-        INNER JOIN demand_supplier_quotes q ON q.id = source_qi.demand_supplier_quote_id
-        INNER JOIN suppliers s ON s.id = q.supplier_id
-        INNER JOIN demand_items source_di ON source_di.id = source_qi.demand_item_id
-        INNER JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
-        INNER JOIN procurement_projects source_p ON source_p.id = source_dl.project_id
-        WHERE target_di.demand_list_id = :demand_list_id
-        ORDER BY target_di.id, q.quote_date DESC NULLS LAST, s.name
-    ");
+    try {
+        $stmt = db()->prepare("
+            SELECT
+                pr.*,
+                source_qi.unit_price,
+                source_qi.notes AS source_notes,
+                q.quote_number,
+                q.quote_date,
+                q.validity_date,
+                q.attachment_path,
+                s.name AS supplier_name,
+                s.document AS supplier_document,
+                source_dl.name AS source_demand_name,
+                source_p.name AS source_project_name
+            FROM demand_price_references pr
+            INNER JOIN demand_items target_di ON target_di.id = pr.demand_item_id
+            INNER JOIN demand_supplier_quote_items source_qi ON source_qi.id = pr.source_quote_item_id
+            INNER JOIN demand_supplier_quotes q ON q.id = source_qi.demand_supplier_quote_id
+            INNER JOIN suppliers s ON s.id = q.supplier_id
+            INNER JOIN demand_items source_di ON source_di.id = source_qi.demand_item_id
+            INNER JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
+            INNER JOIN procurement_projects source_p ON source_p.id = source_dl.project_id
+            WHERE target_di.demand_list_id = :demand_list_id
+            ORDER BY target_di.id, q.quote_date DESC NULLS LAST, s.name
+        ");
 
-    $stmt->execute(['demand_list_id' => $demandListId]);
+        $stmt->execute(['demand_list_id' => $demandListId]);
 
-    $references = [];
+        $references = [];
 
-    foreach ($stmt->fetchAll() as $reference) {
-        $references[(int) $reference['demand_item_id']][(int) $reference['source_quote_item_id']] = $reference;
+        foreach ($stmt->fetchAll() as $reference) {
+            $references[(int) $reference['demand_item_id']][(int) $reference['source_quote_item_id']] = $reference;
+        }
+
+        return $references;
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('banco de precos selecionado', $exception);
+        return [];
     }
-
-    return $references;
 }
 
 function get_demand_price_bank_candidates(int $demandListId, int $months = 0): array
 {
-    $sql = "
-        SELECT
-            target_di.id AS target_demand_item_id,
-            qi.id AS source_quote_item_id,
-            qi.unit_price,
-            qi.notes,
-            q.id AS source_quote_id,
-            q.supplier_id,
-            q.quote_number,
-            q.quote_date,
-            q.validity_date,
-            q.attachment_path,
-            s.name AS supplier_name,
-            s.document AS supplier_document,
-            source_dl.id AS source_demand_id,
-            source_dl.name AS source_demand_name,
-            source_p.id AS source_project_id,
-            source_p.name AS source_project_name
-        FROM demand_items target_di
-        INNER JOIN demand_lists target_dl ON target_dl.id = target_di.demand_list_id
-        INNER JOIN demand_items source_di
-            ON source_di.procurement_item_id = target_di.procurement_item_id
-           AND source_di.id <> target_di.id
-        INNER JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
-        INNER JOIN procurement_projects source_p ON source_p.id = source_dl.project_id
-        INNER JOIN demand_supplier_quote_items qi
-            ON qi.demand_item_id = source_di.id
-           AND qi.unit_price IS NOT NULL
-        INNER JOIN demand_supplier_quotes q
-            ON q.id = qi.demand_supplier_quote_id
-           AND q.status <> 'discarded'
-        INNER JOIN suppliers s ON s.id = q.supplier_id
-        WHERE target_dl.id = :demand_list_id
-    ";
+    try {
+        $sql = "
+            SELECT
+                target_di.id AS target_demand_item_id,
+                qi.id AS source_quote_item_id,
+                qi.unit_price,
+                qi.notes,
+                q.id AS source_quote_id,
+                q.supplier_id,
+                q.quote_number,
+                q.quote_date,
+                q.validity_date,
+                q.attachment_path,
+                s.name AS supplier_name,
+                s.document AS supplier_document,
+                source_dl.id AS source_demand_id,
+                source_dl.name AS source_demand_name,
+                source_p.id AS source_project_id,
+                source_p.name AS source_project_name
+            FROM demand_items target_di
+            INNER JOIN demand_lists target_dl ON target_dl.id = target_di.demand_list_id
+            INNER JOIN demand_items source_di
+                ON source_di.procurement_item_id = target_di.procurement_item_id
+               AND source_di.id <> target_di.id
+            INNER JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
+            INNER JOIN procurement_projects source_p ON source_p.id = source_dl.project_id
+            INNER JOIN demand_supplier_quote_items qi
+                ON qi.demand_item_id = source_di.id
+               AND qi.unit_price IS NOT NULL
+            INNER JOIN demand_supplier_quotes q
+                ON q.id = qi.demand_supplier_quote_id
+               AND q.status <> 'discarded'
+            INNER JOIN suppliers s ON s.id = q.supplier_id
+            WHERE target_dl.id = :demand_list_id
+        ";
 
-    $params = [
-        'demand_list_id' => $demandListId,
-    ];
+        $params = [
+            'demand_list_id' => $demandListId,
+        ];
 
-    if ($months > 0) {
-        $sql .= " AND q.quote_date >= (CURRENT_DATE - (:months || ' months')::interval)";
-        $params['months'] = $months;
+        if ($months > 0) {
+            $sql .= " AND q.quote_date >= (CURRENT_DATE - (:months || ' months')::interval)";
+            $params['months'] = $months;
+        }
+
+        $sql .= "
+            ORDER BY
+                target_di.id,
+                q.quote_date DESC NULLS LAST,
+                qi.created_at DESC,
+                s.name
+        ";
+
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+
+        $items = [];
+
+        foreach ($stmt->fetchAll() as $item) {
+            $items[(int) $item['target_demand_item_id']][] = $item;
+        }
+
+        return $items;
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('candidatos do banco de precos', $exception);
+        return [];
     }
-
-    $sql .= "
-        ORDER BY
-            target_di.id,
-            q.quote_date DESC NULLS LAST,
-            qi.created_at DESC,
-            s.name
-    ";
-
-    $stmt = db()->prepare($sql);
-    $stmt->execute($params);
-
-    $items = [];
-
-    foreach ($stmt->fetchAll() as $item) {
-        $items[(int) $item['target_demand_item_id']][] = $item;
-    }
-
-    return $items;
 }
 
 function save_demand_price_references(int $demandListId, array $selectedReferences): void
@@ -1480,29 +1591,37 @@ function get_demand_budget_report(int $demandListId): array
     $prices = [];
 
     if ($quotes) {
-        $stmt = db()->prepare("
-            SELECT
-                qi.demand_item_id,
-                qi.unit_price,
-                qi.notes,
-                qi.reused_from_quote_item_id,
-                source_s.name AS reused_supplier_name,
-                source_dl.name AS reused_demand_name,
-                q.id AS quote_id
-            FROM demand_supplier_quote_items qi
-            INNER JOIN demand_supplier_quotes q ON q.id = qi.demand_supplier_quote_id
-            LEFT JOIN demand_supplier_quote_items source_qi ON source_qi.id = qi.reused_from_quote_item_id
-            LEFT JOIN demand_supplier_quotes source_q ON source_q.id = source_qi.demand_supplier_quote_id
-            LEFT JOIN suppliers source_s ON source_s.id = source_q.supplier_id
-            LEFT JOIN demand_items source_di ON source_di.id = source_qi.demand_item_id
-            LEFT JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
-            WHERE q.demand_list_id = :demand_list_id
-        ");
+        try {
+            $stmt = db()->prepare("
+                SELECT
+                    qi.demand_item_id,
+                    qi.unit_price,
+                    qi.notes,
+                    qi.reused_from_quote_item_id,
+                    source_s.name AS reused_supplier_name,
+                    source_dl.name AS reused_demand_name,
+                    q.id AS quote_id
+                FROM demand_supplier_quote_items qi
+                INNER JOIN demand_supplier_quotes q ON q.id = qi.demand_supplier_quote_id
+                LEFT JOIN demand_supplier_quote_items source_qi ON source_qi.id = qi.reused_from_quote_item_id
+                LEFT JOIN demand_supplier_quotes source_q ON source_q.id = source_qi.demand_supplier_quote_id
+                LEFT JOIN suppliers source_s ON source_s.id = source_q.supplier_id
+                LEFT JOIN demand_items source_di ON source_di.id = source_qi.demand_item_id
+                LEFT JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
+                WHERE q.demand_list_id = :demand_list_id
+            ");
 
-        $stmt->execute(['demand_list_id' => $demandListId]);
+            $stmt->execute(['demand_list_id' => $demandListId]);
 
-        foreach ($stmt->fetchAll() as $price) {
-            $prices[(int) $price['demand_item_id']][(int) $price['quote_id']] = $price;
+            foreach ($stmt->fetchAll() as $price) {
+                $prices[(int) $price['demand_item_id']][(int) $price['quote_id']] = $price;
+            }
+        } catch (Throwable $exception) {
+            if (!is_missing_database_relation($exception)) {
+                throw $exception;
+            }
+
+            log_optional_schema_issue('itens de orcamentos de fornecedores', $exception);
         }
     }
 
@@ -2792,6 +2911,7 @@ function catalog_json_table_definitions(): array
             'label' => 'Unidades demandantes',
             'columns' => [
                 'id',
+                'parent_id',
                 'secretariat_id',
                 'name',
                 'default_responsible_name',
@@ -3100,8 +3220,9 @@ function catalog_json_sample_row(string $table, array $columns): array
 
     if ($table === 'requester_units') {
         return array_merge($row, [
+            'parent_id' => null,
             'secretariat_id' => 1,
-            'name' => 'Nome da unidade ou setor',
+            'name' => 'Nome da unidade, setor ou subunidade',
             'default_responsible_name' => 'Responsavel padrao',
             'is_active' => true,
         ]);

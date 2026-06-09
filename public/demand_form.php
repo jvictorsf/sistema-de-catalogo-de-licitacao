@@ -114,7 +114,7 @@ require __DIR__ . '/../app/views/header.php';
 
         <?php if ($requesterUnits): ?>
             <div class="col-md-6">
-                <label class="form-label">Unidade/Setor demandante</label>
+                <label class="form-label">Unidade/Subunidade demandante</label>
                 <select name="requester_unit_id" id="requesterUnitSelect" class="form-select" required>
                     <option value="">Selecione...</option>
 
@@ -123,14 +123,16 @@ require __DIR__ . '/../app/views/header.php';
                             $unitActive = pg_bool($unit['is_active'] ?? true) === 'true';
                             $secretariatActive = pg_bool($unit['secretariat_is_active'] ?? true) === 'true';
                             $isInactive = !$unitActive || !$secretariatActive;
+                            $unitDisplayName = $unit['display_name'] ?? $unit['name'];
+                            $responsibleDefault = $unit['default_responsible_name'] ?: ($unit['parent_responsible_name'] ?? '');
                         ?>
                         <option
                             value="<?= (int) $unit['id'] ?>"
                             data-secretariat-id="<?= (int) ($unit['secretariat_id'] ?? 0) ?>"
                             data-secretariat-name="<?= e($unit['secretariat_name'] ?? '') ?>"
-                            data-responsible-name="<?= e($unit['default_responsible_name'] ?? '') ?>"
+                            data-responsible-name="<?= e($responsibleDefault) ?>"
                             <?= (int) old($demand, 'requester_unit_id') === (int) $unit['id'] ? 'selected' : '' ?>>
-                            <?= e($unit['name']) ?><?= $unit['secretariat_name'] ? ' - ' . e($unit['secretariat_name']) : '' ?><?= $isInactive ? ' (desativada)' : '' ?>
+                            <?= e($unitDisplayName) ?><?= $unit['secretariat_name'] ? ' - ' . e($unit['secretariat_name']) : '' ?><?= $isInactive ? ' (desativada)' : '' ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -149,7 +151,7 @@ require __DIR__ . '/../app/views/header.php';
             </div>
 
             <div class="col-md-6">
-                <label class="form-label">Unidade/Setor demandante</label>
+                <label class="form-label">Unidade/Subunidade demandante</label>
                 <input
                     type="text"
                     name="requester_department"

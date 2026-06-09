@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS secretariats (
 
 CREATE TABLE IF NOT EXISTS requester_units (
     id SERIAL PRIMARY KEY,
+    parent_id INTEGER NULL REFERENCES requester_units(id) ON DELETE SET NULL,
     secretariat_id INTEGER NULL REFERENCES secretariats(id) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
     default_responsible_name VARCHAR(255),
@@ -286,6 +287,32 @@ ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
 ALTER TABLE secretariats
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE requester_units
+ADD COLUMN IF NOT EXISTS parent_id INTEGER NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_requester_units_parent'
+    ) THEN
+        ALTER TABLE requester_units
+        ADD CONSTRAINT fk_requester_units_parent
+        FOREIGN KEY (parent_id) REFERENCES requester_units(id) ON DELETE SET NULL;
+    END IF;
+END
+$$;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'requester_units_secretariat_id_name_key'
+    ) THEN
+        ALTER TABLE requester_units
+        DROP CONSTRAINT requester_units_secretariat_id_name_key;
+    END IF;
+END
+$$;
 
 ALTER TABLE requester_units
 ADD COLUMN IF NOT EXISTS default_responsible_name VARCHAR(255);
@@ -611,20 +638,46 @@ INSERT INTO secretariats (name)
 VALUES ('Secretaria nao informada')
 ON CONFLICT (name) DO NOTHING;
 
+WITH legacy_requester_units AS (
+    SELECT
+        (SELECT id FROM secretariats WHERE name = 'Secretaria nao informada') AS secretariat_id,
+        MIN(legacy.requester_department) AS name,
+        MAX(NULLIF(legacy.responsible_name, '')) AS default_responsible_name
+    FROM demand_lists legacy
+    WHERE legacy.requester_department IS NOT NULL
+      AND legacy.requester_department <> ''
+    GROUP BY lower(legacy.requester_department)
+)
+UPDATE requester_units ru
+SET default_responsible_name = COALESCE(ru.default_responsible_name, legacy.default_responsible_name)
+FROM legacy_requester_units legacy
+WHERE ru.secretariat_id = legacy.secretariat_id
+  AND ru.parent_id IS NULL
+  AND lower(ru.name) = lower(legacy.name);
+
+WITH legacy_requester_units AS (
+    SELECT
+        (SELECT id FROM secretariats WHERE name = 'Secretaria nao informada') AS secretariat_id,
+        MIN(legacy.requester_department) AS name,
+        MAX(NULLIF(legacy.responsible_name, '')) AS default_responsible_name
+    FROM demand_lists legacy
+    WHERE legacy.requester_department IS NOT NULL
+      AND legacy.requester_department <> ''
+    GROUP BY lower(legacy.requester_department)
+)
 INSERT INTO requester_units (secretariat_id, name, default_responsible_name)
 SELECT
-    (SELECT id FROM secretariats WHERE name = 'Secretaria nao informada'),
-    legacy.requester_department,
-    MAX(NULLIF(legacy.responsible_name, '')) AS default_responsible_name
-FROM demand_lists legacy
-WHERE legacy.requester_department IS NOT NULL
-  AND legacy.requester_department <> ''
-GROUP BY legacy.requester_department
-ON CONFLICT (secretariat_id, name) DO UPDATE SET
-    default_responsible_name = COALESCE(
-        requester_units.default_responsible_name,
-        EXCLUDED.default_responsible_name
-    );
+    legacy.secretariat_id,
+    legacy.name,
+    legacy.default_responsible_name
+FROM legacy_requester_units legacy
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM requester_units ru
+    WHERE ru.secretariat_id = legacy.secretariat_id
+      AND ru.parent_id IS NULL
+      AND lower(ru.name) = lower(legacy.name)
+);
 
 UPDATE demand_lists dl
 SET
@@ -719,6 +772,12 @@ ON demand_lists (requester_unit_id);
 
 CREATE INDEX IF NOT EXISTS idx_requester_units_secretariat_name
 ON requester_units (secretariat_id, lower(name));
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_requester_units_secretariat_parent_name
+ON requester_units (secretariat_id, COALESCE(parent_id, 0), lower(name));
+
+CREATE INDEX IF NOT EXISTS idx_requester_units_parent
+ON requester_units (parent_id);
 
 CREATE INDEX IF NOT EXISTS idx_suppliers_name
 ON suppliers (lower(name));

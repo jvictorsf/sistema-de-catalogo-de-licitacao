@@ -53,3 +53,92 @@ defined('DB_USER') || define('DB_USER', env_value('DB_USER', 'postgres'));
 defined('DB_PASS') || define('DB_PASS', env_value('DB_PASS', ''));
 
 defined('OPENAI_MODEL') || define('OPENAI_MODEL', env_value('OPENAI_MODEL', 'gpt-4.1-mini'));
+
+if (!function_exists('app_log')) {
+    function app_log(string $level, string $message, array $context = []): void
+    {
+        $logDir = APP_STORAGE_PATH . '/logs';
+
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0775, true);
+        }
+
+        $line = sprintf(
+            "[%s] %s %s %s\n",
+            date('Y-m-d H:i:s'),
+            strtoupper($level),
+            $message,
+            $context ? json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : ''
+        );
+
+        @file_put_contents($logDir . '/app.log', $line, FILE_APPEND | LOCK_EX);
+    }
+}
+
+if (!function_exists('app_log_exception')) {
+    function app_log_exception(Throwable $exception): void
+    {
+        app_log('error', $exception->getMessage(), [
+            'type' => get_class($exception),
+            'file' => $exception->getFile(),
+            'line' => $exception->getLine(),
+            'uri' => $_SERVER['REQUEST_URI'] ?? null,
+            'method' => $_SERVER['REQUEST_METHOD'] ?? null,
+            'trace' => $exception->getTraceAsString(),
+        ]);
+    }
+}
+
+if (!defined('APP_ERROR_HANDLERS_REGISTERED')) {
+    define('APP_ERROR_HANDLERS_REGISTERED', true);
+
+    if (!is_dir(APP_STORAGE_PATH . '/logs')) {
+        @mkdir(APP_STORAGE_PATH . '/logs', 0775, true);
+    }
+
+    ini_set('log_errors', '1');
+    ini_set('error_log', APP_STORAGE_PATH . '/logs/php-error.log');
+    ini_set('display_errors', APP_ENV === 'production' ? '0' : '1');
+
+    set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
+        if (!(error_reporting() & $severity)) {
+            return false;
+        }
+
+        app_log('warning', $message, [
+            'severity' => $severity,
+            'file' => $file,
+            'line' => $line,
+            'uri' => $_SERVER['REQUEST_URI'] ?? null,
+        ]);
+
+        return false;
+    });
+
+    set_exception_handler(static function (Throwable $exception): void {
+        app_log_exception($exception);
+        http_response_code(500);
+
+        if (APP_ENV !== 'production') {
+            echo '<h1>Erro interno</h1>';
+            echo '<pre>' . htmlspecialchars((string) $exception, ENT_QUOTES, 'UTF-8') . '</pre>';
+            return;
+        }
+
+        echo 'Erro interno do sistema. Consulte storage/logs/app.log.';
+    });
+
+    register_shutdown_function(static function (): void {
+        $error = error_get_last();
+
+        if (!$error || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+            return;
+        }
+
+        app_log('fatal', $error['message'], [
+            'file' => $error['file'] ?? null,
+            'line' => $error['line'] ?? null,
+            'uri' => $_SERVER['REQUEST_URI'] ?? null,
+        ]);
+    });
+}

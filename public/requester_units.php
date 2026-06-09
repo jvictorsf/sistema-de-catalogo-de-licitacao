@@ -16,7 +16,7 @@ require __DIR__ . '/../app/views/header.php';
     <div>
         <h1 class="h3 mb-1">Demandantes</h1>
         <p class="text-muted mb-0">
-            Cadastre secretarias, unidades e responsaveis padrao para agilizar as demandas.
+            Cadastre secretarias, unidades, subunidades e responsaveis padrao para agilizar as demandas.
         </p>
     </div>
 
@@ -90,14 +90,15 @@ require __DIR__ . '/../app/views/header.php';
     <div class="col-lg-7">
         <div class="card h-100">
             <div class="card-header fw-semibold">
-                Unidades e setores demandantes
+                Unidades, setores e subunidades demandantes
             </div>
 
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Unidade/Setor</th>
+                            <th>Unidade/Subunidade</th>
+                            <th>Unidade pai</th>
                             <th>Secretaria</th>
                             <th>Responsavel padrao</th>
                             <th>Status</th>
@@ -108,7 +109,7 @@ require __DIR__ . '/../app/views/header.php';
                     <tbody>
                         <?php if (!$requesterUnits): ?>
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">
+                                <td colspan="6" class="text-center text-muted py-4">
                                     Nenhuma unidade cadastrada.
                                 </td>
                             </tr>
@@ -117,8 +118,12 @@ require __DIR__ . '/../app/views/header.php';
                         <?php foreach ($requesterUnits as $unit): ?>
                             <tr>
                                 <td>
-                                    <strong><?= e($unit['name']) ?></strong>
+                                    <strong><?= e($unit['display_name'] ?? $unit['name']) ?></strong>
+                                    <?php if (!empty($unit['parent_id'])): ?>
+                                        <span class="badge text-bg-light border ms-1">Subunidade</span>
+                                    <?php endif; ?>
                                 </td>
+                                <td><?= e($unit['parent_unit_name'] ?? '-') ?></td>
                                 <td><?= e($unit['secretariat_name'] ?? '-') ?></td>
                                 <td><?= e($unit['default_responsible_name'] ?? '-') ?></td>
                                 <td>

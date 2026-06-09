@@ -644,6 +644,122 @@ function deactivate_requester_unit(int $id): void
     $stmt->execute(['id' => $id]);
 }
 
+function get_suppliers(bool $activeOnly = false): array
+{
+    $sql = "
+        SELECT *
+        FROM suppliers
+    ";
+
+    if ($activeOnly) {
+        $sql .= " WHERE is_active = TRUE";
+    }
+
+    $sql .= " ORDER BY name";
+
+    return db()->query($sql)->fetchAll();
+}
+
+function find_supplier(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM suppliers
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+
+    $supplier = $stmt->fetch();
+
+    return $supplier ?: null;
+}
+
+function create_supplier(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO suppliers (
+            name,
+            document,
+            contact_name,
+            email,
+            phone,
+            address,
+            notes,
+            is_active
+        ) VALUES (
+            :name,
+            :document,
+            :contact_name,
+            :email,
+            :phone,
+            :address,
+            :notes,
+            :is_active
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'name' => $data['name'],
+        'document' => normalize_supplier_document($data['document'] ?? null),
+        'contact_name' => $data['contact_name'] ?: null,
+        'email' => $data['email'] ?: null,
+        'phone' => $data['phone'] ?: null,
+        'address' => $data['address'] ?: null,
+        'notes' => $data['notes'] ?: null,
+        'is_active' => pg_bool($data['is_active'] ?? true),
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function update_supplier(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE suppliers SET
+            name = :name,
+            document = :document,
+            contact_name = :contact_name,
+            email = :email,
+            phone = :phone,
+            address = :address,
+            notes = :notes,
+            is_active = :is_active
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'name' => $data['name'],
+        'document' => normalize_supplier_document($data['document'] ?? null),
+        'contact_name' => $data['contact_name'] ?: null,
+        'email' => $data['email'] ?: null,
+        'phone' => $data['phone'] ?: null,
+        'address' => $data['address'] ?: null,
+        'notes' => $data['notes'] ?: null,
+        'is_active' => pg_bool($data['is_active'] ?? true),
+    ]);
+}
+
+function deactivate_supplier(int $id): void
+{
+    $stmt = db()->prepare("
+        UPDATE suppliers
+        SET is_active = FALSE
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function normalize_supplier_document(?string $document): ?string
+{
+    $digits = only_digits($document);
+
+    return $digits !== '' ? $digits : null;
+}
+
 function normalize_demand_requester_data(array $data): array
 {
     $unitId = (int) ($data['requester_unit_id'] ?? 0);
@@ -878,6 +994,341 @@ function update_demand_item(int $id, array $data): void
         'estimated_unit_price' => $data['estimated_unit_price'],
         'notes' => $data['notes'] ?? null,
     ]);
+}
+
+function normalize_money_value(mixed $value): ?float
+{
+    if ($value === null) {
+        return null;
+    }
+
+    $normalized = trim((string) $value);
+
+    if ($normalized === '') {
+        return null;
+    }
+
+    if (str_contains($normalized, ',')) {
+        $normalized = str_replace('.', '', $normalized);
+        $normalized = str_replace(',', '.', $normalized);
+    }
+
+    return round((float) $normalized, 2);
+}
+
+function normalize_optional_date(mixed $value): ?string
+{
+    $date = trim((string) $value);
+
+    return $date === '' ? null : $date;
+}
+
+function get_demand_supplier_quotes(int $demandListId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            q.*,
+            s.name AS supplier_name,
+            s.document AS supplier_document,
+            COUNT(qi.id) FILTER (WHERE qi.unit_price IS NOT NULL) AS priced_items_count,
+            COALESCE(
+                SUM(qi.unit_price * COALESCE(di.approved_quantity, di.quantity))
+                    FILTER (WHERE qi.unit_price IS NOT NULL),
+                0
+            ) AS total_quote_value
+        FROM demand_supplier_quotes q
+        INNER JOIN suppliers s ON s.id = q.supplier_id
+        LEFT JOIN demand_supplier_quote_items qi ON qi.demand_supplier_quote_id = q.id
+        LEFT JOIN demand_items di ON di.id = qi.demand_item_id
+        WHERE q.demand_list_id = :demand_list_id
+        GROUP BY q.id, s.name, s.document
+        ORDER BY s.name
+    ");
+
+    $stmt->execute(['demand_list_id' => $demandListId]);
+
+    return $stmt->fetchAll();
+}
+
+function find_demand_supplier_quote(int $id): ?array
+{
+    $stmt = db()->prepare("
+        SELECT
+            q.*,
+            s.name AS supplier_name,
+            s.document AS supplier_document
+        FROM demand_supplier_quotes q
+        INNER JOIN suppliers s ON s.id = q.supplier_id
+        WHERE q.id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+
+    $quote = $stmt->fetch();
+
+    return $quote ?: null;
+}
+
+function find_demand_supplier_quote_by_supplier(int $demandListId, int $supplierId): ?array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM demand_supplier_quotes
+        WHERE demand_list_id = :demand_list_id
+          AND supplier_id = :supplier_id
+    ");
+
+    $stmt->execute([
+        'demand_list_id' => $demandListId,
+        'supplier_id' => $supplierId,
+    ]);
+
+    $quote = $stmt->fetch();
+
+    return $quote ?: null;
+}
+
+function create_demand_supplier_quote(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO demand_supplier_quotes (
+            demand_list_id,
+            supplier_id,
+            quote_number,
+            quote_date,
+            validity_date,
+            attachment_path,
+            notes,
+            status
+        ) VALUES (
+            :demand_list_id,
+            :supplier_id,
+            :quote_number,
+            :quote_date,
+            :validity_date,
+            :attachment_path,
+            :notes,
+            :status
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'demand_list_id' => $data['demand_list_id'],
+        'supplier_id' => $data['supplier_id'],
+        'quote_number' => $data['quote_number'] ?: null,
+        'quote_date' => normalize_optional_date($data['quote_date'] ?? null),
+        'validity_date' => normalize_optional_date($data['validity_date'] ?? null),
+        'attachment_path' => $data['attachment_path'] ?: null,
+        'notes' => $data['notes'] ?: null,
+        'status' => $data['status'] ?? 'received',
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function update_demand_supplier_quote(int $id, array $data): void
+{
+    $stmt = db()->prepare("
+        UPDATE demand_supplier_quotes SET
+            supplier_id = :supplier_id,
+            quote_number = :quote_number,
+            quote_date = :quote_date,
+            validity_date = :validity_date,
+            attachment_path = :attachment_path,
+            notes = :notes,
+            status = :status
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        'id' => $id,
+        'supplier_id' => $data['supplier_id'],
+        'quote_number' => $data['quote_number'] ?: null,
+        'quote_date' => normalize_optional_date($data['quote_date'] ?? null),
+        'validity_date' => normalize_optional_date($data['validity_date'] ?? null),
+        'attachment_path' => $data['attachment_path'] ?: null,
+        'notes' => $data['notes'] ?: null,
+        'status' => $data['status'] ?? 'received',
+    ]);
+}
+
+function delete_demand_supplier_quote(int $id): void
+{
+    $stmt = db()->prepare("
+        DELETE FROM demand_supplier_quotes
+        WHERE id = :id
+    ");
+
+    $stmt->execute(['id' => $id]);
+}
+
+function get_demand_supplier_quote_items(int $quoteId): array
+{
+    $stmt = db()->prepare("
+        SELECT *
+        FROM demand_supplier_quote_items
+        WHERE demand_supplier_quote_id = :quote_id
+    ");
+
+    $stmt->execute(['quote_id' => $quoteId]);
+
+    $items = [];
+
+    foreach ($stmt->fetchAll() as $item) {
+        $items[(int) $item['demand_item_id']] = $item;
+    }
+
+    return $items;
+}
+
+function save_demand_supplier_quote_items(int $quoteId, array $prices, array $notes = []): void
+{
+    db()->beginTransaction();
+
+    try {
+        $upsert = db()->prepare("
+            INSERT INTO demand_supplier_quote_items (
+                demand_supplier_quote_id,
+                demand_item_id,
+                unit_price,
+                notes
+            ) VALUES (
+                :quote_id,
+                :demand_item_id,
+                :unit_price,
+                :notes
+            )
+            ON CONFLICT (demand_supplier_quote_id, demand_item_id)
+            DO UPDATE SET
+                unit_price = EXCLUDED.unit_price,
+                notes = EXCLUDED.notes
+        ");
+
+        $delete = db()->prepare("
+            DELETE FROM demand_supplier_quote_items
+            WHERE demand_supplier_quote_id = :quote_id
+              AND demand_item_id = :demand_item_id
+        ");
+
+        foreach ($prices as $demandItemId => $rawPrice) {
+            $demandItemId = (int) $demandItemId;
+            $unitPrice = normalize_money_value($rawPrice);
+            $note = trim((string) ($notes[$demandItemId] ?? ''));
+
+            if ($unitPrice === null && $note === '') {
+                $delete->execute([
+                    'quote_id' => $quoteId,
+                    'demand_item_id' => $demandItemId,
+                ]);
+
+                continue;
+            }
+
+            $upsert->execute([
+                'quote_id' => $quoteId,
+                'demand_item_id' => $demandItemId,
+                'unit_price' => $unitPrice,
+                'notes' => $note ?: null,
+            ]);
+        }
+
+        db()->commit();
+    } catch (Throwable $exception) {
+        db()->rollBack();
+        throw $exception;
+    }
+}
+
+function get_demand_budget_report(int $demandListId): array
+{
+    $items = get_demand_items($demandListId);
+    $quotes = array_values(array_filter(
+        get_demand_supplier_quotes($demandListId),
+        static fn (array $quote): bool => ($quote['status'] ?? '') !== 'discarded'
+    ));
+    $prices = [];
+
+    if ($quotes) {
+        $stmt = db()->prepare("
+            SELECT
+                qi.demand_item_id,
+                qi.unit_price,
+                qi.notes,
+                q.id AS quote_id
+            FROM demand_supplier_quote_items qi
+            INNER JOIN demand_supplier_quotes q ON q.id = qi.demand_supplier_quote_id
+            WHERE q.demand_list_id = :demand_list_id
+        ");
+
+        $stmt->execute(['demand_list_id' => $demandListId]);
+
+        foreach ($stmt->fetchAll() as $price) {
+            $prices[(int) $price['demand_item_id']][(int) $price['quote_id']] = $price;
+        }
+    }
+
+    $supplierTotals = [];
+    $rows = [];
+    $totalAverage = 0.0;
+    $pricedRows = 0;
+
+    foreach ($quotes as $quote) {
+        $supplierTotals[(int) $quote['id']] = 0.0;
+    }
+
+    foreach ($items as $item) {
+        $itemId = (int) $item['id'];
+        $quantity = (float) ($item['approved_quantity'] ?? $item['quantity'] ?? 0);
+        $unitPrices = [];
+        $supplierPrices = [];
+        $supplierNotes = [];
+
+        foreach ($quotes as $quote) {
+            $quoteId = (int) $quote['id'];
+            $priceRow = $prices[$itemId][$quoteId] ?? null;
+            $unitPrice = $priceRow && $priceRow['unit_price'] !== null
+                ? (float) $priceRow['unit_price']
+                : null;
+
+            $supplierPrices[$quoteId] = $unitPrice;
+            $supplierNotes[$quoteId] = $priceRow['notes'] ?? null;
+
+            if ($unitPrice !== null) {
+                $unitPrices[] = $unitPrice;
+                $supplierTotals[$quoteId] += $unitPrice * $quantity;
+            }
+        }
+
+        $averageUnitPrice = $unitPrices
+            ? array_sum($unitPrices) / count($unitPrices)
+            : null;
+        $averageTotal = $averageUnitPrice !== null
+            ? $averageUnitPrice * $quantity
+            : null;
+
+        if ($averageTotal !== null) {
+            $totalAverage += $averageTotal;
+            $pricedRows++;
+        }
+
+        $rows[] = array_merge($item, [
+            'budget_quantity' => $quantity,
+            'supplier_prices' => $supplierPrices,
+            'supplier_notes' => $supplierNotes,
+            'average_unit_price' => $averageUnitPrice,
+            'average_total' => $averageTotal,
+            'price_count' => count($unitPrices),
+        ]);
+    }
+
+    return [
+        'items' => $rows,
+        'quotes' => $quotes,
+        'supplier_totals' => $supplierTotals,
+        'total_average' => $totalAverage,
+        'priced_rows' => $pricedRows,
+    ];
 }
 
 function get_project_consolidated_items(int $projectId): array
@@ -1702,11 +2153,22 @@ function get_demand_financial_summary(int $demandListId): array
         'demand_list_id' => $demandListId,
     ]);
 
-    return $stmt->fetch() ?: [
+    $summary = $stmt->fetch() ?: [
         'total_requested_quantity' => 0,
         'total_approved_quantity' => 0,
         'total_estimated_value' => 0,
     ];
+
+    $budget = get_demand_budget_report($demandListId);
+
+    if (($budget['priced_rows'] ?? 0) > 0) {
+        $summary['total_estimated_value'] = $budget['total_average'];
+        $summary['uses_supplier_average'] = true;
+    } else {
+        $summary['uses_supplier_average'] = false;
+    }
+
+    return $summary;
 }
 
 function find_similar_items(string $name, ?int $ignoreId = null, float $threshold = 0.25): array
@@ -1981,6 +2443,7 @@ function catalog_json_scopes(): array
         'items' => 'Itens',
         'projects' => 'Projetos e demandas',
         'requesters' => 'Secretarias e unidades demandantes',
+        'suppliers' => 'Fornecedores',
         'categories' => 'Categorias',
         'unit_types' => 'Tipos de unidade',
         'kits' => 'Kits',
@@ -2069,6 +2532,23 @@ function catalog_json_table_definitions(): array
             ],
             'json' => [],
         ],
+        'suppliers' => [
+            'label' => 'Fornecedores',
+            'columns' => [
+                'id',
+                'name',
+                'document',
+                'contact_name',
+                'email',
+                'phone',
+                'address',
+                'notes',
+                'is_active',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
         'demand_lists' => [
             'label' => 'Demandas',
             'columns' => [
@@ -2094,6 +2574,36 @@ function catalog_json_table_definitions(): array
                 'quantity',
                 'approved_quantity',
                 'estimated_unit_price',
+                'notes',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
+        'demand_supplier_quotes' => [
+            'label' => 'Orcamentos de fornecedores',
+            'columns' => [
+                'id',
+                'demand_list_id',
+                'supplier_id',
+                'quote_number',
+                'quote_date',
+                'validity_date',
+                'attachment_path',
+                'notes',
+                'status',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
+        'demand_supplier_quote_items' => [
+            'label' => 'Valores dos orcamentos',
+            'columns' => [
+                'id',
+                'demand_supplier_quote_id',
+                'demand_item_id',
+                'unit_price',
                 'notes',
                 'created_at',
                 'updated_at',
@@ -2135,8 +2645,11 @@ function catalog_json_scope_tables(string $scope): array
             'procurement_projects',
             'secretariats',
             'requester_units',
+            'suppliers',
             'demand_lists',
             'demand_items',
+            'demand_supplier_quotes',
+            'demand_supplier_quote_items',
             'justification_templates',
             'environmental_impact_templates',
             'item_kits',
@@ -2153,13 +2666,17 @@ function catalog_json_scope_tables(string $scope): array
             'procurement_projects',
             'secretariats',
             'requester_units',
+            'suppliers',
             'demand_lists',
             'demand_items',
+            'demand_supplier_quotes',
+            'demand_supplier_quote_items',
         ],
         'requesters' => [
             'secretariats',
             'requester_units',
         ],
+        'suppliers' => ['suppliers'],
         'categories' => ['categories'],
         'unit_types' => ['unit_types'],
         'kits' => [
@@ -2306,6 +2823,19 @@ function catalog_json_sample_row(string $table, array $columns): array
         ]);
     }
 
+    if ($table === 'suppliers') {
+        return array_merge($row, [
+            'name' => 'Nome do fornecedor',
+            'document' => '00.000.000/0001-00',
+            'contact_name' => 'Nome do contato',
+            'email' => 'contato@fornecedor.com.br',
+            'phone' => '(00) 0000-0000',
+            'address' => 'Endereco do fornecedor.',
+            'notes' => null,
+            'is_active' => true,
+        ]);
+    }
+
     if ($table === 'demand_lists') {
         return array_merge($row, [
             'project_id' => 1,
@@ -2325,6 +2855,28 @@ function catalog_json_sample_row(string $table, array $columns): array
             'quantity' => 1,
             'approved_quantity' => 1,
             'estimated_unit_price' => 0,
+            'notes' => null,
+        ]);
+    }
+
+    if ($table === 'demand_supplier_quotes') {
+        return array_merge($row, [
+            'demand_list_id' => 1,
+            'supplier_id' => 1,
+            'quote_number' => 'ORC-001',
+            'quote_date' => date('Y-m-d'),
+            'validity_date' => null,
+            'attachment_path' => '/uploads/supplier_quotes/orcamento.pdf',
+            'notes' => null,
+            'status' => 'received',
+        ]);
+    }
+
+    if ($table === 'demand_supplier_quote_items') {
+        return array_merge($row, [
+            'demand_supplier_quote_id' => 1,
+            'demand_item_id' => 1,
+            'unit_price' => 0,
             'notes' => null,
         ]);
     }
@@ -2403,6 +2955,7 @@ function extract_catalog_import_rows(string $scope, string $table, array $tables
         'items' => 'procurement_items',
         'projects' => 'procurement_projects',
         'requesters' => 'requester_units',
+        'suppliers' => 'suppliers',
         'categories' => 'categories',
         'unit_types' => 'unit_types',
         'kits' => 'item_kits',
@@ -2450,6 +3003,11 @@ function import_catalog_table_rows(string $table, array $columns, array $jsonCol
 
             if ($table === 'procurement_items' && $column === 'environmental_impacts') {
                 $values[$column] = normalize_environmental_impacts_json($row[$column]);
+                continue;
+            }
+
+            if ($table === 'suppliers' && $column === 'document') {
+                $values[$column] = normalize_supplier_document((string) $row[$column]);
                 continue;
             }
 

@@ -1,7 +1,7 @@
 # Sistema de Catalogo de Licitacao
 
 ## Finalidade
-Sistema interno para cadastrar itens padronizados de licitacao, organizar categorias, tipos de unidade, kits, projetos de contratacao, demandas por setor e relatorios institucionais.
+Sistema interno para cadastrar itens padronizados de licitacao, organizar categorias, tipos de unidade, kits, projetos de contratacao, demandas por setor, fornecedores, orcamentos e relatorios institucionais.
 
 ## URL de Acesso
 https://catalogo-licitacao.esturvo.intra
@@ -33,6 +33,7 @@ Departamento solicitante
 - Nginx
 - Bootstrap Icons via CDN
 - OpenAI API opcional para sugestao assistida de itens
+- Acesso HTTPS a BrasilAPI opcional para consulta de CNPJ de fornecedores
 
 ## Procedimento de Backup
 Salvar:
@@ -65,6 +66,8 @@ Depois, restaurar `public/uploads/`, `storage/` e o brasao municipal, se houver.
 - O codigo de rastreio dos itens e gerado automaticamente no banco no formato `CL000001`.
 - A importacao/exportacao JSON esta disponivel no menu **Dados**.
 - A pagina **Dados** oferece um template JSON de importacao para cada escopo.
+- Orcamentos reais de fornecedores podem ser anexados em `public/uploads/supplier_quotes/`.
+- A consulta de CNPJ de fornecedores utiliza `https://brasilapi.com.br/api/cnpj/v1/{cnpj}` quando houver acesso externo.
 - Os impactos ambientais dos itens sao armazenados como lista estruturada.
 - As sugestoes de IA sao apoio inicial e precisam de revisao tecnica antes de uso em processo licitatorio.
 
@@ -124,6 +127,7 @@ server {
     server_name catalogo-licitacao.esturvo.intra;
     root /srv/apps/internos/sistema-de-catalogo-de-licitacao/public;
     index index.php;
+    client_max_body_size 12m;
 
     location / {
         try_files $uri $uri/ /index.php?$query_string;

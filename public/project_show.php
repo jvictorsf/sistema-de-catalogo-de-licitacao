@@ -139,6 +139,12 @@ require __DIR__ . '/../app/views/header.php';
                                         Abrir
                                     </a>
 
+                                    <a
+                                        href="/demand_budget.php?id=<?= (int) $demand['id'] ?>"
+                                        class="btn btn-sm btn-outline-success">
+                                        Orçamento
+                                    </a>
+
                                     <a href="/project_export_word.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-primary">
                                         Exportar Word
                                     </a>

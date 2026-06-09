@@ -49,6 +49,12 @@ $navItems = [
         'active' => ['requester_units.php', 'requester_unit_form.php', 'secretariat_form.php'],
     ],
     [
+        'href' => '/suppliers.php',
+        'label' => 'Fornecedores',
+        'icon' => 'bi-truck',
+        'active' => ['suppliers.php', 'supplier_form.php', 'demand_supplier_quote_form.php', 'demand_budget.php'],
+    ],
+    [
         'href' => '/library.php',
         'label' => 'Biblioteca',
         'icon' => 'bi-journal-text',

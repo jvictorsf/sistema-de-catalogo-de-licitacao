@@ -19,6 +19,19 @@ if (!$demand) {
 $project = find_project((int) $demand['project_id']);
 $items = get_demand_items($id);
 $catalogItems = search_items();
+$supplierQuotes = get_demand_supplier_quotes($id);
+$budgetReport = get_demand_budget_report($id);
+$budgetItemsByDemandItem = [];
+
+foreach ($budgetReport['items'] as $budgetItem) {
+    $budgetItemsByDemandItem[(int) $budgetItem['id']] = $budgetItem;
+}
+
+$quoteStatusLabels = [
+    'received' => 'Recebido',
+    'draft' => 'Em coleta',
+    'discarded' => 'Desconsiderado',
+];
 
 require __DIR__ . '/../app/views/header.php';
 
@@ -36,6 +49,10 @@ require __DIR__ . '/../app/views/header.php';
     <div class="d-flex gap-2 flex-wrap justify-content-end">
         <a href="/demand_form.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-secondary">
             Editar dados
+        </a>
+
+        <a href="/demand_budget.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-success">
+            <i class="bi bi-calculator"></i>Orçamento geral
         </a>
 
         <a href="/demand_export_word.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-primary">
@@ -68,6 +85,96 @@ require __DIR__ . '/../app/views/header.php';
             <div class="text-muted small">Responsável</div>
             <div class="fw-semibold"><?= e($demand['responsible_name'] ?: '-') ?></div>
         </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="fw-semibold">
+            Orçamentos de fornecedores
+        </div>
+
+        <div class="d-flex gap-2">
+            <a href="/demand_supplier_quote_form.php?demand_id=<?= (int) $demand['id'] ?>" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus-lg"></i>Adicionar orçamento
+            </a>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Fornecedor</th>
+                    <th>Orçamento</th>
+                    <th>Itens com valor</th>
+                    <th>Total informado</th>
+                    <th>Anexo</th>
+                    <th class="text-end">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (!$supplierQuotes): ?>
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            Nenhum orçamento de fornecedor vinculado.
+                        </td>
+                    </tr>
+                <?php endif; ?>
+
+                <?php foreach ($supplierQuotes as $quote): ?>
+                    <?php $quoteId = (int) $quote['id']; ?>
+                    <tr>
+                        <td>
+                            <strong><?= e($quote['supplier_name']) ?></strong>
+                            <?php if (!empty($quote['supplier_document'])): ?>
+                                <div class="small text-muted"><?= e(format_brazil_document($quote['supplier_document'])) ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?= e($quote['quote_number'] ?: 'Sem número') ?>
+                            <div class="small">
+                                <span class="badge <?= ($quote['status'] ?? '') === 'discarded' ? 'text-bg-secondary' : 'text-bg-success' ?>">
+                                    <?= e($quoteStatusLabels[$quote['status'] ?? 'received'] ?? (string) $quote['status']) ?>
+                                </span>
+                            </div>
+                            <?php if (!empty($quote['quote_date'])): ?>
+                                <div class="small text-muted">Data: <?= date('d/m/Y', strtotime($quote['quote_date'])) ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($quote['validity_date'])): ?>
+                                <div class="small text-muted">Validade: <?= date('d/m/Y', strtotime($quote['validity_date'])) ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td><?= e((string) ($quote['priced_items_count'] ?? 0)) ?></td>
+                        <td class="fw-semibold">
+                            R$ <?= number_format((float) ($budgetReport['supplier_totals'][$quoteId] ?? $quote['total_quote_value'] ?? 0), 2, ',', '.') ?>
+                        </td>
+                        <td>
+                            <?php if (!empty($quote['attachment_path'])): ?>
+                                <a href="<?= e($quote['attachment_path']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-paperclip"></i>Abrir
+                                </a>
+                            <?php else: ?>
+                                <span class="text-muted">-</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-end">
+                            <a href="/demand_supplier_quote_form.php?id=<?= $quoteId ?>" class="btn btn-sm btn-outline-primary">
+                                Editar
+                            </a>
+
+                            <form action="/demand_supplier_quote_delete.php" method="post" class="d-inline" onsubmit="return confirm('Remover este orçamento da demanda?')">
+                                <input type="hidden" name="id" value="<?= $quoteId ?>">
+                                <input type="hidden" name="demand_id" value="<?= (int) $demand['id'] ?>">
+                                <button class="btn btn-sm btn-outline-danger">
+                                    Remover
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -138,7 +245,7 @@ require __DIR__ . '/../app/views/header.php';
         </div>
 
         <div class="col-md-2">
-            <label class="form-label">Valor unitário estimado</label>
+            <label class="form-label">Valor unitário de referência</label>
 
             <input
                 type="number"
@@ -229,8 +336,8 @@ require __DIR__ . '/../app/views/header.php';
                     <th>Tipo de unidade</th>
                     <th>Qtd. solicitada</th>
                     <th>Qtd. aprovada</th>
-                    <th>Valor unit.</th>
-                    <th>Total estimado</th>
+                    <th>Valor unit. médio</th>
+                    <th>Total médio estimado</th>
                     <th>Observação</th>
                     <th class="text-end">Ações</th>
                 </tr>
@@ -246,6 +353,11 @@ require __DIR__ . '/../app/views/header.php';
                 <?php endif; ?>
 
                 <?php foreach ($items as $item): ?>
+                    <?php
+                        $budgetItem = $budgetItemsByDemandItem[(int) $item['id']] ?? [];
+                        $averageUnitPrice = $budgetItem['average_unit_price'] ?? null;
+                        $averageTotal = $budgetItem['average_total'] ?? null;
+                    ?>
                     <tr>
                         <td>
                             <span class="badge text-bg-dark">
@@ -270,11 +382,20 @@ require __DIR__ . '/../app/views/header.php';
                         </td>
 
                         <td>
-                            R$ <?= number_format((float) ($item['estimated_unit_price'] ?? 0), 2, ',', '.') ?>
+                            <?php if ($averageUnitPrice !== null): ?>
+                                R$ <?= number_format((float) $averageUnitPrice, 2, ',', '.') ?>
+                            <?php else: ?>
+                                <span class="text-muted">R$ <?= number_format((float) ($item['estimated_unit_price'] ?? 0), 2, ',', '.') ?></span>
+                                <div class="small text-muted">referência manual</div>
+                            <?php endif; ?>
                         </td>
 
                         <td class="fw-semibold">
-                            R$ <?= number_format((float) ($item['estimated_total'] ?? 0), 2, ',', '.') ?>
+                            <?php if ($averageTotal !== null): ?>
+                                R$ <?= number_format((float) $averageTotal, 2, ',', '.') ?>
+                            <?php else: ?>
+                                <span class="text-muted">R$ <?= number_format((float) ($item['estimated_total'] ?? 0), 2, ',', '.') ?></span>
+                            <?php endif; ?>
                         </td>
 
                         <td>
@@ -381,7 +502,7 @@ require __DIR__ . '/../app/views/header.php';
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">Valor unitário estimado</label>
+                        <label class="form-label">Valor unitário de referência</label>
 
                         <input
                             type="number"

@@ -1,6 +1,8 @@
 .env
 /public/uploads/items/*
 !/public/uploads/items/.gitkeep
+/public/uploads/supplier_quotes/*
+!/public/uploads/supplier_quotes/.gitkeep
 /storage/logs/*
 !/storage/logs/.gitkeep
 /storage/imports/*

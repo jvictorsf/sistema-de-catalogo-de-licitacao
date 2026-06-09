@@ -418,6 +418,173 @@ function render_municipal_logo(string $class = 'report-logo'): string
     return '<img src="' . e($path) . '" class="' . e($class) . '" alt="Brasao do municipio" style="width:80px;height:auto;margin-bottom:8px;">';
 }
 
+function only_digits(?string $value): string
+{
+    return preg_replace('/\D+/', '', (string) $value) ?? '';
+}
+
+function format_brazil_document(?string $value): string
+{
+    $digits = only_digits($value);
+
+    if (strlen($digits) === 14) {
+        return sprintf(
+            '%s.%s.%s/%s-%s',
+            substr($digits, 0, 2),
+            substr($digits, 2, 3),
+            substr($digits, 5, 3),
+            substr($digits, 8, 4),
+            substr($digits, 12, 2)
+        );
+    }
+
+    if (strlen($digits) === 11) {
+        return sprintf(
+            '%s.%s.%s-%s',
+            substr($digits, 0, 3),
+            substr($digits, 3, 3),
+            substr($digits, 6, 3),
+            substr($digits, 9, 2)
+        );
+    }
+
+    return trim((string) $value);
+}
+
+function lookup_cnpj_brasilapi(string $cnpj): array
+{
+    $digits = only_digits($cnpj);
+
+    if (strlen($digits) !== 14) {
+        throw new RuntimeException('Informe um CNPJ com 14 digitos.');
+    }
+
+    $url = 'https://brasilapi.com.br/api/cnpj/v1/' . $digits;
+    $response = null;
+    $httpCode = 0;
+
+    if (function_exists('curl_init')) {
+        $curl = curl_init($url);
+
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 8,
+            CURLOPT_USERAGENT => (defined('APP_NAME') ? APP_NAME : 'catalogo-licitacao') . '/1.0',
+        ]);
+
+        $response = curl_exec($curl);
+        $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $error = curl_error($curl);
+        curl_close($curl);
+
+        if ($response === false) {
+            throw new RuntimeException('Nao foi possivel consultar o CNPJ: ' . $error);
+        }
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 8,
+                'header' => "User-Agent: catalogo-licitacao/1.0\r\n",
+            ],
+        ]);
+
+        $response = @file_get_contents($url, false, $context);
+
+        if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $matches)) {
+            $httpCode = (int) $matches[1];
+        }
+
+        if ($response === false) {
+            throw new RuntimeException('Nao foi possivel consultar o CNPJ.');
+        }
+    }
+
+    if ($httpCode >= 400) {
+        throw new RuntimeException($httpCode === 404
+            ? 'CNPJ nao encontrado na BrasilAPI.'
+            : 'A consulta de CNPJ retornou erro HTTP ' . $httpCode . '.');
+    }
+
+    $data = json_decode((string) $response, true);
+
+    if (!is_array($data)) {
+        throw new RuntimeException('A consulta de CNPJ retornou uma resposta invalida.');
+    }
+
+    $phones = array_values(array_filter([
+        $data['ddd_telefone_1'] ?? '',
+        $data['ddd_telefone_2'] ?? '',
+    ]));
+
+    $address = implode(', ', array_values(array_filter([
+        $data['logradouro'] ?? '',
+        $data['numero'] ?? '',
+        $data['complemento'] ?? '',
+        $data['bairro'] ?? '',
+        $data['municipio'] ?? '',
+        $data['uf'] ?? '',
+        $data['cep'] ?? '',
+    ])));
+
+    $tradeName = trim((string) ($data['nome_fantasia'] ?? ''));
+
+    return [
+        'name' => trim((string) ($data['razao_social'] ?? $tradeName)),
+        'document' => format_brazil_document((string) ($data['cnpj'] ?? $digits)),
+        'email' => trim((string) ($data['email'] ?? '')),
+        'phone' => implode(' / ', $phones),
+        'address' => $address,
+        'notes' => $tradeName !== '' ? 'Nome fantasia: ' . $tradeName : '',
+    ];
+}
+
+function upload_supplier_quote_file(array $file): ?string
+{
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('Erro ao enviar o orçamento.');
+    }
+
+    $allowedTypes = [
+        'application/pdf' => 'pdf',
+        'application/msword' => 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+
+    $mime = mime_content_type($file['tmp_name']);
+
+    if (!isset($allowedTypes[$mime])) {
+        throw new RuntimeException('Formato inválido. Use PDF, DOC, DOCX, JPG, PNG ou WEBP.');
+    }
+
+    if ($file['size'] > 10 * 1024 * 1024) {
+        throw new RuntimeException('O orçamento deve ter no máximo 10 MB.');
+    }
+
+    $extension = $allowedTypes[$mime];
+    $filename = 'orcamento_' . date('YmdHis') . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+    $uploadDir = __DIR__ . '/../public/uploads/supplier_quotes';
+
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0775, true);
+    }
+
+    $destination = $uploadDir . '/' . $filename;
+
+    if (!move_uploaded_file($file['tmp_name'], $destination)) {
+        throw new RuntimeException('Não foi possível salvar o orçamento.');
+    }
+
+    return '/uploads/supplier_quotes/' . $filename;
+}
+
 function upload_item_image(array $file): ?string
 {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {

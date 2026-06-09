@@ -117,7 +117,11 @@ require __DIR__ . '/../app/views/header.php';
                 </tr>
                 <tr>
                     <td><span class="badge text-bg-primary">Projetos e demandas</span></td>
-                    <td>Exportar planejamentos, listas demandantes e quantitativos.</td>
+                    <td>Exportar planejamentos, listas demandantes, quantitativos, fornecedores vinculados e orçamentos.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge text-bg-primary">Fornecedores</span></td>
+                    <td>Transferir cadastro básico de fornecedores para reutilização em cotações.</td>
                 </tr>
                 <tr>
                     <td><span class="badge text-bg-secondary">Outros</span></td>

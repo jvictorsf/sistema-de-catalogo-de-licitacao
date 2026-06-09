@@ -18,6 +18,15 @@ if (!$demand) {
 $project = find_project((int) $demand['project_id']);
 $items = get_demand_items($id);
 $summary = get_demand_financial_summary($id);
+$budgetReport = get_demand_budget_report($id);
+$budgetItemsByDemandItem = [];
+$summaryValueLabel = !empty($summary['uses_supplier_average'])
+    ? 'Valor médio geral'
+    : 'Valor total de referência';
+
+foreach ($budgetReport['items'] as $budgetItem) {
+    $budgetItemsByDemandItem[(int) $budgetItem['id']] = $budgetItem;
+}
 
 $filename = 'demanda-' . $id . '.doc';
 
@@ -112,7 +121,7 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
     <tr>
         <th>Qtd. solicitada</th>
         <th>Qtd. aprovada</th>
-        <th>Valor total estimado</th>
+        <th><?= e($summaryValueLabel) ?></th>
     </tr>
 
     <tr>
@@ -130,22 +139,30 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
             <th>Un.</th>
             <th>Qtd. solicitada</th>
             <th>Qtd. aprovada</th>
-            <th>Valor unit.</th>
-            <th>Total estimado</th>
+            <th>Valor unit. médio</th>
+            <th>Total médio estimado</th>
             <th>Observação</th>
         </tr>
     </thead>
 
     <tbody>
         <?php foreach ($items as $item): ?>
+            <?php
+                $budgetItem = $budgetItemsByDemandItem[(int) $item['id']] ?? [];
+                $averageUnitPrice = $budgetItem['average_unit_price'] ?? null;
+                $averageTotal = $budgetItem['average_total'] ?? null;
+            ?>
             <tr>
                 <td><?= e($item['tracking_code']) ?></td>
                 <td><?= e($item['item_name']) ?></td>
                 <td><?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?></td>
                 <td><?= e((string) $item['quantity']) ?></td>
                 <td><?= e((string) ($item['approved_quantity'] ?? $item['quantity'])) ?></td>
-                <td>R$ <?= number_format((float) ($item['estimated_unit_price'] ?? 0), 2, ',', '.') ?></td>
-                <td>R$ <?= number_format((float) ($item['estimated_total'] ?? 0), 2, ',', '.') ?></td>
+                <td>
+                    R$ <?= number_format((float) ($averageUnitPrice ?? $item['estimated_unit_price'] ?? 0), 2, ',', '.') ?>
+                    <?= $averageUnitPrice === null ? '<br><small>referencia manual</small>' : '' ?>
+                </td>
+                <td>R$ <?= number_format((float) ($averageTotal ?? $item['estimated_total'] ?? 0), 2, ',', '.') ?></td>
                 <td><?= e($item['notes']) ?></td>
             </tr>
         <?php endforeach; ?>

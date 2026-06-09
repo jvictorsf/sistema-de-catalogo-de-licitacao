@@ -145,6 +145,20 @@ CREATE TABLE IF NOT EXISTS requester_units (
     UNIQUE (secretariat_id, name)
 );
 
+CREATE TABLE IF NOT EXISTS suppliers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    document VARCHAR(30),
+    contact_name VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(50),
+    address TEXT,
+    notes TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS demand_lists (
     id SERIAL PRIMARY KEY,
     project_id INTEGER NOT NULL REFERENCES procurement_projects(id) ON DELETE CASCADE,
@@ -169,6 +183,31 @@ CREATE TABLE IF NOT EXISTS demand_items (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (demand_list_id, procurement_item_id)
+);
+
+CREATE TABLE IF NOT EXISTS demand_supplier_quotes (
+    id SERIAL PRIMARY KEY,
+    demand_list_id INTEGER NOT NULL REFERENCES demand_lists(id) ON DELETE CASCADE,
+    supplier_id INTEGER NOT NULL REFERENCES suppliers(id),
+    quote_number VARCHAR(100),
+    quote_date DATE,
+    validity_date DATE,
+    attachment_path VARCHAR(255),
+    notes TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'received',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS demand_supplier_quote_items (
+    id SERIAL PRIMARY KEY,
+    demand_supplier_quote_id INTEGER NOT NULL REFERENCES demand_supplier_quotes(id) ON DELETE CASCADE,
+    demand_item_id INTEGER NOT NULL REFERENCES demand_items(id) ON DELETE CASCADE,
+    unit_price NUMERIC(12,2),
+    notes TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (demand_supplier_quote_id, demand_item_id)
 );
 
 ALTER TABLE demand_items
@@ -246,6 +285,30 @@ ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE requester_units
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS document VARCHAR(30);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS address TEXT;
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS notes TEXT;
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
 ALTER TABLE demand_lists
 ADD COLUMN IF NOT EXISTS requester_unit_id INTEGER NULL;
 
@@ -279,6 +342,39 @@ ALTER TABLE demand_items
 ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE demand_items
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE demand_supplier_quotes
+ADD COLUMN IF NOT EXISTS quote_number VARCHAR(100);
+
+ALTER TABLE demand_supplier_quotes
+ADD COLUMN IF NOT EXISTS quote_date DATE;
+
+ALTER TABLE demand_supplier_quotes
+ADD COLUMN IF NOT EXISTS validity_date DATE;
+
+ALTER TABLE demand_supplier_quotes
+ADD COLUMN IF NOT EXISTS attachment_path VARCHAR(255);
+
+ALTER TABLE demand_supplier_quotes
+ADD COLUMN IF NOT EXISTS notes TEXT;
+
+ALTER TABLE demand_supplier_quotes
+ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'received';
+
+ALTER TABLE demand_supplier_quotes
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE demand_supplier_quote_items
+ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2);
+
+ALTER TABLE demand_supplier_quote_items
+ADD COLUMN IF NOT EXISTS notes TEXT;
+
+ALTER TABLE demand_supplier_quote_items
+ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE demand_supplier_quote_items
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE justification_templates
@@ -375,6 +471,24 @@ EXECUTE FUNCTION touch_updated_at();
 DROP TRIGGER IF EXISTS trg_touch_updated_at_demand_items ON demand_items;
 CREATE TRIGGER trg_touch_updated_at_demand_items
 BEFORE UPDATE ON demand_items
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_suppliers ON suppliers;
+CREATE TRIGGER trg_touch_updated_at_suppliers
+BEFORE UPDATE ON suppliers
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_supplier_quotes ON demand_supplier_quotes;
+CREATE TRIGGER trg_touch_updated_at_supplier_quotes
+BEFORE UPDATE ON demand_supplier_quotes
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_supplier_quote_items ON demand_supplier_quote_items;
+CREATE TRIGGER trg_touch_updated_at_supplier_quote_items
+BEFORE UPDATE ON demand_supplier_quote_items
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 
@@ -565,6 +679,25 @@ ON demand_lists (requester_unit_id);
 CREATE INDEX IF NOT EXISTS idx_requester_units_secretariat_name
 ON requester_units (secretariat_id, lower(name));
 
+CREATE INDEX IF NOT EXISTS idx_suppliers_name
+ON suppliers (lower(name));
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_suppliers_document
+ON suppliers (lower(document))
+WHERE document IS NOT NULL AND document <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_demand_supplier_quotes_demand_supplier
+ON demand_supplier_quotes (demand_list_id, supplier_id);
+
+CREATE INDEX IF NOT EXISTS idx_demand_supplier_quotes_demand
+ON demand_supplier_quotes (demand_list_id);
+
+CREATE INDEX IF NOT EXISTS idx_demand_supplier_quote_items_quote
+ON demand_supplier_quote_items (demand_supplier_quote_id);
+
+CREATE INDEX IF NOT EXISTS idx_demand_supplier_quote_items_item
+ON demand_supplier_quote_items (demand_item_id);
+
 SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
 SELECT setval(pg_get_serial_sequence('unit_types', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM unit_types), 0), 1), COALESCE((SELECT MAX(id) FROM unit_types), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_items), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_items), 0) > 0);
@@ -573,8 +706,11 @@ SELECT setval(pg_get_serial_sequence('procurement_item_versions', 'id'), GREATES
 SELECT setval(pg_get_serial_sequence('procurement_projects', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_projects), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_projects), 0) > 0);
 SELECT setval(pg_get_serial_sequence('secretariats', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM secretariats), 0), 1), COALESCE((SELECT MAX(id) FROM secretariats), 0) > 0);
 SELECT setval(pg_get_serial_sequence('requester_units', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM requester_units), 0), 1), COALESCE((SELECT MAX(id) FROM requester_units), 0) > 0);
+SELECT setval(pg_get_serial_sequence('suppliers', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM suppliers), 0), 1), COALESCE((SELECT MAX(id) FROM suppliers), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_lists', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_lists), 0), 1), COALESCE((SELECT MAX(id) FROM demand_lists), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_items), 0) > 0);
+SELECT setval(pg_get_serial_sequence('demand_supplier_quotes', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0) > 0);
+SELECT setval(pg_get_serial_sequence('demand_supplier_quote_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('justification_templates', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM justification_templates), 0), 1), COALESCE((SELECT MAX(id) FROM justification_templates), 0) > 0);
 SELECT setval(pg_get_serial_sequence('environmental_impact_templates', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM environmental_impact_templates), 0), 1), COALESCE((SELECT MAX(id) FROM environmental_impact_templates), 0) > 0);
 SELECT setval(pg_get_serial_sequence('item_kits', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM item_kits), 0), 1), COALESCE((SELECT MAX(id) FROM item_kits), 0) > 0);

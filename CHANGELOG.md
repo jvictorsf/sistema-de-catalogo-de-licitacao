@@ -2,6 +2,28 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.4.1] - 2026-06-09
+
+### Adicionado
+- Consulta de CNPJ no cadastro de fornecedores usando BrasilAPI para preencher razao social, contato e endereco.
+
+### Alterado
+- Itens demandados passam a exibir valor unitario medio e total medio estimado com base nos orcamentos dos fornecedores.
+- Relatorios Word/PDF da demanda passam a usar o valor medio geral quando houver cotacoes.
+- Orcamentos marcados como desconsiderados deixam de compor a media do orcamento geral.
+
+### Corrigido
+- Corrigido erro no resumo financeiro de projetos causado por chamada indevida do calculo de orcamento individual da demanda.
+
+## [1.4.0] - 2026-06-08
+
+### Adicionado
+- Cadastro de fornecedores com dados de contato, documento, observacoes e status.
+- Vinculo de fornecedores a demandas por meio de orcamentos, com anexo opcional do orcamento real.
+- Lancamento de valores unitarios dos fornecedores para cada item da demanda.
+- Relatorio de orcamento geral da Prefeitura com matriz comparativa, media por item e valor medio geral.
+- Exportacao/importacao JSON passa a contemplar fornecedores e orcamentos das demandas.
+
 ## [1.3.1] - 2026-06-08
 
 ### Alterado

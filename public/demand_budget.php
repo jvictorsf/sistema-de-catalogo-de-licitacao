@@ -41,6 +41,10 @@ require __DIR__ . '/../app/views/header.php';
             <i class="bi bi-plus-lg"></i>Adicionar orçamento
         </a>
 
+        <a href="/demand_price_bank.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-success">
+            <i class="bi bi-archive"></i>Banco de preços
+        </a>
+
         <a href="/demand_show.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-secondary">
             Voltar
         </a>
@@ -83,8 +87,8 @@ require __DIR__ . '/../app/views/header.php';
     </div>
     <div class="col-md-4">
         <div class="card card-body stat-card">
-            <div class="text-muted small">Itens com média calculada</div>
-            <div class="h3 mb-0"><?= e((string) ($budget['priced_rows'] ?? 0)) ?> / <?= e((string) count($items)) ?></div>
+            <div class="text-muted small">Preços históricos selecionados</div>
+            <div class="h3 mb-0"><?= e((string) count($budget['historical_references'] ?? [])) ?></div>
         </div>
     </div>
     <div class="col-md-4">
@@ -157,6 +161,55 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 </div>
 
+<?php if (!empty($budget['historical_references'])): ?>
+    <div class="card mb-4">
+        <div class="card-header fw-semibold">
+            Banco de preços selecionado
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Item</th>
+                        <th>Fornecedor</th>
+                        <th>Valor unitário</th>
+                        <th>Total de referência</th>
+                        <th>Origem</th>
+                        <th class="print-hide">Anexo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($budget['historical_references'] as $reference): ?>
+                        <tr>
+                            <td>
+                                <span class="badge text-bg-dark"><?= e($reference['target_tracking_code']) ?></span>
+                                <?= e($reference['target_item_name']) ?>
+                            </td>
+                            <td><?= e($reference['supplier_name']) ?></td>
+                            <td class="fw-semibold">R$ <?= number_format((float) $reference['unit_price'], 2, ',', '.') ?></td>
+                            <td class="fw-semibold">R$ <?= number_format((float) $reference['reference_total'], 2, ',', '.') ?></td>
+                            <td>
+                                <?= e($reference['source_project_name']) ?>
+                                <div class="small text-muted"><?= e($reference['source_demand_name']) ?></div>
+                            </td>
+                            <td class="print-hide">
+                                <?php if (!empty($reference['attachment_path'])): ?>
+                                    <a href="<?= e($reference['attachment_path']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-paperclip"></i>Abrir
+                                    </a>
+                                <?php else: ?>
+                                    <span class="text-muted">-</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+<?php endif; ?>
+
 <div class="card">
     <div class="card-header fw-semibold">
         Mapa comparativo por item
@@ -205,6 +258,9 @@ require __DIR__ . '/../app/views/header.php';
                         <?php endforeach; ?>
                         <td class="fw-semibold">
                             <?= $item['average_unit_price'] !== null ? 'R$ ' . number_format((float) $item['average_unit_price'], 2, ',', '.') : '<span class="text-muted">-</span>' ?>
+                            <?php if (!empty($item['historical_references'])): ?>
+                                <div class="small text-muted">Inclui banco de preços</div>
+                            <?php endif; ?>
                         </td>
                         <td class="fw-semibold">
                             <?= $item['average_total'] !== null ? 'R$ ' . number_format((float) $item['average_total'], 2, ',', '.') : '<span class="text-muted">-</span>' ?>

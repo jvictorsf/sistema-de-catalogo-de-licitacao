@@ -1246,6 +1246,166 @@ function get_reusable_project_quote_items_for_demand(int $demandListId): array
     return $items;
 }
 
+function get_selected_demand_price_references(int $demandListId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            pr.*,
+            source_qi.unit_price,
+            source_qi.notes AS source_notes,
+            q.quote_number,
+            q.quote_date,
+            q.validity_date,
+            q.attachment_path,
+            s.name AS supplier_name,
+            s.document AS supplier_document,
+            source_dl.name AS source_demand_name,
+            source_p.name AS source_project_name
+        FROM demand_price_references pr
+        INNER JOIN demand_items target_di ON target_di.id = pr.demand_item_id
+        INNER JOIN demand_supplier_quote_items source_qi ON source_qi.id = pr.source_quote_item_id
+        INNER JOIN demand_supplier_quotes q ON q.id = source_qi.demand_supplier_quote_id
+        INNER JOIN suppliers s ON s.id = q.supplier_id
+        INNER JOIN demand_items source_di ON source_di.id = source_qi.demand_item_id
+        INNER JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
+        INNER JOIN procurement_projects source_p ON source_p.id = source_dl.project_id
+        WHERE target_di.demand_list_id = :demand_list_id
+        ORDER BY target_di.id, q.quote_date DESC NULLS LAST, s.name
+    ");
+
+    $stmt->execute(['demand_list_id' => $demandListId]);
+
+    $references = [];
+
+    foreach ($stmt->fetchAll() as $reference) {
+        $references[(int) $reference['demand_item_id']][(int) $reference['source_quote_item_id']] = $reference;
+    }
+
+    return $references;
+}
+
+function get_demand_price_bank_candidates(int $demandListId, int $months = 0): array
+{
+    $sql = "
+        SELECT
+            target_di.id AS target_demand_item_id,
+            qi.id AS source_quote_item_id,
+            qi.unit_price,
+            qi.notes,
+            q.id AS source_quote_id,
+            q.supplier_id,
+            q.quote_number,
+            q.quote_date,
+            q.validity_date,
+            q.attachment_path,
+            s.name AS supplier_name,
+            s.document AS supplier_document,
+            source_dl.id AS source_demand_id,
+            source_dl.name AS source_demand_name,
+            source_p.id AS source_project_id,
+            source_p.name AS source_project_name
+        FROM demand_items target_di
+        INNER JOIN demand_lists target_dl ON target_dl.id = target_di.demand_list_id
+        INNER JOIN demand_items source_di
+            ON source_di.procurement_item_id = target_di.procurement_item_id
+           AND source_di.id <> target_di.id
+        INNER JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
+        INNER JOIN procurement_projects source_p ON source_p.id = source_dl.project_id
+        INNER JOIN demand_supplier_quote_items qi
+            ON qi.demand_item_id = source_di.id
+           AND qi.unit_price IS NOT NULL
+        INNER JOIN demand_supplier_quotes q
+            ON q.id = qi.demand_supplier_quote_id
+           AND q.status <> 'discarded'
+        INNER JOIN suppliers s ON s.id = q.supplier_id
+        WHERE target_dl.id = :demand_list_id
+    ";
+
+    $params = [
+        'demand_list_id' => $demandListId,
+    ];
+
+    if ($months > 0) {
+        $sql .= " AND q.quote_date >= (CURRENT_DATE - (:months || ' months')::interval)";
+        $params['months'] = $months;
+    }
+
+    $sql .= "
+        ORDER BY
+            target_di.id,
+            q.quote_date DESC NULLS LAST,
+            qi.created_at DESC,
+            s.name
+    ";
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    $items = [];
+
+    foreach ($stmt->fetchAll() as $item) {
+        $items[(int) $item['target_demand_item_id']][] = $item;
+    }
+
+    return $items;
+}
+
+function save_demand_price_references(int $demandListId, array $selectedReferences): void
+{
+    db()->beginTransaction();
+
+    try {
+        $delete = db()->prepare("
+            DELETE FROM demand_price_references pr
+            USING demand_items di
+            WHERE di.id = pr.demand_item_id
+              AND di.demand_list_id = :demand_list_id
+        ");
+
+        $delete->execute(['demand_list_id' => $demandListId]);
+
+        $insert = db()->prepare("
+            INSERT INTO demand_price_references (
+                demand_item_id,
+                source_quote_item_id
+            )
+            SELECT
+                target_di.id,
+                source_qi.id
+            FROM demand_items target_di
+            INNER JOIN demand_supplier_quote_items source_qi ON source_qi.id = :source_quote_item_id
+            INNER JOIN demand_supplier_quotes q
+                ON q.id = source_qi.demand_supplier_quote_id
+               AND q.status <> 'discarded'
+            INNER JOIN demand_items source_di ON source_di.id = source_qi.demand_item_id
+            WHERE target_di.id = :demand_item_id
+              AND target_di.demand_list_id = :demand_list_id
+              AND target_di.procurement_item_id = source_di.procurement_item_id
+              AND source_qi.unit_price IS NOT NULL
+            ON CONFLICT (demand_item_id, source_quote_item_id) DO NOTHING
+        ");
+
+        foreach ($selectedReferences as $demandItemId => $sourceQuoteItemIds) {
+            if (!is_array($sourceQuoteItemIds)) {
+                continue;
+            }
+
+            foreach (array_keys($sourceQuoteItemIds) as $sourceQuoteItemId) {
+                $insert->execute([
+                    'demand_list_id' => $demandListId,
+                    'demand_item_id' => (int) $demandItemId,
+                    'source_quote_item_id' => (int) $sourceQuoteItemId,
+                ]);
+            }
+        }
+
+        db()->commit();
+    } catch (Throwable $exception) {
+        db()->rollBack();
+        throw $exception;
+    }
+}
+
 function save_demand_supplier_quote_items(int $quoteId, array $prices, array $notes = [], array $sourceQuoteItemIds = []): void
 {
     db()->beginTransaction();
@@ -1316,6 +1476,7 @@ function get_demand_budget_report(int $demandListId): array
         get_demand_supplier_quotes($demandListId),
         static fn (array $quote): bool => ($quote['status'] ?? '') !== 'discarded'
     ));
+    $selectedHistoricalReferences = get_selected_demand_price_references($demandListId);
     $prices = [];
 
     if ($quotes) {
@@ -1346,6 +1507,8 @@ function get_demand_budget_report(int $demandListId): array
     }
 
     $supplierTotals = [];
+    $historicalReferences = [];
+    $historicalTotal = 0.0;
     $rows = [];
     $totalAverage = 0.0;
     $pricedRows = 0;
@@ -1361,6 +1524,7 @@ function get_demand_budget_report(int $demandListId): array
         $supplierPrices = [];
         $supplierNotes = [];
         $supplierOrigins = [];
+        $itemHistoricalReferences = [];
 
         foreach ($quotes as $quote) {
             $quoteId = (int) $quote['id'];
@@ -1381,6 +1545,26 @@ function get_demand_budget_report(int $demandListId): array
             }
         }
 
+        foreach ($selectedHistoricalReferences[$itemId] ?? [] as $reference) {
+            if ($reference['unit_price'] === null) {
+                continue;
+            }
+
+            $unitPrice = (float) $reference['unit_price'];
+            $unitPrices[] = $unitPrice;
+
+            $referenceTotal = $unitPrice * $quantity;
+            $historicalTotal += $referenceTotal;
+
+            $reference['reference_total'] = $referenceTotal;
+            $itemHistoricalReferences[] = $reference;
+            $historicalReferences[] = array_merge($reference, [
+                'target_item_name' => $item['item_name'],
+                'target_tracking_code' => $item['tracking_code'],
+                'target_quantity' => $quantity,
+            ]);
+        }
+
         $averageUnitPrice = $unitPrices
             ? array_sum($unitPrices) / count($unitPrices)
             : null;
@@ -1398,6 +1582,7 @@ function get_demand_budget_report(int $demandListId): array
             'supplier_prices' => $supplierPrices,
             'supplier_notes' => $supplierNotes,
             'supplier_origins' => $supplierOrigins,
+            'historical_references' => $itemHistoricalReferences,
             'average_unit_price' => $averageUnitPrice,
             'average_total' => $averageTotal,
             'price_count' => count($unitPrices),
@@ -1408,6 +1593,8 @@ function get_demand_budget_report(int $demandListId): array
         'items' => $rows,
         'quotes' => $quotes,
         'supplier_totals' => $supplierTotals,
+        'historical_references' => $historicalReferences,
+        'historical_total' => $historicalTotal,
         'total_average' => $totalAverage,
         'priced_rows' => $pricedRows,
     ];
@@ -2693,6 +2880,18 @@ function catalog_json_table_definitions(): array
             ],
             'json' => [],
         ],
+        'demand_price_references' => [
+            'label' => 'Referencias historicas de precos',
+            'columns' => [
+                'id',
+                'demand_item_id',
+                'source_quote_item_id',
+                'notes',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
         'justification_templates' => [
             'label' => 'Modelos de justificativa',
             'columns' => ['id', 'title', 'content', 'category_id', 'is_active', 'created_at', 'updated_at'],
@@ -2733,6 +2932,7 @@ function catalog_json_scope_tables(string $scope): array
             'demand_items',
             'demand_supplier_quotes',
             'demand_supplier_quote_items',
+            'demand_price_references',
             'justification_templates',
             'environmental_impact_templates',
             'item_kits',
@@ -2754,6 +2954,7 @@ function catalog_json_scope_tables(string $scope): array
             'demand_items',
             'demand_supplier_quotes',
             'demand_supplier_quote_items',
+            'demand_price_references',
         ],
         'requesters' => [
             'secretariats',
@@ -2962,6 +3163,14 @@ function catalog_json_sample_row(string $table, array $columns): array
             'unit_price' => 0,
             'notes' => null,
             'reused_from_quote_item_id' => null,
+        ]);
+    }
+
+    if ($table === 'demand_price_references') {
+        return array_merge($row, [
+            'demand_item_id' => 1,
+            'source_quote_item_id' => 1,
+            'notes' => null,
         ]);
     }
 

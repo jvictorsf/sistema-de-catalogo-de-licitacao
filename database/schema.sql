@@ -211,6 +211,16 @@ CREATE TABLE IF NOT EXISTS demand_supplier_quote_items (
     UNIQUE (demand_supplier_quote_id, demand_item_id)
 );
 
+CREATE TABLE IF NOT EXISTS demand_price_references (
+    id SERIAL PRIMARY KEY,
+    demand_item_id INTEGER NOT NULL REFERENCES demand_items(id) ON DELETE CASCADE,
+    source_quote_item_id INTEGER NOT NULL REFERENCES demand_supplier_quote_items(id) ON DELETE CASCADE,
+    notes TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (demand_item_id, source_quote_item_id)
+);
+
 ALTER TABLE demand_items
 ADD COLUMN IF NOT EXISTS approved_quantity NUMERIC(12,2);
 
@@ -393,6 +403,15 @@ ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ALTER TABLE demand_supplier_quote_items
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
+ALTER TABLE demand_price_references
+ADD COLUMN IF NOT EXISTS notes TEXT;
+
+ALTER TABLE demand_price_references
+ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE demand_price_references
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
 ALTER TABLE justification_templates
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
@@ -505,6 +524,12 @@ EXECUTE FUNCTION touch_updated_at();
 DROP TRIGGER IF EXISTS trg_touch_updated_at_supplier_quote_items ON demand_supplier_quote_items;
 CREATE TRIGGER trg_touch_updated_at_supplier_quote_items
 BEFORE UPDATE ON demand_supplier_quote_items
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_price_references ON demand_price_references;
+CREATE TRIGGER trg_touch_updated_at_price_references
+BEFORE UPDATE ON demand_price_references
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 
@@ -717,6 +742,12 @@ ON demand_supplier_quote_items (demand_item_id);
 CREATE INDEX IF NOT EXISTS idx_demand_supplier_quote_items_reused_from
 ON demand_supplier_quote_items (reused_from_quote_item_id);
 
+CREATE INDEX IF NOT EXISTS idx_demand_price_references_demand_item
+ON demand_price_references (demand_item_id);
+
+CREATE INDEX IF NOT EXISTS idx_demand_price_references_source
+ON demand_price_references (source_quote_item_id);
+
 SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
 SELECT setval(pg_get_serial_sequence('unit_types', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM unit_types), 0), 1), COALESCE((SELECT MAX(id) FROM unit_types), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_items), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_items), 0) > 0);
@@ -730,6 +761,7 @@ SELECT setval(pg_get_serial_sequence('demand_lists', 'id'), GREATEST(COALESCE((S
 SELECT setval(pg_get_serial_sequence('demand_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_supplier_quotes', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_supplier_quote_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0) > 0);
+SELECT setval(pg_get_serial_sequence('demand_price_references', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_price_references), 0), 1), COALESCE((SELECT MAX(id) FROM demand_price_references), 0) > 0);
 SELECT setval(pg_get_serial_sequence('justification_templates', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM justification_templates), 0), 1), COALESCE((SELECT MAX(id) FROM justification_templates), 0) > 0);
 SELECT setval(pg_get_serial_sequence('environmental_impact_templates', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM environmental_impact_templates), 0), 1), COALESCE((SELECT MAX(id) FROM environmental_impact_templates), 0) > 0);
 SELECT setval(pg_get_serial_sequence('item_kits', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM item_kits), 0), 1), COALESCE((SELECT MAX(id) FROM item_kits), 0) > 0);

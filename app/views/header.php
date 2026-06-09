@@ -52,7 +52,7 @@ $navItems = [
         'href' => '/suppliers.php',
         'label' => 'Fornecedores',
         'icon' => 'bi-truck',
-        'active' => ['suppliers.php', 'supplier_form.php', 'demand_supplier_quote_form.php', 'demand_budget.php'],
+        'active' => ['suppliers.php', 'supplier_form.php', 'demand_supplier_quote_form.php', 'demand_budget.php', 'demand_price_bank.php'],
     ],
     [
         'href' => '/library.php',

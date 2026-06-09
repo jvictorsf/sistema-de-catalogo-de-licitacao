@@ -55,6 +55,10 @@ require __DIR__ . '/../app/views/header.php';
             <i class="bi bi-calculator"></i>Orçamento geral
         </a>
 
+        <a href="/demand_price_bank.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-success">
+            <i class="bi bi-archive"></i>Banco de preços
+        </a>
+
         <a href="/demand_export_word.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-primary">
             Exportar Word
         </a>

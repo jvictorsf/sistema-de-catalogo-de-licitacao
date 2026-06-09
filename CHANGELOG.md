@@ -2,6 +2,14 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.0] - 2026-06-09
+
+### Adicionado
+- Banco de Precos por demanda para selecionar manualmente orcamentos historicos do mesmo item.
+- Media da demanda passa a considerar os precos historicos selecionados pelo usuario.
+- Relatorio de orcamento geral exibe os precos historicos selecionados e suas origens.
+- Exportacao/importacao JSON passa a incluir referencias historicas de precos.
+
 ## [1.4.2] - 2026-06-09
 
 ### Adicionado

@@ -29,9 +29,11 @@ $project = find_project((int) $demand['project_id']);
 $items = get_demand_items($demandId);
 $suppliers = get_suppliers(!$isEditing);
 $quoteItems = $isEditing ? get_demand_supplier_quote_items($id) : [];
+$reusableQuoteItems = get_reusable_project_quote_items_for_demand($demandId);
 $errors = [];
 $postedPrices = $_POST['prices'] ?? null;
 $postedNotes = $_POST['item_notes'] ?? [];
+$postedSourceQuoteItemIds = $_POST['source_quote_item_ids'] ?? [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $attachmentPath = $quote['attachment_path'] ?? null;
@@ -84,7 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_demand_supplier_quote_items(
             $quoteId,
             is_array($postedPrices) ? $postedPrices : [],
-            is_array($postedNotes) ? $postedNotes : []
+            is_array($postedNotes) ? $postedNotes : [],
+            is_array($postedSourceQuoteItemIds) ? $postedSourceQuoteItemIds : []
         );
 
         redirect('/demand_show.php?id=' . $demandId);
@@ -142,7 +145,7 @@ require __DIR__ . '/../app/views/header.php';
     <div class="row g-3">
         <div class="col-md-6">
             <label class="form-label">Fornecedor</label>
-            <select name="supplier_id" class="form-select" required>
+            <select name="supplier_id" id="supplierSelect" class="form-select" required>
                 <option value="">Selecione...</option>
                 <?php foreach ($suppliers as $supplier): ?>
                     <option value="<?= (int) $supplier['id'] ?>" <?= (int) ($quote['supplier_id'] ?? 0) === (int) $supplier['id'] ? 'selected' : '' ?>>
@@ -241,24 +244,75 @@ require __DIR__ . '/../app/views/header.php';
                         $noteValue = is_array($postedNotes)
                             ? ($postedNotes[$itemId] ?? '')
                             : ($storedItem['notes'] ?? '');
+                        $sourceQuoteItemId = is_array($postedSourceQuoteItemIds)
+                            ? (int) ($postedSourceQuoteItemIds[$itemId] ?? 0)
+                            : (int) ($storedItem['reused_from_quote_item_id'] ?? 0);
+                        $reusableItems = $reusableQuoteItems[$itemId] ?? [];
+                        $currentOrigin = $sourceQuoteItemId && !empty($storedItem['reused_supplier_name'])
+                            ? trim($storedItem['reused_supplier_name'] . ' - ' . ($storedItem['reused_demand_name'] ?? ''))
+                            : '';
                     ?>
                     <tr>
                         <td><span class="badge text-bg-dark"><?= e($item['tracking_code']) ?></span></td>
-                        <td><?= e($item['item_name']) ?></td>
+                        <td>
+                            <?= e($item['item_name']) ?>
+
+                            <?php if ($reusableItems): ?>
+                                <div class="small text-muted mt-2 mb-1">
+                                    Precos ja cotados neste projeto:
+                                </div>
+
+                                <div class="d-flex flex-wrap gap-2">
+                                    <?php foreach ($reusableItems as $reusableItem): ?>
+                                        <?php
+                                            $reusableLabel = sprintf(
+                                                '%s - R$ %s',
+                                                $reusableItem['supplier_name'],
+                                                number_format((float) $reusableItem['unit_price'], 2, ',', '.')
+                                            );
+                                            $reusableDescription = trim(($reusableItem['source_demand_name'] ?? '') . ' ' . ($reusableItem['quote_number'] ?? ''));
+                                        ?>
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-success reuse-quote-price"
+                                            data-target-id="<?= $itemId ?>"
+                                            data-source-id="<?= (int) $reusableItem['source_quote_item_id'] ?>"
+                                            data-supplier-id="<?= (int) $reusableItem['supplier_id'] ?>"
+                                            data-price="<?= e(number_format((float) $reusableItem['unit_price'], 2, '.', '')) ?>"
+                                            data-label="<?= e($reusableLabel) ?>"
+                                            data-description="<?= e($reusableDescription) ?>">
+                                            <i class="bi bi-arrow-repeat"></i><?= e($reusableLabel) ?>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
                         <td><?= e((string) ($item['approved_quantity'] ?? $item['quantity'])) ?></td>
                         <td>
                             <input
+                                type="hidden"
+                                name="source_quote_item_ids[<?= $itemId ?>]"
+                                id="sourceQuoteItem<?= $itemId ?>"
+                                value="<?= $sourceQuoteItemId > 0 ? $sourceQuoteItemId : '' ?>">
+
+                            <input
                                 type="number"
                                 name="prices[<?= $itemId ?>]"
+                                id="priceInput<?= $itemId ?>"
                                 class="form-control"
                                 min="0"
                                 step="0.01"
                                 value="<?= e($priceValue !== '' && $priceValue !== null ? number_format((float) $priceValue, 2, '.', '') : '') ?>">
+
+                            <div class="form-text" id="sourceInfo<?= $itemId ?>">
+                                <?= $currentOrigin ? 'Origem: ' . e($currentOrigin) : '' ?>
+                            </div>
                         </td>
                         <td>
                             <input
                                 type="text"
                                 name="item_notes[<?= $itemId ?>]"
+                                id="noteInput<?= $itemId ?>"
                                 class="form-control"
                                 value="<?= e($noteValue) ?>"
                                 placeholder="Opcional">
@@ -278,5 +332,92 @@ require __DIR__ . '/../app/views/header.php';
         </button>
     </div>
 </form>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const supplierSelect = document.getElementById('supplierSelect');
+        const reuseButtons = document.querySelectorAll('.reuse-quote-price');
+
+        function filterReusablePrices() {
+            const selectedSupplierId = supplierSelect ? supplierSelect.value : '';
+
+            reuseButtons.forEach(function(button) {
+                button.hidden = selectedSupplierId && button.dataset.supplierId !== selectedSupplierId;
+            });
+        }
+
+        reuseButtons.forEach(function(button) {
+            button.addEventListener('click', function() {
+                const targetId = button.dataset.targetId;
+                const supplierId = button.dataset.supplierId || '';
+                const price = button.dataset.price || '';
+                const label = button.dataset.label || 'preco selecionado';
+                const description = button.dataset.description || '';
+
+                if (
+                    supplierSelect &&
+                    supplierSelect.value &&
+                    supplierSelect.value !== supplierId &&
+                    !confirm('Este preco pertence a outro fornecedor. Trocar o fornecedor deste orcamento?')
+                ) {
+                    return;
+                }
+
+                if (supplierSelect && supplierId) {
+                    supplierSelect.value = supplierId;
+                    filterReusablePrices();
+                }
+
+                const priceInput = document.getElementById('priceInput' + targetId);
+                const sourceInput = document.getElementById('sourceQuoteItem' + targetId);
+                const sourceInfo = document.getElementById('sourceInfo' + targetId);
+
+                if (priceInput) {
+                    priceInput.value = price;
+                }
+
+                if (sourceInput) {
+                    sourceInput.value = button.dataset.sourceId || '';
+                }
+
+                if (sourceInfo) {
+                    sourceInfo.textContent = 'Origem: ' + label + (description ? ' (' + description + ')' : '');
+                }
+            });
+        });
+
+        if (supplierSelect) {
+            supplierSelect.addEventListener('change', function() {
+                document.querySelectorAll('[id^="sourceQuoteItem"]').forEach(function(input) {
+                    input.value = '';
+                });
+
+                document.querySelectorAll('[id^="sourceInfo"]').forEach(function(info) {
+                    info.textContent = '';
+                });
+
+                filterReusablePrices();
+            });
+        }
+
+        document.querySelectorAll('[id^="priceInput"]').forEach(function(input) {
+            input.addEventListener('input', function() {
+                const targetId = input.id.replace('priceInput', '');
+                const sourceInput = document.getElementById('sourceQuoteItem' + targetId);
+                const sourceInfo = document.getElementById('sourceInfo' + targetId);
+
+                if (sourceInput) {
+                    sourceInput.value = '';
+                }
+
+                if (sourceInfo) {
+                    sourceInfo.textContent = '';
+                }
+            });
+        });
+
+        filterReusablePrices();
+    });
+</script>
 
 <?php require __DIR__ . '/../app/views/footer.php'; ?>

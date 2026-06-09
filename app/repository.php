@@ -1166,9 +1166,21 @@ function delete_demand_supplier_quote(int $id): void
 function get_demand_supplier_quote_items(int $quoteId): array
 {
     $stmt = db()->prepare("
-        SELECT *
-        FROM demand_supplier_quote_items
-        WHERE demand_supplier_quote_id = :quote_id
+        SELECT
+            qi.*,
+            source_qi.unit_price AS reused_unit_price,
+            source_q.quote_number AS reused_quote_number,
+            source_q.quote_date AS reused_quote_date,
+            source_q.attachment_path AS reused_attachment_path,
+            source_s.name AS reused_supplier_name,
+            source_dl.name AS reused_demand_name
+        FROM demand_supplier_quote_items qi
+        LEFT JOIN demand_supplier_quote_items source_qi ON source_qi.id = qi.reused_from_quote_item_id
+        LEFT JOIN demand_supplier_quotes source_q ON source_q.id = source_qi.demand_supplier_quote_id
+        LEFT JOIN suppliers source_s ON source_s.id = source_q.supplier_id
+        LEFT JOIN demand_items source_di ON source_di.id = source_qi.demand_item_id
+        LEFT JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
+        WHERE qi.demand_supplier_quote_id = :quote_id
     ");
 
     $stmt->execute(['quote_id' => $quoteId]);
@@ -1182,7 +1194,59 @@ function get_demand_supplier_quote_items(int $quoteId): array
     return $items;
 }
 
-function save_demand_supplier_quote_items(int $quoteId, array $prices, array $notes = []): void
+function get_reusable_project_quote_items_for_demand(int $demandListId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            target_di.id AS target_demand_item_id,
+            qi.id AS source_quote_item_id,
+            qi.unit_price,
+            qi.notes,
+            q.id AS source_quote_id,
+            q.supplier_id,
+            q.quote_number,
+            q.quote_date,
+            q.validity_date,
+            q.attachment_path,
+            s.name AS supplier_name,
+            s.document AS supplier_document,
+            source_dl.id AS source_demand_id,
+            source_dl.name AS source_demand_name
+        FROM demand_items target_di
+        INNER JOIN demand_lists target_dl ON target_dl.id = target_di.demand_list_id
+        INNER JOIN demand_lists source_dl
+            ON source_dl.project_id = target_dl.project_id
+           AND source_dl.id <> target_dl.id
+        INNER JOIN demand_items source_di
+            ON source_di.demand_list_id = source_dl.id
+           AND source_di.procurement_item_id = target_di.procurement_item_id
+        INNER JOIN demand_supplier_quote_items qi
+            ON qi.demand_item_id = source_di.id
+           AND qi.unit_price IS NOT NULL
+        INNER JOIN demand_supplier_quotes q
+            ON q.id = qi.demand_supplier_quote_id
+           AND q.status <> 'discarded'
+        INNER JOIN suppliers s ON s.id = q.supplier_id
+        WHERE target_dl.id = :demand_list_id
+        ORDER BY
+            target_di.id,
+            q.quote_date DESC NULLS LAST,
+            qi.created_at DESC,
+            s.name
+    ");
+
+    $stmt->execute(['demand_list_id' => $demandListId]);
+
+    $items = [];
+
+    foreach ($stmt->fetchAll() as $item) {
+        $items[(int) $item['target_demand_item_id']][] = $item;
+    }
+
+    return $items;
+}
+
+function save_demand_supplier_quote_items(int $quoteId, array $prices, array $notes = [], array $sourceQuoteItemIds = []): void
 {
     db()->beginTransaction();
 
@@ -1192,17 +1256,20 @@ function save_demand_supplier_quote_items(int $quoteId, array $prices, array $no
                 demand_supplier_quote_id,
                 demand_item_id,
                 unit_price,
-                notes
+                notes,
+                reused_from_quote_item_id
             ) VALUES (
                 :quote_id,
                 :demand_item_id,
                 :unit_price,
-                :notes
+                :notes,
+                :reused_from_quote_item_id
             )
             ON CONFLICT (demand_supplier_quote_id, demand_item_id)
             DO UPDATE SET
                 unit_price = EXCLUDED.unit_price,
-                notes = EXCLUDED.notes
+                notes = EXCLUDED.notes,
+                reused_from_quote_item_id = EXCLUDED.reused_from_quote_item_id
         ");
 
         $delete = db()->prepare("
@@ -1215,6 +1282,7 @@ function save_demand_supplier_quote_items(int $quoteId, array $prices, array $no
             $demandItemId = (int) $demandItemId;
             $unitPrice = normalize_money_value($rawPrice);
             $note = trim((string) ($notes[$demandItemId] ?? ''));
+            $sourceQuoteItemId = (int) ($sourceQuoteItemIds[$demandItemId] ?? 0);
 
             if ($unitPrice === null && $note === '') {
                 $delete->execute([
@@ -1230,6 +1298,7 @@ function save_demand_supplier_quote_items(int $quoteId, array $prices, array $no
                 'demand_item_id' => $demandItemId,
                 'unit_price' => $unitPrice,
                 'notes' => $note ?: null,
+                'reused_from_quote_item_id' => $sourceQuoteItemId > 0 ? $sourceQuoteItemId : null,
             ]);
         }
 
@@ -1255,9 +1324,17 @@ function get_demand_budget_report(int $demandListId): array
                 qi.demand_item_id,
                 qi.unit_price,
                 qi.notes,
+                qi.reused_from_quote_item_id,
+                source_s.name AS reused_supplier_name,
+                source_dl.name AS reused_demand_name,
                 q.id AS quote_id
             FROM demand_supplier_quote_items qi
             INNER JOIN demand_supplier_quotes q ON q.id = qi.demand_supplier_quote_id
+            LEFT JOIN demand_supplier_quote_items source_qi ON source_qi.id = qi.reused_from_quote_item_id
+            LEFT JOIN demand_supplier_quotes source_q ON source_q.id = source_qi.demand_supplier_quote_id
+            LEFT JOIN suppliers source_s ON source_s.id = source_q.supplier_id
+            LEFT JOIN demand_items source_di ON source_di.id = source_qi.demand_item_id
+            LEFT JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
             WHERE q.demand_list_id = :demand_list_id
         ");
 
@@ -1283,6 +1360,7 @@ function get_demand_budget_report(int $demandListId): array
         $unitPrices = [];
         $supplierPrices = [];
         $supplierNotes = [];
+        $supplierOrigins = [];
 
         foreach ($quotes as $quote) {
             $quoteId = (int) $quote['id'];
@@ -1293,6 +1371,9 @@ function get_demand_budget_report(int $demandListId): array
 
             $supplierPrices[$quoteId] = $unitPrice;
             $supplierNotes[$quoteId] = $priceRow['notes'] ?? null;
+            $supplierOrigins[$quoteId] = $priceRow && !empty($priceRow['reused_from_quote_item_id'])
+                ? trim(($priceRow['reused_supplier_name'] ?? '') . ' - ' . ($priceRow['reused_demand_name'] ?? ''))
+                : null;
 
             if ($unitPrice !== null) {
                 $unitPrices[] = $unitPrice;
@@ -1316,6 +1397,7 @@ function get_demand_budget_report(int $demandListId): array
             'budget_quantity' => $quantity,
             'supplier_prices' => $supplierPrices,
             'supplier_notes' => $supplierNotes,
+            'supplier_origins' => $supplierOrigins,
             'average_unit_price' => $averageUnitPrice,
             'average_total' => $averageTotal,
             'price_count' => count($unitPrices),
@@ -2605,6 +2687,7 @@ function catalog_json_table_definitions(): array
                 'demand_item_id',
                 'unit_price',
                 'notes',
+                'reused_from_quote_item_id',
                 'created_at',
                 'updated_at',
             ],
@@ -2878,6 +2961,7 @@ function catalog_json_sample_row(string $table, array $columns): array
             'demand_item_id' => 1,
             'unit_price' => 0,
             'notes' => null,
+            'reused_from_quote_item_id' => null,
         ]);
     }
 

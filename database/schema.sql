@@ -205,6 +205,7 @@ CREATE TABLE IF NOT EXISTS demand_supplier_quote_items (
     demand_item_id INTEGER NOT NULL REFERENCES demand_items(id) ON DELETE CASCADE,
     unit_price NUMERIC(12,2),
     notes TEXT,
+    reused_from_quote_item_id INTEGER NULL REFERENCES demand_supplier_quote_items(id) ON DELETE SET NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (demand_supplier_quote_id, demand_item_id)
@@ -370,6 +371,21 @@ ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2);
 
 ALTER TABLE demand_supplier_quote_items
 ADD COLUMN IF NOT EXISTS notes TEXT;
+
+ALTER TABLE demand_supplier_quote_items
+ADD COLUMN IF NOT EXISTS reused_from_quote_item_id INTEGER NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_demand_supplier_quote_items_reused_from'
+    ) THEN
+        ALTER TABLE demand_supplier_quote_items
+        ADD CONSTRAINT fk_demand_supplier_quote_items_reused_from
+        FOREIGN KEY (reused_from_quote_item_id) REFERENCES demand_supplier_quote_items(id) ON DELETE SET NULL;
+    END IF;
+END
+$$;
 
 ALTER TABLE demand_supplier_quote_items
 ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
@@ -697,6 +713,9 @@ ON demand_supplier_quote_items (demand_supplier_quote_id);
 
 CREATE INDEX IF NOT EXISTS idx_demand_supplier_quote_items_item
 ON demand_supplier_quote_items (demand_item_id);
+
+CREATE INDEX IF NOT EXISTS idx_demand_supplier_quote_items_reused_from
+ON demand_supplier_quote_items (reused_from_quote_item_id);
 
 SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
 SELECT setval(pg_get_serial_sequence('unit_types', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM unit_types), 0), 1), COALESCE((SELECT MAX(id) FROM unit_types), 0) > 0);

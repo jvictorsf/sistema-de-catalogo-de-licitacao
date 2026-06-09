@@ -2,6 +2,16 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.4.2] - 2026-06-09
+
+### Adicionado
+- Reaproveitamento de precos ja cotados em outras demandas do mesmo projeto para itens com a mesma especificacao cadastrada.
+- Rastreabilidade da origem do preco reaproveitado no item de orcamento.
+
+### Alterado
+- Formulario de orcamento passa a sugerir precos existentes do mesmo projeto e filtra sugestoes pelo fornecedor selecionado.
+- Relatorio de orcamento geral passa a indicar a origem dos precos reaproveitados.
+
 ## [1.4.1] - 2026-06-09
 
 ### Adicionado

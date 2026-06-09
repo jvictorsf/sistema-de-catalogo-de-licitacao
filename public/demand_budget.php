@@ -194,9 +194,13 @@ require __DIR__ . '/../app/views/header.php';
                             <?php
                                 $quoteId = (int) $quote['id'];
                                 $price = $item['supplier_prices'][$quoteId] ?? null;
+                                $origin = $item['supplier_origins'][$quoteId] ?? null;
                             ?>
                             <td>
                                 <?= $price !== null ? 'R$ ' . number_format((float) $price, 2, ',', '.') : '<span class="text-muted">-</span>' ?>
+                                <?php if ($origin): ?>
+                                    <div class="small text-muted">Origem: <?= e($origin) ?></div>
+                                <?php endif; ?>
                             </td>
                         <?php endforeach; ?>
                         <td class="fw-semibold">

@@ -59,6 +59,13 @@ function item_tracking_code_sql(string $alias): string
     return "COALESCE({$alias}.tracking_code, 'CL' || LPAD({$alias}.id::TEXT, 6, '0'))";
 }
 
+function normalize_decimal_db_value(mixed $value): ?string
+{
+    $normalized = str_replace(',', '.', trim((string) $value));
+
+    return $normalized === '' ? null : $normalized;
+}
+
 function ensure_item_tracking_code(int $id): void
 {
     $stmt = db()->prepare("
@@ -136,11 +143,14 @@ function search_items(array|string|null $filters = null): array
             c.name AS category_name,
             s.name AS subcategory_name,
             ut.name AS unit_type_name,
-            ut.abbreviation AS unit_type_abbreviation
+            ut.abbreviation AS unit_type_abbreviation,
+            content_ut.name AS package_content_unit_type_name,
+            content_ut.abbreviation AS package_content_unit_type_abbreviation
         FROM procurement_items i
         LEFT JOIN categories c ON c.id = i.category_id
         LEFT JOIN categories s ON s.id = i.subcategory_id
         LEFT JOIN unit_types ut ON ut.id = i.unit_type_id
+        LEFT JOIN unit_types content_ut ON content_ut.id = i.package_content_unit_type_id
         WHERE 1 = 1
     ";
 
@@ -154,7 +164,9 @@ function search_items(array|string|null $filters = null): array
                 i.justification ILIKE :q OR
                 i.environmental_impacts ILIKE :q OR
                 c.name ILIKE :q OR
-                s.name ILIKE :q
+                s.name ILIKE :q OR
+                content_ut.name ILIKE :q OR
+                i.package_content_quantity::TEXT ILIKE :q
             )
         ";
 
@@ -217,11 +229,14 @@ function find_item(int $id): ?array
             c.name AS category_name,
             s.name AS subcategory_name,
             ut.name AS unit_type_name,
-            ut.abbreviation AS unit_type_abbreviation
+            ut.abbreviation AS unit_type_abbreviation,
+            content_ut.name AS package_content_unit_type_name,
+            content_ut.abbreviation AS package_content_unit_type_abbreviation
         FROM procurement_items i
         LEFT JOIN categories c ON c.id = i.category_id
         LEFT JOIN categories s ON s.id = i.subcategory_id
         LEFT JOIN unit_types ut ON ut.id = i.unit_type_id
+        LEFT JOIN unit_types content_ut ON content_ut.id = i.package_content_unit_type_id
         WHERE i.id = :id
     ");
     $stmt->execute(['id' => $id]);
@@ -241,6 +256,8 @@ function create_item(array $data): int
             category_id,
             subcategory_id,
             unit_type_id,
+            package_content_quantity,
+            package_content_unit_type_id,
             level,
             status,
             name,
@@ -253,6 +270,8 @@ function create_item(array $data): int
             :category_id,
             :subcategory_id,
             :unit_type_id,
+            :package_content_quantity,
+            :package_content_unit_type_id,
             :level,
             :status,
             :name,
@@ -269,6 +288,8 @@ function create_item(array $data): int
         'category_id' => $data['category_id'] ?: null,
         'subcategory_id' => $data['subcategory_id'] ?: null,
         'unit_type_id' => $data['unit_type_id'] ?: null,
+        'package_content_quantity' => normalize_decimal_db_value($data['package_content_quantity'] ?? null),
+        'package_content_unit_type_id' => $data['package_content_unit_type_id'] ?: null,
         'level' => $data['level'],
         'status' => $data['status'],
         'name' => $data['name'],
@@ -296,6 +317,8 @@ function update_item(int $id, array $data): void
         category_id = :category_id,
         subcategory_id = :subcategory_id,
         unit_type_id = :unit_type_id,
+        package_content_quantity = :package_content_quantity,
+        package_content_unit_type_id = :package_content_unit_type_id,
         level = :level,
         status = :status,
         name = :name,
@@ -312,6 +335,8 @@ function update_item(int $id, array $data): void
         'category_id' => $data['category_id'] ?: null,
         'subcategory_id' => $data['subcategory_id'] ?: null,
         'unit_type_id' => $data['unit_type_id'] ?: null,
+        'package_content_quantity' => normalize_decimal_db_value($data['package_content_quantity'] ?? null),
+        'package_content_unit_type_id' => $data['package_content_unit_type_id'] ?: null,
         'level' => $data['level'],
         'status' => $data['status'],
         'name' => $data['name'],
@@ -992,10 +1017,14 @@ function get_demand_items(int $demandListId): array
             pi.environmental_impacts,
             (COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)) AS estimated_total,
             ut.name AS unit_type_name,
-            ut.abbreviation AS unit_type_abbreviation
+            ut.abbreviation AS unit_type_abbreviation,
+            content_ut.name AS package_content_unit_type_name,
+            content_ut.abbreviation AS package_content_unit_type_abbreviation,
+            pi.package_content_quantity
         FROM demand_items di
         INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
         LEFT JOIN unit_types ut ON ut.id = pi.unit_type_id
+        LEFT JOIN unit_types content_ut ON content_ut.id = pi.package_content_unit_type_id
         WHERE di.demand_list_id = :demand_list_id
         ORDER BY pi.name
     ");
@@ -1732,6 +1761,9 @@ function get_project_consolidated_items(int $projectId): array
             pi.environmental_impacts,
             ut.name AS unit_type_name,
             ut.abbreviation AS unit_type_abbreviation,
+            content_ut.name AS package_content_unit_type_name,
+            content_ut.abbreviation AS package_content_unit_type_abbreviation,
+            pi.package_content_quantity,
             SUM(di.quantity) AS total_quantity,
             SUM(COALESCE(di.approved_quantity, di.quantity)) AS total_approved_quantity,
             AVG(COALESCE(di.estimated_unit_price, 0)) AS average_unit_price,
@@ -1741,6 +1773,7 @@ function get_project_consolidated_items(int $projectId): array
         INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
         INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
         LEFT JOIN unit_types ut ON ut.id = pi.unit_type_id
+        LEFT JOIN unit_types content_ut ON content_ut.id = pi.package_content_unit_type_id
         WHERE dl.project_id = :project_id
         GROUP BY
             pi.id,
@@ -1749,7 +1782,10 @@ function get_project_consolidated_items(int $projectId): array
             pi.justification,
             pi.environmental_impacts,
             ut.name,
-            ut.abbreviation
+            ut.abbreviation,
+            content_ut.name,
+            content_ut.abbreviation,
+            pi.package_content_quantity
         ORDER BY pi.name
     ");
 
@@ -1773,6 +1809,9 @@ function get_project_items_by_demand(int $projectId): array
             pi.name AS item_name,
             ut.name AS unit_type_name,
             ut.abbreviation AS unit_type_abbreviation,
+            content_ut.name AS package_content_unit_type_name,
+            content_ut.abbreviation AS package_content_unit_type_abbreviation,
+            pi.package_content_quantity,
             di.quantity,
             COALESCE(di.approved_quantity, di.quantity) AS approved_quantity,
             di.estimated_unit_price,
@@ -1783,6 +1822,7 @@ function get_project_items_by_demand(int $projectId): array
         INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
         LEFT JOIN secretariats s ON s.id = dl.secretariat_id
         LEFT JOIN unit_types ut ON ut.id = pi.unit_type_id
+        LEFT JOIN unit_types content_ut ON content_ut.id = pi.package_content_unit_type_id
         WHERE dl.project_id = :project_id
         ORDER BY s.name NULLS LAST, dl.name, pi.name
     ");
@@ -2059,6 +2099,8 @@ function duplicate_item(int $id): int
             category_id,
             subcategory_id,
             unit_type_id,
+            package_content_quantity,
+            package_content_unit_type_id,
             level,
             status,
             name,
@@ -2071,6 +2113,8 @@ function duplicate_item(int $id): int
             :category_id,
             :subcategory_id,
             :unit_type_id,
+            :package_content_quantity,
+            :package_content_unit_type_id,
             :level,
             :status,
             :name,
@@ -2091,6 +2135,8 @@ function duplicate_item(int $id): int
         'category_id' => $item['category_id'] ?: null,
         'subcategory_id' => $item['subcategory_id'] ?: null,
         'unit_type_id' => $item['unit_type_id'] ?: null,
+        'package_content_quantity' => normalize_decimal_db_value($item['package_content_quantity'] ?? null),
+        'package_content_unit_type_id' => $item['package_content_unit_type_id'] ?: null,
         'level' => $item['level'],
         'status' => $item['status'] ?? 'draft',
         'name' => $newName,
@@ -2602,9 +2648,12 @@ function get_item_versions(int $itemId): array
         SELECT
             v.*,
             ut.name AS unit_type_name,
-            ut.abbreviation AS unit_type_abbreviation
+            ut.abbreviation AS unit_type_abbreviation,
+            content_ut.name AS package_content_unit_type_name,
+            content_ut.abbreviation AS package_content_unit_type_abbreviation
         FROM procurement_item_versions v
         LEFT JOIN unit_types ut ON ut.id = v.unit_type_id
+        LEFT JOIN unit_types content_ut ON content_ut.id = v.package_content_unit_type_id
         WHERE v.procurement_item_id = :item_id
         ORDER BY v.version_number DESC
     ");
@@ -2619,9 +2668,16 @@ function get_item_versions(int $itemId): array
 function find_item_version(int $id): ?array
 {
     $stmt = db()->prepare("
-        SELECT *
-        FROM procurement_item_versions
-        WHERE id = :id
+        SELECT
+            v.*,
+            ut.name AS unit_type_name,
+            ut.abbreviation AS unit_type_abbreviation,
+            content_ut.name AS package_content_unit_type_name,
+            content_ut.abbreviation AS package_content_unit_type_abbreviation
+        FROM procurement_item_versions v
+        LEFT JOIN unit_types ut ON ut.id = v.unit_type_id
+        LEFT JOIN unit_types content_ut ON content_ut.id = v.package_content_unit_type_id
+        WHERE v.id = :id
     ");
 
     $stmt->execute([
@@ -2670,6 +2726,8 @@ function create_item_version(int $itemId, ?string $notes = null): int
             level,
             status,
             unit_type_id,
+            package_content_quantity,
+            package_content_unit_type_id,
             notes
         ) VALUES (
             :procurement_item_id,
@@ -2682,6 +2740,8 @@ function create_item_version(int $itemId, ?string $notes = null): int
             :level,
             :status,
             :unit_type_id,
+            :package_content_quantity,
+            :package_content_unit_type_id,
             :notes
         )
         RETURNING id
@@ -2700,6 +2760,8 @@ function create_item_version(int $itemId, ?string $notes = null): int
         'level' => $item['level'],
         'status' => $item['status'] ?? 'draft',
         'unit_type_id' => $item['unit_type_id'] ?? null,
+        'package_content_quantity' => normalize_decimal_db_value($item['package_content_quantity'] ?? null),
+        'package_content_unit_type_id' => $item['package_content_unit_type_id'] ?? null,
         'notes' => $notes,
     ]);
 
@@ -2730,7 +2792,9 @@ function restore_item_version(int $versionId): int
             environmental_impacts = :environmental_impacts,
             level = :level,
             status = :status,
-            unit_type_id = :unit_type_id
+            unit_type_id = :unit_type_id,
+            package_content_quantity = :package_content_quantity,
+            package_content_unit_type_id = :package_content_unit_type_id
         WHERE id = :id
     ");
 
@@ -2746,6 +2810,8 @@ function restore_item_version(int $versionId): int
         'level' => $version['level'],
         'status' => $version['status'] ?? 'draft',
         'unit_type_id' => $version['unit_type_id'] ?? null,
+        'package_content_quantity' => normalize_decimal_db_value($version['package_content_quantity'] ?? null),
+        'package_content_unit_type_id' => $version['package_content_unit_type_id'] ?? null,
     ]);
 
     return $itemId;
@@ -2860,6 +2926,8 @@ function catalog_json_table_definitions(): array
                 'category_id',
                 'subcategory_id',
                 'unit_type_id',
+                'package_content_quantity',
+                'package_content_unit_type_id',
                 'level',
                 'status',
                 'name',
@@ -2892,6 +2960,8 @@ function catalog_json_table_definitions(): array
                 'level',
                 'status',
                 'unit_type_id',
+                'package_content_quantity',
+                'package_content_unit_type_id',
                 'notes',
                 'created_at',
             ],
@@ -3156,6 +3226,8 @@ function catalog_json_sample_row(string $table, array $columns): array
             'category_id' => null,
             'subcategory_id' => null,
             'unit_type_id' => null,
+            'package_content_quantity' => 100,
+            'package_content_unit_type_id' => 1,
             'level' => 'C',
             'status' => 'draft',
             'name' => 'Nome do item',
@@ -3417,6 +3489,14 @@ function import_catalog_table_rows(string $table, array $columns, array $jsonCol
 
             if ($table === 'procurement_items' && $column === 'environmental_impacts') {
                 $values[$column] = normalize_environmental_impacts_json($row[$column]);
+                continue;
+            }
+
+            if (
+                in_array($table, ['procurement_items', 'procurement_item_versions'], true) &&
+                $column === 'package_content_quantity'
+            ) {
+                $values[$column] = normalize_decimal_db_value($row[$column]);
                 continue;
             }
 

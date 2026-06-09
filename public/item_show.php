@@ -67,6 +67,9 @@ require __DIR__ . '/../app/views/header.php';
                         <?php endif; ?>
                     </dd>
 
+                    <dt>Conteúdo da embalagem</dt>
+                    <dd><?= render_package_content($item) ?></dd>
+
                     <dt>Nível</dt>
                     <dd><span class="badge text-bg-info"><?= e($item['level']) ?></span></dd>
 
@@ -237,6 +240,11 @@ require __DIR__ . '/../app/views/header.php';
 
                             <td>
                                 <?= e($version['unit_type_abbreviation'] ?: ($version['unit_type_name'] ?? '-')) ?>
+                                <?php if (format_package_content($version) !== '-'): ?>
+                                    <div class="small text-muted">
+                                        Conteudo: <?= e(format_package_content($version)) ?>
+                                    </div>
+                                <?php endif; ?>
                             </td>
 
                             <td><?= e($version['notes']) ?></td>

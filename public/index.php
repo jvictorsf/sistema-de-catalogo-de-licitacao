@@ -272,6 +272,12 @@ require __DIR__ . '/../app/views/header.php';
 
                         <td>
                             <?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?>
+
+                            <?php if (format_package_content($item) !== '-'): ?>
+                                <div class="small text-muted">
+                                    <?= e(format_package_content($item)) ?>
+                                </div>
+                            <?php endif; ?>
                         </td>
 
                         <td>

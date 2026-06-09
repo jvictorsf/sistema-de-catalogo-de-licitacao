@@ -271,7 +271,14 @@ require __DIR__ . '/../app/views/header.php';
                             <tr>
                                 <td><?= e($item['tracking_code']) ?></td>
                                 <td><?= e($item['item_name']) ?></td>
-                                <td><?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?></td>
+                                <td>
+                                    <?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?>
+                                    <?php if (format_package_content($item) !== '-'): ?>
+                                        <div class="small text-muted">
+                                            <?= e(format_package_content($item)) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?= e((string) $item['demand_count']) ?></td>
                                 <td><?= e((string) $item['total_quantity']) ?></td>
                                 <td class="fw-semibold"><?= e((string) $item['total_approved_quantity']) ?></td>
@@ -332,7 +339,14 @@ require __DIR__ . '/../app/views/header.php';
                                 <td><?= e($item['responsible_name']) ?></td>
                                 <td><?= e($item['tracking_code']) ?></td>
                                 <td><?= e($item['item_name']) ?></td>
-                                <td><?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?></td>
+                                <td>
+                                    <?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?>
+                                    <?php if (format_package_content($item) !== '-'): ?>
+                                        <div class="small text-muted">
+                                            <?= e(format_package_content($item)) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?= e((string) $item['quantity']) ?></td>
                                 <td><?= e((string) $item['approved_quantity']) ?></td>
                                 <td>R$ <?= number_format((float) ($item['estimated_unit_price'] ?? 0), 2, ',', '.') ?></td>

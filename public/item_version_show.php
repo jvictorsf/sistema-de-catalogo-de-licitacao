@@ -69,6 +69,20 @@ require __DIR__ . '/../app/views/header.php';
                     <dt>Status</dt>
                     <dd><?= e($version['status']) ?></dd>
 
+                    <dt>Tipo de unidade</dt>
+                    <dd>
+                        <?= e($version['unit_type_name'] ?? '-') ?>
+
+                        <?php if (!empty($version['unit_type_abbreviation'])): ?>
+                            <span class="text-muted">
+                                (<?= e($version['unit_type_abbreviation']) ?>)
+                            </span>
+                        <?php endif; ?>
+                    </dd>
+
+                    <dt>Conteúdo da embalagem</dt>
+                    <dd><?= render_package_content($version) ?></dd>
+
                     <dt>Observação</dt>
                     <dd><?= nl2br(e($version['notes'])) ?></dd>
 

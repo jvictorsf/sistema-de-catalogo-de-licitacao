@@ -324,6 +324,43 @@ function item_status_label(?string $status): string
     return $labels[$status ?? ''] ?? (string) $status;
 }
 
+function format_decimal_quantity(mixed $value): string
+{
+    if ($value === null || $value === '') {
+        return '';
+    }
+
+    $formatted = number_format((float) $value, 2, ',', '.');
+
+    return rtrim(rtrim($formatted, '0'), ',');
+}
+
+function format_package_content(array $source): string
+{
+    $quantity = $source['package_content_quantity'] ?? null;
+
+    if ($quantity === null || $quantity === '') {
+        return '-';
+    }
+
+    $unit = $source['package_content_unit_type_abbreviation']
+        ?? $source['package_content_unit_type_name']
+        ?? '';
+
+    return trim(format_decimal_quantity($quantity) . ($unit ? ' ' . $unit : ''));
+}
+
+function render_package_content(array $source): string
+{
+    $content = format_package_content($source);
+
+    if ($content === '-') {
+        return '<span class="text-muted">-</span>';
+    }
+
+    return e($content);
+}
+
 function environmental_impacts_to_array(mixed $value): array
 {
     if (is_array($value)) {

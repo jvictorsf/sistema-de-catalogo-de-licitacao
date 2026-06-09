@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS procurement_items (
     category_id INTEGER NULL REFERENCES categories(id) ON DELETE SET NULL,
     subcategory_id INTEGER NULL REFERENCES categories(id) ON DELETE SET NULL,
     unit_type_id INTEGER NULL REFERENCES unit_types(id) ON DELETE SET NULL,
+    package_content_quantity NUMERIC(12,2),
+    package_content_unit_type_id INTEGER NULL REFERENCES unit_types(id) ON DELETE SET NULL,
     level CHAR(1) NOT NULL DEFAULT 'C' CHECK (level IN ('A', 'B', 'C')),
     status VARCHAR(50) NOT NULL DEFAULT 'draft',
     name VARCHAR(255) NOT NULL,
@@ -48,6 +50,12 @@ ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'draft';
 
 ALTER TABLE procurement_items
 ADD COLUMN IF NOT EXISTS unit_type_id INTEGER NULL;
+
+ALTER TABLE procurement_items
+ADD COLUMN IF NOT EXISTS package_content_quantity NUMERIC(12,2);
+
+ALTER TABLE procurement_items
+ADD COLUMN IF NOT EXISTS package_content_unit_type_id INTEGER NULL;
 
 ALTER TABLE procurement_items
 ADD COLUMN IF NOT EXISTS image_path VARCHAR(255);
@@ -79,11 +87,30 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_procurement_items_package_content_unit_type'
+    ) THEN
+        ALTER TABLE procurement_items
+        ADD CONSTRAINT fk_procurement_items_package_content_unit_type
+        FOREIGN KEY (package_content_unit_type_id) REFERENCES unit_types(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'ck_procurement_items_level'
     ) THEN
         ALTER TABLE procurement_items
         ADD CONSTRAINT ck_procurement_items_level
         CHECK (level IN ('A', 'B', 'C'));
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ck_procurement_items_package_content'
+    ) THEN
+        ALTER TABLE procurement_items
+        ADD CONSTRAINT ck_procurement_items_package_content
+        CHECK (
+            (package_content_quantity IS NULL AND package_content_unit_type_id IS NULL)
+            OR (package_content_quantity > 0 AND package_content_unit_type_id IS NOT NULL)
+        );
     END IF;
 END
 $$;
@@ -112,10 +139,41 @@ CREATE TABLE IF NOT EXISTS procurement_item_versions (
     level CHAR(1),
     status VARCHAR(50),
     unit_type_id INTEGER NULL REFERENCES unit_types(id) ON DELETE SET NULL,
+    package_content_quantity NUMERIC(12,2),
+    package_content_unit_type_id INTEGER NULL REFERENCES unit_types(id) ON DELETE SET NULL,
     notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (procurement_item_id, version_number)
 );
+
+ALTER TABLE procurement_item_versions
+ADD COLUMN IF NOT EXISTS package_content_quantity NUMERIC(12,2);
+
+ALTER TABLE procurement_item_versions
+ADD COLUMN IF NOT EXISTS package_content_unit_type_id INTEGER NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_procurement_item_versions_package_content_unit_type'
+    ) THEN
+        ALTER TABLE procurement_item_versions
+        ADD CONSTRAINT fk_procurement_item_versions_package_content_unit_type
+        FOREIGN KEY (package_content_unit_type_id) REFERENCES unit_types(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ck_procurement_item_versions_package_content'
+    ) THEN
+        ALTER TABLE procurement_item_versions
+        ADD CONSTRAINT ck_procurement_item_versions_package_content
+        CHECK (
+            (package_content_quantity IS NULL AND package_content_unit_type_id IS NULL)
+            OR (package_content_quantity > 0 AND package_content_unit_type_id IS NOT NULL)
+        );
+    END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS procurement_projects (
     id SERIAL PRIMARY KEY,
@@ -753,6 +811,9 @@ USING gin (name gin_trgm_ops);
 
 CREATE INDEX IF NOT EXISTS idx_procurement_items_tracking_code
 ON procurement_items (tracking_code);
+
+CREATE INDEX IF NOT EXISTS idx_procurement_items_package_content_unit
+ON procurement_items (package_content_unit_type_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_procurement_items_tracking_code
 ON procurement_items (tracking_code)

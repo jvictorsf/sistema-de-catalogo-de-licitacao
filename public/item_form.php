@@ -27,6 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'category_id' => (int) ($_POST['category_id'] ?? 0),
         'subcategory_id' => (int) ($_POST['subcategory_id'] ?? 0),
         'unit_type_id' => (int) ($_POST['unit_type_id'] ?? 0),
+        'package_content_quantity' => trim($_POST['package_content_quantity'] ?? ''),
+        'package_content_unit_type_id' => (int) ($_POST['package_content_unit_type_id'] ?? 0),
         'level' => trim($_POST['level'] ?? ''),
         'status' => trim($_POST['status'] ?? 'draft'),
         'name' => trim($_POST['name'] ?? ''),
@@ -45,6 +47,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$data['name']) {
         $errors[] = 'O nome é obrigatório.';
+    }
+
+    $hasPackageQuantity = $data['package_content_quantity'] !== '';
+    $hasPackageUnit = $data['package_content_unit_type_id'] > 0;
+
+    if ($hasPackageQuantity) {
+        $normalizedPackageQuantity = str_replace(',', '.', $data['package_content_quantity']);
+
+        if (!is_numeric($normalizedPackageQuantity) || (float) $normalizedPackageQuantity <= 0) {
+            $errors[] = 'O conteúdo da embalagem deve ser um número maior que zero.';
+        } else {
+            $data['package_content_quantity'] = $normalizedPackageQuantity;
+        }
+    } else {
+        $data['package_content_quantity'] = null;
+    }
+
+    if ($hasPackageQuantity && !$hasPackageUnit) {
+        $errors[] = 'Selecione a unidade do conteúdo da embalagem.';
+    }
+
+    if (!$hasPackageQuantity && $hasPackageUnit) {
+        $errors[] = 'Informe o conteúdo da embalagem para usar uma unidade do conteúdo.';
     }
 
     if ($data['name']) {
@@ -167,6 +192,38 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
                     <option
                         value="<?= (int) $unitType['id'] ?>"
                         <?= (int) old($item ?? [], 'unit_type_id') === (int) $unitType['id'] ? 'selected' : '' ?>>
+
+                        <?= e($unitType['name']) ?>
+                        <?= $unitType['abbreviation'] ? ' (' . e($unitType['abbreviation']) . ')' : '' ?>
+
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Conteudo da embalagem</label>
+            <input
+                type="number"
+                name="package_content_quantity"
+                class="form-control"
+                min="0.01"
+                step="0.01"
+                placeholder="Ex.: 100"
+                value="<?= e(old($item ?? [], 'package_content_quantity')) ?>">
+            <div class="form-text">Opcional. Use quando o item for caixa, pacote, rolo etc.</div>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Unidade do conteúdo</label>
+
+            <select name="package_content_unit_type_id" class="form-select">
+                <option value="">Selecione...</option>
+
+                <?php foreach ($unitTypes as $unitType): ?>
+                    <option
+                        value="<?= (int) $unitType['id'] ?>"
+                        <?= (int) old($item ?? [], 'package_content_unit_type_id') === (int) $unitType['id'] ? 'selected' : '' ?>>
 
                         <?= e($unitType['name']) ?>
                         <?= $unitType['abbreviation'] ? ' (' . e($unitType['abbreviation']) . ')' : '' ?>

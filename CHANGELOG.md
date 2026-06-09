@@ -2,6 +2,14 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.2] - 2026-06-09
+
+### Adicionado
+- Campos de conteudo da embalagem e unidade do conteudo no cadastro de itens.
+- Exibicao do conteudo da embalagem em listagens, visualizacao do item, demandas e relatorios PDF/Word.
+- Versionamento de itens passa a preservar e restaurar a composicao da embalagem.
+- Exportacao/importacao JSON de itens passa a incluir os novos campos de composicao.
+
 ## [1.5.1] - 2026-06-09
 
 ### Adicionado

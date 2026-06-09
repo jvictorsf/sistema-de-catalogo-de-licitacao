@@ -69,6 +69,7 @@ Depois, restaurar `public/uploads/`, `storage/` e o brasao municipal, se houver.
 - Orcamentos reais de fornecedores podem ser anexados em `public/uploads/supplier_quotes/`.
 - A consulta de CNPJ de fornecedores utiliza `https://brasilapi.com.br/api/cnpj/v1/{cnpj}` quando houver acesso externo.
 - Unidades demandantes podem ter uma unidade pai para representar subunidades ou departamentos internos.
+- Itens podem informar conteudo da embalagem e unidade do conteudo, por exemplo pacote com 100 unidades ou caixa com 305 metros.
 - Erros da aplicacao sao registrados em `storage/logs/app.log`; erros nativos do PHP ficam em `storage/logs/php-error.log`.
 - Os impactos ambientais dos itens sao armazenados como lista estruturada.
 - As sugestoes de IA sao apoio inicial e precisam de revisao tecnica antes de uso em processo licitatorio.

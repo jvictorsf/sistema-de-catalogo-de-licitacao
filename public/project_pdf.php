@@ -202,7 +202,12 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
             <tr>
                 <td><?= e($item['tracking_code']) ?></td>
                 <td><?= e($item['item_name']) ?></td>
-                <td><?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?></td>
+                <td>
+                    <?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?>
+                    <?php if (format_package_content($item) !== '-'): ?>
+                        <br><span class="text-muted">Conteudo: <?= e(format_package_content($item)) ?></span>
+                    <?php endif; ?>
+                </td>
                 <td><?= e((string) $item['total_quantity']) ?></td>
                 <td><?= e((string) $item['total_approved_quantity']) ?></td>
                 <td>R$ <?= number_format((float) $item['average_unit_price'], 2, ',', '.') ?></td>
@@ -264,7 +269,12 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
                 <td><?= e($item['responsible_name']) ?></td>
                 <td><?= e($item['tracking_code']) ?></td>
                 <td><?= e($item['item_name']) ?></td>
-                <td><?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?></td>
+                <td>
+                    <?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?>
+                    <?php if (format_package_content($item) !== '-'): ?>
+                        <br><span class="text-muted">Conteudo: <?= e(format_package_content($item)) ?></span>
+                    <?php endif; ?>
+                </td>
                 <td><?= e((string) $item['quantity']) ?></td>
                 <td><?= e((string) $item['approved_quantity']) ?></td>
                 <td>R$ <?= number_format((float) ($item['estimated_unit_price'] ?? 0), 2, ',', '.') ?></td>

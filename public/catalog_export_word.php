@@ -178,7 +178,12 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
             </tr>
             <tr>
                 <th>Unidade</th>
-                <td><?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?></td>
+                <td>
+                    <?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?>
+                    <?php if (format_package_content($item) !== '-'): ?>
+                        <br><span class="text-muted">Conteudo: <?= e(format_package_content($item)) ?></span>
+                    <?php endif; ?>
+                </td>
                 <th>Nível</th>
                 <td><?= e($item['level']) ?></td>
             </tr>

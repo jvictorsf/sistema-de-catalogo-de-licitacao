@@ -311,17 +311,35 @@ function render_item_specification_html(mixed $value): string
     return $html . '</div>';
 }
 
-function item_status_label(?string $status): string
+function item_status_options(): array
 {
-    $labels = [
+    return [
         'draft' => 'Rascunho',
         'review' => 'Em revisao',
         'standardized' => 'Padronizado',
         'deprecated' => 'Descontinuado',
         'blocked' => 'Bloqueado',
     ];
+}
+
+function item_status_label(?string $status): string
+{
+    $labels = item_status_options();
 
     return $labels[$status ?? ''] ?? (string) $status;
+}
+
+function item_status_badge_class(?string $status): string
+{
+    $classes = [
+        'draft' => 'text-bg-secondary',
+        'review' => 'text-bg-warning',
+        'standardized' => 'text-bg-success',
+        'deprecated' => 'text-bg-dark',
+        'blocked' => 'text-bg-danger',
+    ];
+
+    return $classes[$status ?? ''] ?? 'text-bg-secondary';
 }
 
 function format_decimal_quantity(mixed $value): string

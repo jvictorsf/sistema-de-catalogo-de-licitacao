@@ -8,6 +8,8 @@ require_once __DIR__ . '/../app/repository.php';
 
 $items = search_items();
 
+header('Content-Type: text/html; charset=utf-8');
+
 ?>
 
 <!doctype html>

@@ -2,6 +2,15 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.3] - 2026-06-09
+
+### Alterado
+- Status dos itens agora usam cores semanticas nas listagens, dashboard, visualizacao do item e versoes.
+
+### Corrigido
+- PDF institucional do projeto deixa de ser servido como arquivo Word e passa a abrir como pagina HTML para imprimir/salvar PDF.
+- PDFs de catalogo e demanda passam a enviar `Content-Type: text/html` explicitamente.
+
 ## [1.5.2] - 2026-06-09
 
 ### Adicionado

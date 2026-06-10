@@ -73,6 +73,13 @@ require __DIR__ . '/../app/views/header.php';
                     <dt>Nível</dt>
                     <dd><span class="badge text-bg-info"><?= e($item['level']) ?></span></dd>
 
+                    <dt>Status</dt>
+                    <dd>
+                        <span class="badge <?= e(item_status_badge_class($item['status'] ?? null)) ?>">
+                            <?= e(item_status_label($item['status'] ?? null)) ?>
+                        </span>
+                    </dd>
+
                     <dt>Criado em</dt>
                     <dd><?= e($item['created_at']) ?></dd>
                 </dl>
@@ -236,7 +243,11 @@ require __DIR__ . '/../app/views/header.php';
 
                             <td><?= e($version['level']) ?></td>
 
-                            <td><?= e($version['status']) ?></td>
+                            <td>
+                                <span class="badge <?= e(item_status_badge_class($version['status'] ?? null)) ?>">
+                                    <?= e(item_status_label($version['status'] ?? null)) ?>
+                                </span>
+                            </td>
 
                             <td>
                                 <?= e($version['unit_type_abbreviation'] ?: ($version['unit_type_name'] ?? '-')) ?>

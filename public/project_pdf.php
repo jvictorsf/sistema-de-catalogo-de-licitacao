@@ -21,22 +21,46 @@ $financialSummary = get_project_financial_summary($id);
 $secretariatSummary = get_project_secretariat_summary($id);
 $signatures = get_project_signature_blocks($id);
 
-$filename = 'relatorio-projeto-' . $id . '.doc';
-
-header('Content-Type: application/msword; charset=utf-8');
-header('Content-Disposition: attachment; filename="' . $filename . '"');
+header('Content-Type: text/html; charset=utf-8');
 
 ?>
 
-<html>
+<!doctype html>
+<html lang="pt-BR">
 <head>
     <meta charset="utf-8">
+    <title>PDF Institucional - <?= e($project['name']) ?></title>
 
     <style>
+        @page {
+            size: A4 portrait;
+            margin: 12mm;
+        }
+
         body {
             font-family: Arial, sans-serif;
             font-size: 11pt;
             color: #111;
+        }
+
+        .print-actions {
+            margin-bottom: 16px;
+            text-align: right;
+        }
+
+        .print-actions button {
+            background: #dc2626;
+            border: 0;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 11pt;
+            padding: 8px 12px;
+        }
+
+        @media print {
+            .print-actions {
+                display: none;
+            }
         }
 
         h1, h2, h3 {
@@ -120,6 +144,10 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
 </head>
 
 <body>
+
+<div class="print-actions">
+    <button onclick="window.print()">Imprimir / Salvar PDF</button>
+</div>
 
 <div class="header">
     <?= render_municipal_logo() ?>

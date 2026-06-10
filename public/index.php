@@ -23,13 +23,7 @@ $parentCategories = get_parent_categories();
 $subcategories = get_subcategories();
 $unitTypes = get_unit_types();
 
-$statusLabels = [
-    'draft' => 'Rascunho',
-    'review' => 'Em revisão',
-    'standardized' => 'Padronizado',
-    'deprecated' => 'Descontinuado',
-    'blocked' => 'Bloqueado',
-];
+$statusLabels = item_status_options();
 
 function sort_header(string $column, string $label, array $filters): string
 {
@@ -287,8 +281,8 @@ require __DIR__ . '/../app/views/header.php';
                         </td>
 
                         <td>
-                            <span class="badge text-bg-secondary">
-                                <?= e($statusLabels[$item['status']] ?? $item['status']) ?>
+                            <span class="badge <?= e(item_status_badge_class($item['status'] ?? null)) ?>">
+                                <?= e(item_status_label($item['status'] ?? null)) ?>
                             </span>
                         </td>
 

@@ -28,6 +28,8 @@ foreach ($budgetReport['items'] as $budgetItem) {
     $budgetItemsByDemandItem[(int) $budgetItem['id']] = $budgetItem;
 }
 
+header('Content-Type: text/html; charset=utf-8');
+
 ?>
 
 <!doctype html>

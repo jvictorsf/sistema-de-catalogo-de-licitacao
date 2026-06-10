@@ -11,14 +11,6 @@ $itemsByStatus = get_items_by_status();
 $itemsByCategory = get_items_by_category();
 $projectRanking = get_project_financial_ranking();
 
-$statusLabels = [
-    'draft' => 'Rascunho',
-    'review' => 'Em revisão',
-    'standardized' => 'Padronizado',
-    'deprecated' => 'Descontinuado',
-    'blocked' => 'Bloqueado',
-];
-
 require __DIR__ . '/../app/views/header.php';
 
 ?>
@@ -83,7 +75,11 @@ require __DIR__ . '/../app/views/header.php';
                     <tbody>
                         <?php foreach ($itemsByStatus as $row): ?>
                             <tr>
-                                <td><?= e($statusLabels[$row['status']] ?? $row['status']) ?></td>
+                                <td>
+                                    <span class="badge <?= e(item_status_badge_class($row['status'] ?? null)) ?>">
+                                        <?= e(item_status_label($row['status'] ?? null)) ?>
+                                    </span>
+                                </td>
                                 <td class="text-end fw-semibold"><?= e((string) $row['total']) ?></td>
                             </tr>
                         <?php endforeach; ?>

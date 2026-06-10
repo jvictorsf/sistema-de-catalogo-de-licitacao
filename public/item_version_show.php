@@ -67,7 +67,11 @@ require __DIR__ . '/../app/views/header.php';
                     <dd><?= e($version['level']) ?></dd>
 
                     <dt>Status</dt>
-                    <dd><?= e($version['status']) ?></dd>
+                    <dd>
+                        <span class="badge <?= e(item_status_badge_class($version['status'] ?? null)) ?>">
+                            <?= e(item_status_label($version['status'] ?? null)) ?>
+                        </span>
+                    </dd>
 
                     <dt>Tipo de unidade</dt>
                     <dd>

@@ -2,6 +2,12 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.4] - 2026-06-10
+
+### Adicionado
+- Relatorio de solicitacao formal de orcamento para fornecedores a partir do projeto, consolidando as demandas por item com codigo, item, marca/modelo de referencia, caracteristicas minimas, tipo de unidade, conteudo, unidade do conteudo e quantidade.
+- Exportacao Excel da solicitacao de orcamento do projeto com campos de preenchimento para o fornecedor informar marca/modelo ofertado, valor unitario, valor total, prazo, validade e observacoes.
+
 ## [1.5.3] - 2026-06-09
 
 ### Alterado

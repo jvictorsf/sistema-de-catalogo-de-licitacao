@@ -41,6 +41,14 @@ require __DIR__ . '/../app/views/header.php';
             Relatório
         </a>
 
+        <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>" target="_blank" class="btn btn-outline-warning">
+            <i class="bi bi-send"></i>Solicitar orcamento
+        </a>
+
+        <a href="/project_quote_request_excel.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-spreadsheet"></i>Excel fornecedor
+        </a>
+
         <a href="/project_export_word.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-primary">
             Exportar Word
         </a>

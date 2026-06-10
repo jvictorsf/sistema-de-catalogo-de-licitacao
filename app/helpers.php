@@ -473,6 +473,69 @@ function render_municipal_logo(string $class = 'report-logo'): string
     return '<img src="' . e($path) . '" class="' . e($class) . '" alt="Brasao do municipio" style="width:80px;height:auto;margin-bottom:8px;">';
 }
 
+function supplier_quote_request_value_text(mixed $value, string $separator = '; '): string
+{
+    if ($value === null) {
+        return '-';
+    }
+
+    if (is_array($value)) {
+        $parts = [];
+
+        foreach ($value as $item) {
+            $text = supplier_quote_request_value_text($item, $separator);
+
+            if ($text !== '-') {
+                $parts[] = $text;
+            }
+        }
+
+        return $parts ? implode($separator, $parts) : '-';
+    }
+
+    $value = trim((string) $value);
+
+    return $value !== '' ? $value : '-';
+}
+
+function supplier_quote_request_characteristics_text(array $specification, string $separator = '; '): string
+{
+    $characteristics = $specification['caracteristicas_minimas'] ?? [];
+
+    if (is_array($characteristics) && $characteristics) {
+        return supplier_quote_request_value_text($characteristics, $separator);
+    }
+
+    return supplier_quote_request_value_text($specification['descricao_minima'] ?? null, $separator);
+}
+
+function supplier_quote_request_characteristics_html(array $specification): string
+{
+    $characteristics = $specification['caracteristicas_minimas'] ?? [];
+
+    if (is_array($characteristics) && $characteristics) {
+        $html = '<ul class="characteristics">';
+
+        foreach ($characteristics as $item) {
+            $text = supplier_quote_request_value_text($item);
+
+            if ($text !== '-') {
+                $html .= '<li>' . e($text) . '</li>';
+            }
+        }
+
+        return $html . '</ul>';
+    }
+
+    $description = supplier_quote_request_value_text($specification['descricao_minima'] ?? null);
+
+    if ($description !== '-') {
+        return nl2br(e($description));
+    }
+
+    return '<span class="muted">-</span>';
+}
+
 function only_digits(?string $value): string
 {
     return preg_replace('/\D+/', '', (string) $value) ?? '';

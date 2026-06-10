@@ -15,14 +15,35 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
-$items = get_project_consolidated_items($id);
+$allItems = get_project_consolidated_items($id);
+$groups = supplier_quote_request_groups_from_items($allItems);
+$groupFilterApplied = array_key_exists('group_id', $_GET);
+$selectedGroup = null;
+
+if ($groupFilterApplied) {
+    $groupId = max(0, (int) ($_GET['group_id'] ?? 0));
+    $groupKey = (string) $groupId;
+
+    if (!isset($groups[$groupKey])) {
+        http_response_code(404);
+        exit('Grupo nao encontrado no projeto.');
+    }
+
+    $selectedGroup = $groups[$groupKey];
+    $items = supplier_quote_request_filter_items_by_group($allItems, $groupId);
+} else {
+    $items = $allItems;
+}
+
 $totalQuantity = array_reduce(
     $items,
     static fn (float $total, array $item): float => $total + (float) ($item['total_approved_quantity'] ?? 0),
     0.0
 );
 
-$filename = 'solicitacao-orcamento-projeto-' . $id . '.xls';
+$filename = 'solicitacao-orcamento-projeto-' . $id
+    . ($selectedGroup ? '-grupo-' . (int) $selectedGroup['id'] : '')
+    . '.xls';
 
 header('Content-Type: application/vnd.ms-excel; charset=utf-8');
 header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -106,7 +127,7 @@ header('Cache-Control: max-age=0');
 <table>
     <tr>
         <td colspan="16" class="title">
-            Solicitacao formal de orcamento - Projeto
+            Solicitacao formal de orcamento - <?= $selectedGroup ? 'Grupo' : 'Projeto' ?>
         </td>
     </tr>
 
@@ -115,6 +136,12 @@ header('Cache-Control: max-age=0');
         <td colspan="4" class="meta">Data de emissao: <?= date('d/m/Y') ?></td>
         <td colspan="4" class="meta">Quantidade total: <?= e(format_decimal_quantity($totalQuantity)) ?></td>
     </tr>
+
+    <?php if ($selectedGroup): ?>
+        <tr>
+            <td colspan="16" class="meta">Grupo: <?= e((string) $selectedGroup['name']) ?></td>
+        </tr>
+    <?php endif; ?>
 
     <tr>
         <td colspan="16" class="section">
@@ -147,7 +174,7 @@ header('Cache-Control: max-age=0');
         </tr>
     <?php endif; ?>
 
-    <?php $excelRow = 5; ?>
+    <?php $excelRow = $selectedGroup ? 6 : 5; ?>
     <?php foreach ($items as $item): ?>
         <?php
             $specification = item_specification_array_from_value($item['specification'] ?? []);

@@ -536,6 +536,87 @@ function supplier_quote_request_characteristics_html(array $specification): stri
     return '<span class="muted">-</span>';
 }
 
+function supplier_quote_request_group_id(array $item): int
+{
+    return (int) ($item['category_id'] ?? 0);
+}
+
+function supplier_quote_request_group_name(array $item): string
+{
+    $name = trim((string) ($item['category_name'] ?? ''));
+
+    return $name !== '' ? $name : 'Sem grupo';
+}
+
+function supplier_quote_request_groups_from_items(array $items): array
+{
+    $groups = [];
+
+    foreach ($items as $item) {
+        $groupId = supplier_quote_request_group_id($item);
+        $groupKey = (string) $groupId;
+
+        if (!isset($groups[$groupKey])) {
+            $groups[$groupKey] = [
+                'id' => $groupId,
+                'name' => supplier_quote_request_group_name($item),
+                'items_count' => 0,
+                'total_quantity' => 0.0,
+            ];
+        }
+
+        $groups[$groupKey]['items_count']++;
+        $groups[$groupKey]['total_quantity'] += (float) (
+            $item['total_approved_quantity']
+            ?? $item['total_quantity']
+            ?? 0
+        );
+    }
+
+    uasort($groups, static function (array $left, array $right): int {
+        if ((int) $left['id'] === 0) {
+            return 1;
+        }
+
+        if ((int) $right['id'] === 0) {
+            return -1;
+        }
+
+        return strcasecmp((string) $left['name'], (string) $right['name']);
+    });
+
+    return $groups;
+}
+
+function supplier_quote_request_items_by_group(array $items): array
+{
+    $groups = supplier_quote_request_groups_from_items($items);
+
+    foreach ($groups as $groupKey => $group) {
+        $groups[$groupKey]['items'] = [];
+    }
+
+    foreach ($items as $item) {
+        $groupKey = (string) supplier_quote_request_group_id($item);
+
+        if (!isset($groups[$groupKey])) {
+            continue;
+        }
+
+        $groups[$groupKey]['items'][] = $item;
+    }
+
+    return $groups;
+}
+
+function supplier_quote_request_filter_items_by_group(array $items, int $groupId): array
+{
+    return array_values(array_filter(
+        $items,
+        static fn (array $item): bool => supplier_quote_request_group_id($item) === $groupId
+    ));
+}
+
 function only_digits(?string $value): string
 {
     return preg_replace('/\D+/', '', (string) $value) ?? '';

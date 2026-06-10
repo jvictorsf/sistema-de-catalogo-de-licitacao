@@ -178,6 +178,14 @@ pre {
         width: 100%;
     }
 
+    .app-shell > .d-flex.justify-content-between .btn-group {
+        width: 100%;
+    }
+
+    .app-shell > .d-flex.justify-content-between .dropdown-menu {
+        width: 100%;
+    }
+
     .app-shell > .d-flex.justify-content-between form,
     .app-shell > .d-flex.justify-content-between form .btn {
         width: 100%;

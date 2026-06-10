@@ -17,6 +17,7 @@ if (!$project) {
 
 $demands = get_project_demands($id);
 $consolidatedItems = get_project_consolidated_items($id);
+$quoteRequestGroups = supplier_quote_request_groups_from_items($consolidatedItems);
 $financialSummary = get_project_financial_summary($id);
 
 require __DIR__ . '/../app/views/header.php';
@@ -32,30 +33,82 @@ require __DIR__ . '/../app/views/header.php';
         </p>
     </div>
 
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
         <a href="/demand_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
-            Nova demanda
+            <i class="bi bi-plus-lg"></i>Nova demanda
         </a>
 
-        <a href="/project_report.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-success">
-            Relatório
-        </a>
+        <div class="btn-group">
+            <button
+                type="button"
+                class="btn btn-outline-primary dropdown-toggle"
+                data-bs-toggle="dropdown"
+                aria-expanded="false">
+                <i class="bi bi-files"></i>Relatorios
+            </button>
 
-        <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>" target="_blank" class="btn btn-outline-warning">
-            <i class="bi bi-send"></i>Solicitar orcamento
-        </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <a href="/project_report.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                        Relatorio gerencial
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_export_word.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                        Exportar Word
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_pdf.php?id=<?= (int) $project['id'] ?>" target="_blank" class="dropdown-item">
+                        PDF Institucional
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>" target="_blank" class="dropdown-item">
+                        Solicitacao para fornecedor
+                    </a>
+                </li>
+            </ul>
+        </div>
 
-        <a href="/project_quote_request_excel.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-success">
-            <i class="bi bi-file-earmark-spreadsheet"></i>Excel fornecedor
-        </a>
+        <div class="btn-group">
+            <button
+                type="button"
+                class="btn btn-outline-success dropdown-toggle"
+                data-bs-toggle="dropdown"
+                aria-expanded="false">
+                <i class="bi bi-file-earmark-spreadsheet"></i>Excel fornecedor
+            </button>
 
-        <a href="/project_export_word.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-primary">
-            Exportar Word
-        </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <a href="/project_quote_request_excel.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                        Excel geral
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_quote_request_excel_grouped.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                        Excel geral por grupo
+                    </a>
+                </li>
 
-        <a href="/project_pdf.php?id=<?= (int) $project['id'] ?>" target="_blank" class="btn btn-outline-danger">
-            PDF Institucional
-        </a>
+                <?php if ($quoteRequestGroups): ?>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><h6 class="dropdown-header">Arquivos por grupo</h6></li>
+
+                    <?php foreach ($quoteRequestGroups as $group): ?>
+                        <li>
+                            <a
+                                href="/project_quote_request_excel.php?id=<?= (int) $project['id'] ?>&group_id=<?= (int) $group['id'] ?>"
+                                class="dropdown-item">
+                                <?= e($group['name']) ?>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </ul>
+        </div>
 
         <a href="/projects.php" class="btn btn-outline-secondary">
             Voltar
@@ -151,14 +204,6 @@ require __DIR__ . '/../app/views/header.php';
                                         href="/demand_budget.php?id=<?= (int) $demand['id'] ?>"
                                         class="btn btn-sm btn-outline-success">
                                         Orçamento
-                                    </a>
-
-                                    <a href="/project_export_word.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-primary">
-                                        Exportar Word
-                                    </a>
-
-                                    <a href="/project_pdf.php?id=<?= (int) $project['id'] ?>" target="_blank" class="btn btn-outline-danger">
-                                        PDF Institucional
                                     </a>
 
                                     <form

@@ -2,6 +2,16 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.5] - 2026-06-10
+
+### Adicionado
+- Exportacao Excel geral separado por grupo para a solicitacao de orcamento do projeto.
+- Exportacao Excel individual por grupo/categoria a partir do menu de Excel do fornecedor no projeto.
+
+### Alterado
+- Menu principal passa a agrupar cadastros e administracao em dropdowns, reduzindo a quantidade de itens no header.
+- Acoes do projeto foram reorganizadas em menus de relatorios e Excel do fornecedor, removendo exportacoes repetidas na tabela de demandas.
+
 ## [1.5.4] - 2026-06-10
 
 ### Adicionado

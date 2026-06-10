@@ -1757,6 +1757,10 @@ function get_project_consolidated_items(int $projectId): array
             pi.id AS procurement_item_id,
             {$trackingCodeSql} AS tracking_code,
             pi.name AS item_name,
+            pi.category_id,
+            c.name AS category_name,
+            pi.subcategory_id,
+            s.name AS subcategory_name,
             pi.specification,
             pi.justification,
             pi.environmental_impacts,
@@ -1773,6 +1777,8 @@ function get_project_consolidated_items(int $projectId): array
         FROM demand_items di
         INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
         INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
+        LEFT JOIN categories c ON c.id = pi.category_id
+        LEFT JOIN categories s ON s.id = pi.subcategory_id
         LEFT JOIN unit_types ut ON ut.id = pi.unit_type_id
         LEFT JOIN unit_types content_ut ON content_ut.id = pi.package_content_unit_type_id
         WHERE dl.project_id = :project_id
@@ -1780,6 +1786,10 @@ function get_project_consolidated_items(int $projectId): array
             pi.id,
             {$trackingCodeSql},
             pi.name,
+            pi.category_id,
+            c.name,
+            pi.subcategory_id,
+            s.name,
             pi.specification,
             pi.justification,
             pi.environmental_impacts,
@@ -1788,7 +1798,7 @@ function get_project_consolidated_items(int $projectId): array
             content_ut.name,
             content_ut.abbreviation,
             pi.package_content_quantity
-        ORDER BY pi.name
+        ORDER BY c.name NULLS LAST, pi.name
     ");
 
     $stmt->execute(['project_id' => $projectId]);

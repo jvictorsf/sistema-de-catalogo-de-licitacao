@@ -193,12 +193,16 @@ pre {
 }
 
 .project-quote-table {
-    min-width: 860px;
+    min-width: 960px;
 }
 
-.project-quote-demand:not(:last-of-type) {
+.project-quote-summary {
     border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 1.5rem;
+    padding-bottom: .75rem;
+}
+
+.project-quote-demand-list {
+    max-width: 18rem;
 }
 
 .project-quote-form textarea {
@@ -238,7 +242,7 @@ pre {
         flex: 1 1 auto;
     }
 
-    .quote-demand-heading {
+    .project-quote-summary {
         align-items: stretch !important;
         flex-direction: column;
     }

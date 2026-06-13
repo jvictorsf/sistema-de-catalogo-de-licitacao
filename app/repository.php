@@ -1609,10 +1609,13 @@ function save_demand_supplier_quote_items(int $quoteId, array $prices, array $no
     }
 }
 
-function save_project_supplier_quote(array $data, array $prices, array $notes = []): array
+function save_project_supplier_quote(array $data, array $prices, array $notes = [], array $preserveBlankPriceKeys = []): array
 {
     $projectId = (int) ($data['project_id'] ?? 0);
     $supplierId = (int) ($data['supplier_id'] ?? 0);
+    $priceKey = ($data['price_key'] ?? 'demand_item_id') === 'procurement_item_id'
+        ? 'procurement_item_id'
+        : 'demand_item_id';
 
     if ($projectId <= 0 || $supplierId <= 0) {
         throw new InvalidArgumentException('Projeto e fornecedor sao obrigatorios.');
@@ -1679,9 +1682,18 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
 
             foreach ($items as $item) {
                 $demandItemId = (int) $item['id'];
-                $rawPrice = $prices[$demandItemId] ?? $prices[(string) $demandItemId] ?? null;
-                $note = trim((string) ($notes[$demandItemId] ?? $notes[(string) $demandItemId] ?? ''));
+                $inputKey = $priceKey === 'procurement_item_id'
+                    ? (int) $item['procurement_item_id']
+                    : $demandItemId;
+                $rawPrice = $prices[$inputKey] ?? $prices[(string) $inputKey] ?? null;
+                $note = trim((string) ($notes[$inputKey] ?? $notes[(string) $inputKey] ?? ''));
                 $unitPrice = normalize_money_value($rawPrice);
+                $preserveBlankPrice = !empty($preserveBlankPriceKeys[$inputKey])
+                    || !empty($preserveBlankPriceKeys[(string) $inputKey]);
+
+                if ($preserveBlankPrice && $unitPrice === null) {
+                    continue;
+                }
 
                 if ($unitPrice === null && $note === '') {
                     $delete->execute([

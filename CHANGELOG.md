@@ -5,7 +5,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 ## [1.5.6] - 2026-06-13
 
 ### Adicionado
-- Lancamento de orcamento geral do projeto por fornecedor, distribuindo os valores para todas as demandas vinculadas.
+- Lancamento de orcamento geral do projeto por fornecedor em lista consolidada por produto, distribuindo os valores para todas as demandas vinculadas.
 
 ### Alterado
 - Tela do projeto ficou mais responsiva em desktops medios, telas pequenas e mobile, com cabecalho, acoes, tabelas e abas mais adaptaveis.

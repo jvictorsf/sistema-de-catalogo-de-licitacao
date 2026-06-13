@@ -20,6 +20,7 @@ $selectedSupplierId = (int) ($_POST['supplier_id'] ?? $_GET['supplier_id'] ?? 0)
 $errors = [];
 $postedPrices = is_array($_POST['prices'] ?? null) ? $_POST['prices'] : [];
 $postedNotes = is_array($_POST['item_notes'] ?? null) ? $_POST['item_notes'] : [];
+$preserveBlankPriceKeys = is_array($_POST['preserve_blank_prices'] ?? null) ? $_POST['preserve_blank_prices'] : [];
 $quoteDefaults = [
     'quote_number' => trim($_POST['quote_number'] ?? ''),
     'quote_date' => trim($_POST['quote_date'] ?? ''),
@@ -49,13 +50,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $summary = save_project_supplier_quote([
             'project_id' => $projectId,
             'supplier_id' => $selectedSupplierId,
+            'price_key' => 'procurement_item_id',
             'quote_number' => $quoteDefaults['quote_number'],
             'quote_date' => $quoteDefaults['quote_date'],
             'validity_date' => $quoteDefaults['validity_date'],
             'attachment_path' => $attachmentPath,
             'notes' => $quoteDefaults['notes'],
             'status' => $quoteDefaults['status'],
-        ], $postedPrices, $postedNotes);
+        ], $postedPrices, $postedNotes, $preserveBlankPriceKeys);
 
         $message = sprintf(
             'Orçamento geral salvo em %d demanda(s), com %d item(ns) precificado(s).',
@@ -73,8 +75,9 @@ $statusOptions = [
     'discarded' => 'Desconsiderado',
 ];
 
-$itemsByDemand = [];
+$projectItems = [];
 $hasDemandItems = false;
+$quoteDefaultsLoaded = false;
 
 foreach ($demands as $demand) {
     $demandId = (int) $demand['id'];
@@ -84,7 +87,7 @@ foreach ($demands as $demand) {
     $quoteItems = $quote ? get_demand_supplier_quote_items((int) $quote['id']) : [];
     $items = get_demand_items($demandId);
 
-    if ($quote && $_SERVER['REQUEST_METHOD'] !== 'POST' && $quoteDefaults['quote_number'] === '') {
+    if ($quote && !$quoteDefaultsLoaded && $_SERVER['REQUEST_METHOD'] !== 'POST' && $quoteDefaults['quote_number'] === '') {
         $quoteDefaults = [
             'quote_number' => (string) ($quote['quote_number'] ?? ''),
             'quote_date' => (string) ($quote['quote_date'] ?? ''),
@@ -92,24 +95,64 @@ foreach ($demands as $demand) {
             'notes' => (string) ($quote['notes'] ?? ''),
             'status' => (string) ($quote['status'] ?? 'received'),
         ];
+        $quoteDefaultsLoaded = true;
     }
 
     foreach ($items as $item) {
         $hasDemandItems = true;
+        $procurementItemId = (int) $item['procurement_item_id'];
         $demandItemId = (int) $item['id'];
         $storedItem = $quoteItems[$demandItemId] ?? [];
 
-        $item['price_value'] = array_key_exists((string) $demandItemId, $postedPrices)
-            ? $postedPrices[(string) $demandItemId]
-            : ($storedItem['unit_price'] ?? '');
-        $item['note_value'] = array_key_exists((string) $demandItemId, $postedNotes)
-            ? $postedNotes[(string) $demandItemId]
-            : ($storedItem['notes'] ?? '');
+        if (!isset($projectItems[$procurementItemId])) {
+            $projectItems[$procurementItemId] = array_merge($item, [
+                'total_reference_quantity' => 0.0,
+                'demand_ids' => [],
+                'demand_names' => [],
+                'stored_price_values' => [],
+                'stored_note_values' => [],
+            ]);
+        }
 
-        $itemsByDemand[$demandId]['demand'] = $demand;
-        $itemsByDemand[$demandId]['items'][] = $item;
+        $projectItems[$procurementItemId]['total_reference_quantity'] += (float) ($item['approved_quantity'] ?? $item['quantity'] ?? 0);
+        $projectItems[$procurementItemId]['demand_ids'][$demandId] = true;
+        $projectItems[$procurementItemId]['demand_names'][$demandId] = (string) $demand['name'];
+
+        if (($storedItem['unit_price'] ?? null) !== null && $storedItem['unit_price'] !== '') {
+            $priceValue = number_format((float) $storedItem['unit_price'], 2, '.', '');
+            $projectItems[$procurementItemId]['stored_price_values'][$priceValue] = $priceValue;
+        }
+
+        $noteValue = trim((string) ($storedItem['notes'] ?? ''));
+
+        if ($noteValue !== '') {
+            $projectItems[$procurementItemId]['stored_note_values'][$noteValue] = $noteValue;
+        }
     }
 }
+
+foreach ($projectItems as $procurementItemId => $item) {
+    $storedPrices = array_values($item['stored_price_values']);
+    $storedNotes = array_values($item['stored_note_values']);
+
+    $projectItems[$procurementItemId]['price_value'] = array_key_exists((string) $procurementItemId, $postedPrices)
+        ? $postedPrices[(string) $procurementItemId]
+        : (count($storedPrices) === 1 ? $storedPrices[0] : '');
+    $projectItems[$procurementItemId]['note_value'] = array_key_exists((string) $procurementItemId, $postedNotes)
+        ? $postedNotes[(string) $procurementItemId]
+        : (count($storedNotes) === 1 ? $storedNotes[0] : '');
+    $projectItems[$procurementItemId]['has_mixed_prices'] = count($storedPrices) > 1;
+    $projectItems[$procurementItemId]['has_mixed_notes'] = count($storedNotes) > 1;
+    $projectItems[$procurementItemId]['demand_count'] = count($item['demand_ids']);
+    $projectItems[$procurementItemId]['demand_names'] = array_values($item['demand_names']);
+}
+
+uasort($projectItems, static function (array $left, array $right): int {
+    return strnatcasecmp(
+        (string) ($left['category_name'] ?? '') . ' ' . (string) $left['item_name'],
+        (string) ($right['category_name'] ?? '') . ' ' . (string) $right['item_name']
+    );
+});
 
 require __DIR__ . '/../app/views/header.php';
 ?>
@@ -167,7 +210,7 @@ require __DIR__ . '/../app/views/header.php';
                 <?php endforeach; ?>
             </select>
             <div class="form-text">
-                Ao salvar, o orçamento será distribuído nas demandas deste projeto para o fornecedor selecionado.
+                Ao salvar, cada preço informado será aplicado em todas as demandas que possuem o produto.
             </div>
         </div>
 
@@ -200,7 +243,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="col-lg-5">
             <label class="form-label">Anexo do orçamento</label>
             <input type="file" name="attachment" class="form-control" accept="application/pdf,.pdf,.doc,.docx,image/jpeg,image/png,image/webp">
-            <div class="form-text">Se enviado, o mesmo anexo será associado às demandas preenchidas.</div>
+            <div class="form-text">Se enviado, o mesmo anexo será associado às demandas do projeto.</div>
         </div>
 
         <div class="col-lg-7">
@@ -211,74 +254,86 @@ require __DIR__ . '/../app/views/header.php';
 
     <hr class="my-4">
 
-    <?php foreach ($itemsByDemand as $group): ?>
-        <?php $demand = $group['demand']; ?>
-
-        <div class="project-quote-demand mb-4">
-            <div class="d-flex justify-content-between align-items-start gap-3 mb-2 quote-demand-heading">
-                <div>
-                    <h2 class="h5 mb-1"><?= e($demand['name']) ?></h2>
-                    <div class="text-muted small">
-                        <?= e($demand['secretariat_name'] ?? 'Sem secretaria') ?> · <?= e($demand['requester_department'] ?: '-') ?>
-                    </div>
+    <?php if ($projectItems): ?>
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3 project-quote-summary">
+            <div>
+                <h2 class="h5 mb-1">Itens do projeto</h2>
+                <div class="text-muted small">
+                    <?= count($projectItems) ?> produto(s) consolidado(s) de <?= count($demands) ?> demanda(s).
                 </div>
-
-                <a href="/demand_show.php?id=<?= (int) $demand['id'] ?>" class="btn btn-sm btn-outline-secondary">
-                    Abrir demanda
-                </a>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 project-quote-table">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Código</th>
-                            <th>Item</th>
-                            <th>Qtd. referência</th>
-                            <th>Valor unitário</th>
-                            <th>Observação</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        <?php foreach ($group['items'] as $item): ?>
-                            <?php $demandItemId = (int) $item['id']; ?>
-                            <tr>
-                                <td><span class="badge text-bg-dark"><?= e($item['tracking_code']) ?></span></td>
-                                <td>
-                                    <strong><?= e($item['item_name']) ?></strong>
-                                    <div class="small text-muted">
-                                        <?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?>
-                                        <?php if (format_package_content($item) !== '-'): ?>
-                                            · Conteúdo: <?= e(format_package_content($item)) ?>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                                <td><?= e((string) ($item['approved_quantity'] ?? $item['quantity'])) ?></td>
-                                <td>
-                                    <input
-                                        type="number"
-                                        name="prices[<?= $demandItemId ?>]"
-                                        class="form-control form-control-sm"
-                                        min="0"
-                                        step="0.01"
-                                        value="<?= e($item['price_value'] !== '' && $item['price_value'] !== null ? number_format((float) $item['price_value'], 2, '.', '') : '') ?>">
-                                </td>
-                                <td>
-                                    <input
-                                        type="text"
-                                        name="item_notes[<?= $demandItemId ?>]"
-                                        class="form-control form-control-sm"
-                                        value="<?= e($item['note_value']) ?>"
-                                        placeholder="Opcional">
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
             </div>
         </div>
-    <?php endforeach; ?>
+
+        <div class="table-responsive mb-4">
+            <table class="table table-hover align-middle mb-0 project-quote-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código</th>
+                        <th>Item</th>
+                        <th>Qtd. total</th>
+                        <th>Demandas</th>
+                        <th>Valor unitário</th>
+                        <th>Observação</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    <?php foreach ($projectItems as $item): ?>
+                        <?php
+                        $procurementItemId = (int) $item['procurement_item_id'];
+                        $demandNames = array_slice($item['demand_names'], 0, 3);
+                        $remainingDemandCount = max(0, (int) $item['demand_count'] - count($demandNames));
+                        ?>
+                        <tr>
+                            <td><span class="badge text-bg-dark"><?= e($item['tracking_code']) ?></span></td>
+                            <td>
+                                <strong><?= e($item['item_name']) ?></strong>
+                                <div class="small text-muted">
+                                    <?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?>
+                                    <?php if (format_package_content($item) !== '-'): ?>
+                                        · Conteúdo: <?= e(format_package_content($item)) ?>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                            <td><?= e(format_decimal_quantity($item['total_reference_quantity'])) ?></td>
+                            <td>
+                                <span class="badge text-bg-light border"><?= (int) $item['demand_count'] ?> demanda(s)</span>
+                                <div class="small text-muted project-quote-demand-list">
+                                    <?= e(implode(', ', $demandNames)) ?><?= $remainingDemandCount > 0 ? ' +' . $remainingDemandCount : '' ?>
+                                </div>
+                            </td>
+                            <td>
+                                <?php if ($item['has_mixed_prices']): ?>
+                                    <input type="hidden" name="preserve_blank_prices[<?= $procurementItemId ?>]" value="1">
+                                <?php endif; ?>
+                                <input
+                                    type="number"
+                                    name="prices[<?= $procurementItemId ?>]"
+                                    class="form-control form-control-sm"
+                                    min="0"
+                                    step="0.01"
+                                    value="<?= e($item['price_value'] !== '' && $item['price_value'] !== null ? number_format((float) $item['price_value'], 2, '.', '') : '') ?>">
+                                <?php if ($item['has_mixed_prices']): ?>
+                                    <div class="form-text">Valores diferentes cadastrados; preencha para unificar.</div>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <input
+                                    type="text"
+                                    name="item_notes[<?= $procurementItemId ?>]"
+                                    class="form-control form-control-sm"
+                                    value="<?= e($item['note_value']) ?>"
+                                    placeholder="Opcional">
+                                <?php if ($item['has_mixed_notes']): ?>
+                                    <div class="form-text">Observações diferentes cadastradas; preencha para unificar.</div>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
 
     <div class="d-flex justify-content-end gap-2 flex-wrap">
         <a href="/project_show.php?id=<?= (int) $projectId ?>" class="btn btn-outline-secondary">

@@ -173,6 +173,10 @@ require __DIR__ . '/../app/views/header.php';
                     <div class="h4 mb-0">
                         R$ <?= number_format((float) ($financialSummary['total_estimated_value'] ?? 0), 2, ',', '.') ?>
                     </div>
+
+                    <?php if (!empty($financialSummary['uses_supplier_average'])): ?>
+                        <div class="small text-muted mt-1">Calculado por médias de orçamento</div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -283,7 +287,12 @@ require __DIR__ . '/../app/views/header.php';
                                 <td><?= e((string) $item['total_quantity']) ?></td>
                                 <td class="fw-semibold"><?= e((string) $item['total_approved_quantity']) ?></td>
                                 <td>R$ <?= number_format((float) $item['average_unit_price'], 2, ',', '.') ?></td>
-                                <td class="fw-semibold">R$ <?= number_format((float) $item['estimated_total'], 2, ',', '.') ?></td>
+                                <td class="fw-semibold">
+                                    R$ <?= number_format((float) $item['estimated_total'], 2, ',', '.') ?>
+                                    <?php if (!empty($item['uses_supplier_average'])): ?>
+                                        <div class="small text-muted">média de orçamento</div>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -349,8 +358,13 @@ require __DIR__ . '/../app/views/header.php';
                                 </td>
                                 <td><?= e((string) $item['quantity']) ?></td>
                                 <td><?= e((string) $item['approved_quantity']) ?></td>
-                                <td>R$ <?= number_format((float) ($item['estimated_unit_price'] ?? 0), 2, ',', '.') ?></td>
-                                <td>R$ <?= number_format((float) ($item['estimated_total'] ?? 0), 2, ',', '.') ?></td>
+                                <td>
+                                    R$ <?= number_format((float) ($item['calculated_unit_price'] ?? $item['estimated_unit_price'] ?? 0), 2, ',', '.') ?>
+                                    <?php if (!empty($item['uses_supplier_average'])): ?>
+                                        <div class="small text-muted">média de orçamento</div>
+                                    <?php endif; ?>
+                                </td>
+                                <td>R$ <?= number_format((float) ($item['calculated_total'] ?? $item['estimated_total'] ?? 0), 2, ',', '.') ?></td>
                                 <td><?= e($item['notes']) ?></td>
                             </tr>
                         <?php endforeach; ?>

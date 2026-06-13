@@ -1609,6 +1609,114 @@ function save_demand_supplier_quote_items(int $quoteId, array $prices, array $no
     }
 }
 
+function save_project_supplier_quote(array $data, array $prices, array $notes = []): array
+{
+    $projectId = (int) ($data['project_id'] ?? 0);
+    $supplierId = (int) ($data['supplier_id'] ?? 0);
+
+    if ($projectId <= 0 || $supplierId <= 0) {
+        throw new InvalidArgumentException('Projeto e fornecedor sao obrigatorios.');
+    }
+
+    $demands = get_project_demands($projectId);
+    $quoteCount = 0;
+    $pricedItemsCount = 0;
+
+    db()->beginTransaction();
+
+    try {
+        $upsert = db()->prepare("
+            INSERT INTO demand_supplier_quote_items (
+                demand_supplier_quote_id,
+                demand_item_id,
+                unit_price,
+                notes,
+                reused_from_quote_item_id
+            ) VALUES (
+                :quote_id,
+                :demand_item_id,
+                :unit_price,
+                :notes,
+                NULL
+            )
+            ON CONFLICT (demand_supplier_quote_id, demand_item_id)
+            DO UPDATE SET
+                unit_price = EXCLUDED.unit_price,
+                notes = EXCLUDED.notes,
+                reused_from_quote_item_id = NULL
+        ");
+
+        $delete = db()->prepare("
+            DELETE FROM demand_supplier_quote_items
+            WHERE demand_supplier_quote_id = :quote_id
+              AND demand_item_id = :demand_item_id
+        ");
+
+        foreach ($demands as $demand) {
+            $demandId = (int) $demand['id'];
+            $items = get_demand_items($demandId);
+
+            if (!$items) {
+                continue;
+            }
+
+            $existingQuote = find_demand_supplier_quote_by_supplier($demandId, $supplierId);
+            $quoteData = array_merge($data, [
+                'demand_list_id' => $demandId,
+                'supplier_id' => $supplierId,
+                'attachment_path' => ($data['attachment_path'] ?? null)
+                    ?: ($existingQuote['attachment_path'] ?? null),
+            ]);
+
+            if ($existingQuote) {
+                update_demand_supplier_quote((int) $existingQuote['id'], $quoteData);
+                $quoteId = (int) $existingQuote['id'];
+            } else {
+                $quoteId = create_demand_supplier_quote($quoteData);
+            }
+
+            $quoteCount++;
+
+            foreach ($items as $item) {
+                $demandItemId = (int) $item['id'];
+                $rawPrice = $prices[$demandItemId] ?? $prices[(string) $demandItemId] ?? null;
+                $note = trim((string) ($notes[$demandItemId] ?? $notes[(string) $demandItemId] ?? ''));
+                $unitPrice = normalize_money_value($rawPrice);
+
+                if ($unitPrice === null && $note === '') {
+                    $delete->execute([
+                        'quote_id' => $quoteId,
+                        'demand_item_id' => $demandItemId,
+                    ]);
+
+                    continue;
+                }
+
+                $upsert->execute([
+                    'quote_id' => $quoteId,
+                    'demand_item_id' => $demandItemId,
+                    'unit_price' => $unitPrice,
+                    'notes' => $note ?: null,
+                ]);
+
+                if ($unitPrice !== null) {
+                    $pricedItemsCount++;
+                }
+            }
+        }
+
+        db()->commit();
+    } catch (Throwable $exception) {
+        db()->rollBack();
+        throw $exception;
+    }
+
+    return [
+        'quotes' => $quoteCount,
+        'priced_items' => $pricedItemsCount,
+    ];
+}
+
 function get_demand_budget_report(int $demandListId): array
 {
     $items = get_demand_items($demandListId);
@@ -1748,6 +1856,41 @@ function get_demand_budget_report(int $demandListId): array
     ];
 }
 
+function get_project_demand_budget_items(int $projectId): array
+{
+    $budgetItems = [];
+
+    foreach (get_project_demands($projectId) as $demand) {
+        $budget = get_demand_budget_report((int) $demand['id']);
+
+        foreach ($budget['items'] as $item) {
+            $budgetItems[(int) $item['id']] = $item;
+        }
+    }
+
+    return $budgetItems;
+}
+
+function calculated_project_budget_values(array $demandItem, array $budgetItems): array
+{
+    $budgetItem = $budgetItems[(int) ($demandItem['demand_item_id'] ?? $demandItem['id'] ?? 0)] ?? [];
+    $averageUnitPrice = $budgetItem['average_unit_price'] ?? null;
+    $averageTotal = $budgetItem['average_total'] ?? null;
+    $manualUnitPrice = $demandItem['estimated_unit_price'] ?? null;
+    $manualTotal = $demandItem['estimated_total'] ?? null;
+
+    return [
+        'calculated_unit_price' => $averageUnitPrice !== null
+            ? (float) $averageUnitPrice
+            : ($manualUnitPrice !== null ? (float) $manualUnitPrice : 0.0),
+        'calculated_total' => $averageTotal !== null
+            ? (float) $averageTotal
+            : ($manualTotal !== null ? (float) $manualTotal : 0.0),
+        'uses_supplier_average' => $averageUnitPrice !== null,
+        'price_count' => (int) ($budgetItem['price_count'] ?? 0),
+    ];
+}
+
 function get_project_consolidated_items(int $projectId): array
 {
     $trackingCodeSql = item_tracking_code_sql('pi');
@@ -1803,7 +1946,59 @@ function get_project_consolidated_items(int $projectId): array
 
     $stmt->execute(['project_id' => $projectId]);
 
-    return $stmt->fetchAll();
+    $items = $stmt->fetchAll();
+
+    if (!$items) {
+        return [];
+    }
+
+    $budgetItems = get_project_demand_budget_items($projectId);
+    $itemTotals = [];
+
+    $stmt = db()->prepare("
+        SELECT
+            di.id AS demand_item_id,
+            di.procurement_item_id,
+            di.quantity,
+            COALESCE(di.approved_quantity, di.quantity) AS approved_quantity,
+            di.estimated_unit_price,
+            (COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)) AS estimated_total
+        FROM demand_items di
+        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+        WHERE dl.project_id = :project_id
+    ");
+
+    $stmt->execute(['project_id' => $projectId]);
+
+    foreach ($stmt->fetchAll() as $demandItem) {
+        $procurementItemId = (int) $demandItem['procurement_item_id'];
+        $values = calculated_project_budget_values($demandItem, $budgetItems);
+
+        if (!isset($itemTotals[$procurementItemId])) {
+            $itemTotals[$procurementItemId] = [
+                'estimated_total' => 0.0,
+                'uses_supplier_average' => false,
+            ];
+        }
+
+        $itemTotals[$procurementItemId]['estimated_total'] += $values['calculated_total'];
+        $itemTotals[$procurementItemId]['uses_supplier_average'] = $itemTotals[$procurementItemId]['uses_supplier_average']
+            || $values['uses_supplier_average'];
+    }
+
+    foreach ($items as $index => $item) {
+        $procurementItemId = (int) $item['procurement_item_id'];
+        $total = $itemTotals[$procurementItemId]['estimated_total'] ?? (float) $item['estimated_total'];
+        $approvedQuantity = (float) ($item['total_approved_quantity'] ?? 0);
+
+        $items[$index]['estimated_total'] = $total;
+        $items[$index]['average_unit_price'] = $approvedQuantity > 0
+            ? $total / $approvedQuantity
+            : 0;
+        $items[$index]['uses_supplier_average'] = $itemTotals[$procurementItemId]['uses_supplier_average'] ?? false;
+    }
+
+    return $items;
 }
 
 function get_project_items_by_demand(int $projectId): array
@@ -1812,6 +2007,8 @@ function get_project_items_by_demand(int $projectId): array
 
     $stmt = db()->prepare("
         SELECT
+            di.id AS demand_item_id,
+            pi.id AS procurement_item_id,
             dl.id AS demand_id,
             dl.name AS demand_name,
             s.name AS secretariat_name,
@@ -1841,7 +2038,17 @@ function get_project_items_by_demand(int $projectId): array
 
     $stmt->execute(['project_id' => $projectId]);
 
-    return $stmt->fetchAll();
+    $items = $stmt->fetchAll();
+    $budgetItems = get_project_demand_budget_items($projectId);
+
+    foreach ($items as $index => $item) {
+        $items[$index] = array_merge(
+            $item,
+            calculated_project_budget_values($item, $budgetItems)
+        );
+    }
+
+    return $items;
 }
 
 function get_project_financial_summary(int $projectId): array
@@ -1860,35 +2067,59 @@ function get_project_financial_summary(int $projectId): array
         'project_id' => $projectId,
     ]);
 
-    return $stmt->fetch() ?: [
+    $summary = $stmt->fetch() ?: [
         'total_requested_quantity' => 0,
         'total_approved_quantity' => 0,
         'total_estimated_value' => 0,
     ];
+
+    $summary['total_requested_quantity'] = $summary['total_requested_quantity'] ?? 0;
+    $summary['total_approved_quantity'] = $summary['total_approved_quantity'] ?? 0;
+    $summary['total_estimated_value'] = 0;
+    $summary['uses_supplier_average'] = false;
+
+    foreach (get_project_demands($projectId) as $demand) {
+        $demandSummary = get_demand_financial_summary((int) $demand['id']);
+
+        $summary['total_estimated_value'] += (float) ($demandSummary['total_estimated_value'] ?? 0);
+        $summary['uses_supplier_average'] = $summary['uses_supplier_average']
+            || !empty($demandSummary['uses_supplier_average']);
+    }
+
+    return $summary;
 }
 
 function get_project_secretariat_summary(int $projectId): array
 {
-    $stmt = db()->prepare("
-        SELECT
-            COALESCE(s.name, 'Sem secretaria vinculada') AS secretariat_name,
-            COUNT(DISTINCT dl.id) AS demand_count,
-            SUM(di.quantity) AS total_requested_quantity,
-            SUM(COALESCE(di.approved_quantity, di.quantity)) AS total_approved_quantity,
-            SUM(COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)) AS total_estimated_value
-        FROM demand_lists dl
-        LEFT JOIN secretariats s ON s.id = dl.secretariat_id
-        LEFT JOIN demand_items di ON di.demand_list_id = dl.id
-        WHERE dl.project_id = :project_id
-        GROUP BY COALESCE(s.name, 'Sem secretaria vinculada')
-        ORDER BY secretariat_name
-    ");
+    $summary = [];
 
-    $stmt->execute([
-        'project_id' => $projectId,
-    ]);
+    foreach (get_project_demands($projectId) as $demand) {
+        $secretariatName = $demand['secretariat_name'] ?: 'Sem secretaria vinculada';
 
-    return $stmt->fetchAll();
+        if (!isset($summary[$secretariatName])) {
+            $summary[$secretariatName] = [
+                'secretariat_name' => $secretariatName,
+                'demand_count' => 0,
+                'total_requested_quantity' => 0,
+                'total_approved_quantity' => 0,
+                'total_estimated_value' => 0,
+                'uses_supplier_average' => false,
+            ];
+        }
+
+        $demandSummary = get_demand_financial_summary((int) $demand['id']);
+
+        $summary[$secretariatName]['demand_count']++;
+        $summary[$secretariatName]['total_requested_quantity'] += (float) ($demandSummary['total_requested_quantity'] ?? 0);
+        $summary[$secretariatName]['total_approved_quantity'] += (float) ($demandSummary['total_approved_quantity'] ?? 0);
+        $summary[$secretariatName]['total_estimated_value'] += (float) ($demandSummary['total_estimated_value'] ?? 0);
+        $summary[$secretariatName]['uses_supplier_average'] = $summary[$secretariatName]['uses_supplier_average']
+            || !empty($demandSummary['uses_supplier_average']);
+    }
+
+    ksort($summary, SORT_NATURAL | SORT_FLAG_CASE);
+
+    return array_values($summary);
 }
 
 function duplicate_project(int $projectId): int
@@ -2604,6 +2835,10 @@ function get_demand_financial_summary(int $demandListId): array
         'total_approved_quantity' => 0,
         'total_estimated_value' => 0,
     ];
+
+    $summary['total_requested_quantity'] = $summary['total_requested_quantity'] ?? 0;
+    $summary['total_approved_quantity'] = $summary['total_approved_quantity'] ?? 0;
+    $summary['total_estimated_value'] = $summary['total_estimated_value'] ?? 0;
 
     $budget = get_demand_budget_report($demandListId);
 

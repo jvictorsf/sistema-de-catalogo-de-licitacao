@@ -19,13 +19,14 @@ $demands = get_project_demands($id);
 $consolidatedItems = get_project_consolidated_items($id);
 $quoteRequestGroups = supplier_quote_request_groups_from_items($consolidatedItems);
 $financialSummary = get_project_financial_summary($id);
+$quoteSuccess = trim($_GET['quote_success'] ?? '');
 
 require __DIR__ . '/../app/views/header.php';
 
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
+<div class="page-header d-flex justify-content-between align-items-start mb-4">
+    <div class="page-title">
         <h1 class="h3 mb-1"><?= e($project['name']) ?></h1>
 
         <p class="text-muted mb-0">
@@ -33,9 +34,13 @@ require __DIR__ . '/../app/views/header.php';
         </p>
     </div>
 
-    <div class="d-flex gap-2 flex-wrap justify-content-end">
+    <div class="page-actions d-flex gap-2 flex-wrap justify-content-end">
         <a href="/demand_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i>Nova demanda
+        </a>
+
+        <a href="/project_supplier_quote_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-outline-success">
+            <i class="bi bi-cash-coin"></i>Orçamento geral
         </a>
 
         <div class="btn-group">
@@ -116,6 +121,12 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 </div>
 
+<?php if ($quoteSuccess): ?>
+    <div class="alert alert-success">
+        <?= e($quoteSuccess) ?>
+    </div>
+<?php endif; ?>
+
 <div class="row g-3 mb-4">
     <div class="col-md-4">
         <div class="card card-body">
@@ -144,6 +155,10 @@ require __DIR__ . '/../app/views/header.php';
             <div class="h4 mb-0">
                 R$ <?= number_format((float) ($financialSummary['total_estimated_value'] ?? 0), 2, ',', '.') ?>
             </div>
+
+            <?php if (!empty($financialSummary['uses_supplier_average'])): ?>
+                <div class="small text-muted mt-1">Calculado por médias de orçamento</div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -156,7 +171,8 @@ require __DIR__ . '/../app/views/header.php';
             </div>
 
             <div class="card-body p-0">
-                <table class="table table-hover align-middle mb-0">
+                <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 project-demand-table">
                     <thead class="table-light">
                         <tr>
                             <th>Demanda</th>
@@ -194,6 +210,7 @@ require __DIR__ . '/../app/views/header.php';
                                 </td>
 
                                 <td class="text-end">
+                                    <div class="table-actions">
                                     <a
                                         href="/demand_show.php?id=<?= (int) $demand['id'] ?>"
                                         class="btn btn-sm btn-outline-primary">
@@ -219,12 +236,14 @@ require __DIR__ . '/../app/views/header.php';
                                             Excluir
                                         </button>
                                     </form>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
 
                 </table>
+                </div>
             </div>
         </div>
     </div>
@@ -236,7 +255,8 @@ require __DIR__ . '/../app/views/header.php';
             </div>
 
             <div class="card-body p-0">
-                <table class="table table-hover align-middle mb-0">
+                <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 project-consolidated-table">
                     <thead class="table-light">
                         <tr>
                             <th>Código</th>
@@ -288,12 +308,16 @@ require __DIR__ . '/../app/views/header.php';
 
                                 <td class="fw-semibold">
                                     R$ <?= number_format((float) $item['estimated_total'], 2, ',', '.') ?>
+                                    <?php if (!empty($item['uses_supplier_average'])): ?>
+                                        <div class="small text-muted">média de orçamento</div>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
 
                 </table>
+                </div>
             </div>
         </div>
     </div>

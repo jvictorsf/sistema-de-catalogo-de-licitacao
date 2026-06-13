@@ -2,6 +2,18 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.6] - 2026-06-13
+
+### Adicionado
+- Lancamento de orcamento geral do projeto por fornecedor, distribuindo os valores para todas as demandas vinculadas.
+
+### Alterado
+- Tela do projeto ficou mais responsiva em desktops medios, telas pequenas e mobile, com cabecalho, acoes, tabelas e abas mais adaptaveis.
+- Resumos financeiros do projeto, consolidacao geral, resumo por secretaria e detalhamento por demanda passam a usar medias calculadas dos orcamentos quando disponiveis.
+
+### Corrigido
+- Relatorios gerencial, PDF institucional e Word do projeto passam a exibir valor medio unitario e total estimado calculados, com indicacao quando o valor vem de media de orcamento.
+
 ## [1.5.5] - 2026-06-10
 
 ### Adicionado

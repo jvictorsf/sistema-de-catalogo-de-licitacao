@@ -152,6 +152,9 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
         <td>
             <small>Valor total estimado</small>
             R$ <?= number_format((float) ($financialSummary['total_estimated_value'] ?? 0), 2, ',', '.') ?>
+            <?php if (!empty($financialSummary['uses_supplier_average'])): ?>
+                <br><small>Calculado por médias de orçamento</small>
+            <?php endif; ?>
         </td>
     </tr>
 </table>
@@ -211,7 +214,12 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
                 <td><?= e((string) $item['total_quantity']) ?></td>
                 <td><?= e((string) $item['total_approved_quantity']) ?></td>
                 <td>R$ <?= number_format((float) $item['average_unit_price'], 2, ',', '.') ?></td>
-                <td>R$ <?= number_format((float) $item['estimated_total'], 2, ',', '.') ?></td>
+                <td>
+                    R$ <?= number_format((float) $item['estimated_total'], 2, ',', '.') ?>
+                    <?php if (!empty($item['uses_supplier_average'])): ?>
+                        <br><span class="text-small">média de orçamento</span>
+                    <?php endif; ?>
+                </td>
             </tr>
         <?php endforeach; ?>
     </tbody>
@@ -277,8 +285,13 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
                 </td>
                 <td><?= e((string) $item['quantity']) ?></td>
                 <td><?= e((string) $item['approved_quantity']) ?></td>
-                <td>R$ <?= number_format((float) ($item['estimated_unit_price'] ?? 0), 2, ',', '.') ?></td>
-                <td>R$ <?= number_format((float) ($item['estimated_total'] ?? 0), 2, ',', '.') ?></td>
+                <td>
+                    R$ <?= number_format((float) ($item['calculated_unit_price'] ?? $item['estimated_unit_price'] ?? 0), 2, ',', '.') ?>
+                    <?php if (!empty($item['uses_supplier_average'])): ?>
+                        <br><span class="text-small">média de orçamento</span>
+                    <?php endif; ?>
+                </td>
+                <td>R$ <?= number_format((float) ($item['calculated_total'] ?? $item['estimated_total'] ?? 0), 2, ',', '.') ?></td>
             </tr>
         <?php endforeach; ?>
     </tbody>

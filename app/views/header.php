@@ -32,6 +32,7 @@ $primaryNavItems = [
             'project_quote_request.php',
             'project_quote_request_excel.php',
             'project_quote_request_excel_grouped.php',
+            'project_supplier_quote_form.php',
         ],
     ],
     [

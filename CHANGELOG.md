@@ -2,6 +2,12 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.13] - 2026-06-16
+
+### Adicionado
+- Formulario de orcamento geral passa a exibir o valor total do orcamento do fornecedor selecionado.
+- Valor total do orcamento geral passa a atualizar automaticamente conforme os precos unitarios sao digitados.
+
 ## [1.5.12] - 2026-06-16
 
 ### Adicionado

@@ -157,6 +157,8 @@ foreach ($demands as $demand) {
 }
 
 $existingAttachments = array_values($existingAttachments);
+$quoteTotal = 0.0;
+$quotePricedItemsCount = 0;
 
 foreach ($projectItems as $procurementItemId => $item) {
     $storedPrices = array_values($item['stored_price_values']);
@@ -172,7 +174,16 @@ foreach ($projectItems as $procurementItemId => $item) {
     $projectItems[$procurementItemId]['has_mixed_notes'] = count($storedNotes) > 1;
     $projectItems[$procurementItemId]['demand_count'] = count($item['demand_ids']);
     $projectItems[$procurementItemId]['demand_names'] = array_values($item['demand_names']);
+
+    $unitPrice = normalize_money_value($projectItems[$procurementItemId]['price_value']);
+
+    if ($unitPrice !== null) {
+        $quotePricedItemsCount++;
+        $quoteTotal += $unitPrice * (float) $projectItems[$procurementItemId]['total_reference_quantity'];
+    }
 }
+
+$quoteTotal = round($quoteTotal, 2);
 
 uasort($projectItems, static function (array $left, array $right): int {
     return strnatcasecmp(
@@ -357,6 +368,20 @@ require __DIR__ . '/../app/views/header.php';
                     <?= count($projectItems) ?> produto(s) consolidado(s) de <?= count($demands) ?> demanda(s).
                 </div>
             </div>
+
+            <div class="text-lg-end">
+                <div class="text-muted small">Valor total do orçamento</div>
+                <div
+                    class="h4 mb-0"
+                    id="quoteTotalValue"
+                    data-initial-value="<?= e(number_format($quoteTotal, 2, '.', '')) ?>">
+                    R$ <?= number_format($quoteTotal, 2, ',', '.') ?>
+                </div>
+                <div class="text-muted small">
+                    <span id="quoteTotalPricedCount"><?= (int) $quotePricedItemsCount ?></span>
+                    item(ns) com preço
+                </div>
+            </div>
         </div>
 
         <div class="table-responsive mb-4">
@@ -407,6 +432,8 @@ require __DIR__ . '/../app/views/header.php';
                                     class="form-control form-control-sm"
                                     min="0"
                                     step="0.01"
+                                    data-quote-price-input
+                                    data-quantity="<?= e((string) (float) $item['total_reference_quantity']) ?>"
                                     value="<?= e($item['price_value'] !== '' && $item['price_value'] !== null ? number_format((float) $item['price_value'], 2, '.', '') : '') ?>">
                                 <?php if ($item['has_mixed_prices']): ?>
                                     <div class="form-text">Valores diferentes cadastrados; preencha para unificar.</div>
@@ -443,21 +470,74 @@ require __DIR__ . '/../app/views/header.php';
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const supplierSelect = document.getElementById('supplierSelect');
+        const quoteTotalValue = document.getElementById('quoteTotalValue');
+        const quoteTotalPricedCount = document.getElementById('quoteTotalPricedCount');
+        const priceInputs = document.querySelectorAll('[data-quote-price-input]');
 
-        if (!supplierSelect) {
-            return;
+        function parseMoney(value) {
+            const normalized = String(value || '').trim();
+
+            if (!normalized) {
+                return null;
+            }
+
+            const decimal = normalized.includes(',')
+                ? normalized.replace(/\./g, '').replace(',', '.')
+                : normalized;
+            const number = Number(decimal);
+
+            return Number.isFinite(number) ? number : null;
         }
 
-        supplierSelect.addEventListener('change', function() {
-            if (!supplierSelect.value || document.querySelector('.alert-danger')) {
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+            }).format(value);
+        }
+
+        function updateQuoteTotal() {
+            if (!quoteTotalValue || !quoteTotalPricedCount) {
                 return;
             }
 
-            const url = new URL(window.location.href);
-            url.searchParams.set('project_id', '<?= (int) $projectId ?>');
-            url.searchParams.set('supplier_id', supplierSelect.value);
-            window.location.href = url.toString();
+            let total = 0;
+            let pricedCount = 0;
+
+            priceInputs.forEach(function(input) {
+                const unitPrice = parseMoney(input.value);
+                const quantity = Number(input.dataset.quantity || 0);
+
+                if (unitPrice === null || quantity <= 0) {
+                    return;
+                }
+
+                total += unitPrice * quantity;
+                pricedCount++;
+            });
+
+            quoteTotalValue.textContent = formatCurrency(total);
+            quoteTotalPricedCount.textContent = String(pricedCount);
+        }
+
+        priceInputs.forEach(function(input) {
+            input.addEventListener('input', updateQuoteTotal);
         });
+
+        updateQuoteTotal();
+
+        if (supplierSelect) {
+            supplierSelect.addEventListener('change', function() {
+                if (!supplierSelect.value || document.querySelector('.alert-danger')) {
+                    return;
+                }
+
+                const url = new URL(window.location.href);
+                url.searchParams.set('project_id', '<?= (int) $projectId ?>');
+                url.searchParams.set('supplier_id', supplierSelect.value);
+                window.location.href = url.toString();
+            });
+        }
     });
 </script>
 

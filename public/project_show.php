@@ -48,6 +48,10 @@ require __DIR__ . '/../app/views/header.php';
             <i class="bi bi-list-ol"></i>Ordenar itens
         </a>
 
+        <a href="/project_lots.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-dark">
+            <i class="bi bi-boxes"></i>Denominacoes
+        </a>
+
         <div class="btn-group">
             <button
                 type="button"
@@ -86,7 +90,8 @@ require __DIR__ . '/../app/views/header.php';
             </button>
 
             <ul class="dropdown-menu dropdown-menu-end project-licitation-menu">
-                <li><h6 class="dropdown-header">Anexo I</h6></li>
+                <li><h6 class="dropdown-header">Licitacao por item</h6></li>
+                <li><h6 class="dropdown-header">Anexo I - Itens, especificacoes, quantitativos e memoria</h6></li>
                 <li>
                     <a href="/project_licitation_annex_i.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
                         PDF institucional
@@ -104,7 +109,7 @@ require __DIR__ . '/../app/views/header.php';
                 </li>
 
                 <li><hr class="dropdown-divider"></li>
-                <li><h6 class="dropdown-header">Anexo II</h6></li>
+                <li><h6 class="dropdown-header">Anexo II - Pesquisa e estimativa de precos</h6></li>
                 <li>
                     <a href="/project_licitation_annex_ii.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
                         PDF institucional
@@ -122,7 +127,7 @@ require __DIR__ . '/../app/views/header.php';
                 </li>
 
                 <li><hr class="dropdown-divider"></li>
-                <li><h6 class="dropdown-header">Anexo III</h6></li>
+                <li><h6 class="dropdown-header">Anexo III - Quadro resumido da estimativa</h6></li>
                 <li>
                     <a href="/project_licitation_annex_iii.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
                         PDF institucional
@@ -135,6 +140,64 @@ require __DIR__ . '/../app/views/header.php';
                 </li>
                 <li>
                     <a href="/project_licitation_annex_iii.php?id=<?= (int) $project['id'] ?>&format=excel" class="dropdown-item">
+                        Exportar Excel
+                    </a>
+                </li>
+
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Licitacao por lote</h6></li>
+                <li>
+                    <a href="/project_lots.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                        Gerenciar denominacoes e vinculos
+                    </a>
+                </li>
+                <li><h6 class="dropdown-header">Anexo I - Itens por lote e denominacao</h6></li>
+                <li>
+                    <a href="/project_lot_annex_i.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
+                        PDF institucional
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_lot_annex_i.php?id=<?= (int) $project['id'] ?>&format=word" class="dropdown-item">
+                        Exportar Word
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_lot_annex_i.php?id=<?= (int) $project['id'] ?>&format=excel" class="dropdown-item">
+                        Exportar Excel
+                    </a>
+                </li>
+
+                <li><h6 class="dropdown-header">Anexo II - Pesquisa e estimativa por lote</h6></li>
+                <li>
+                    <a href="/project_lot_annex_ii.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
+                        PDF institucional
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_lot_annex_ii.php?id=<?= (int) $project['id'] ?>&format=word" class="dropdown-item">
+                        Exportar Word
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_lot_annex_ii.php?id=<?= (int) $project['id'] ?>&format=excel" class="dropdown-item">
+                        Exportar Excel
+                    </a>
+                </li>
+
+                <li><h6 class="dropdown-header">Anexo III - Quadro resumido por lote</h6></li>
+                <li>
+                    <a href="/project_lot_annex_iii.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
+                        PDF institucional
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_lot_annex_iii.php?id=<?= (int) $project['id'] ?>&format=word" class="dropdown-item">
+                        Exportar Word
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_lot_annex_iii.php?id=<?= (int) $project['id'] ?>&format=excel" class="dropdown-item">
                         Exportar Excel
                     </a>
                 </li>

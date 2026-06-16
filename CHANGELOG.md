@@ -2,6 +2,21 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.15] - 2026-06-16
+
+### Adicionado
+- Cadastro de denominacoes de lotes por projeto, com numero do lote, nome e justificativa.
+- Vinculo de denominacoes por produto especifico ou por categoria/subcategoria do produto.
+- Alternativa de licitacao por lote com anexos I, II e III proprios.
+- Anexo I por lote com divisao por numero do lote e denominacao.
+- Anexo II por lote com numero do lote, denominacao, item, especificacao, unidade, quantidade, memoria de calculo, fornecedores, valores e subtotal por lote.
+- Anexo III por lote com quadro resumido separado por lote e valor global estimado.
+
+### Alterado
+- Menu de licitacao do projeto passa a exibir os nomes por extenso dos anexos I, II e III.
+- Controle de versoes/hash dos anexos passa a contemplar tambem os anexos por lote.
+- Exportacao/importacao JSON de projetos passa a contemplar denominacoes e vinculos de lotes.
+
 ## [1.5.14] - 2026-06-16
 
 ### Adicionado

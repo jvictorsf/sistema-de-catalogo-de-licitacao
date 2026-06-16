@@ -315,8 +315,45 @@ CREATE TABLE IF NOT EXISTS project_annex_versions (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (project_id, annex_type, version_number),
-    CHECK (annex_type IN ('annex_i', 'annex_ii', 'annex_iii')),
+    CHECK (annex_type IN ('annex_i', 'annex_ii', 'annex_iii', 'lot_annex_i', 'lot_annex_ii', 'lot_annex_iii')),
     CHECK (status IN ('valid', 'invalid'))
+);
+
+ALTER TABLE project_annex_versions
+DROP CONSTRAINT IF EXISTS project_annex_versions_annex_type_check;
+
+ALTER TABLE project_annex_versions
+DROP CONSTRAINT IF EXISTS ck_project_annex_versions_annex_type;
+
+ALTER TABLE project_annex_versions
+ADD CONSTRAINT ck_project_annex_versions_annex_type
+CHECK (annex_type IN ('annex_i', 'annex_ii', 'annex_iii', 'lot_annex_i', 'lot_annex_ii', 'lot_annex_iii'));
+
+CREATE TABLE IF NOT EXISTS project_lot_denominations (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES procurement_projects(id) ON DELETE CASCADE,
+    lot_number INTEGER NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    justification TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, lot_number),
+    UNIQUE (project_id, name),
+    CHECK (lot_number > 0)
+);
+
+CREATE TABLE IF NOT EXISTS project_lot_assignments (
+    id SERIAL PRIMARY KEY,
+    project_lot_id INTEGER NOT NULL REFERENCES project_lot_denominations(id) ON DELETE CASCADE,
+    assignment_type VARCHAR(20) NOT NULL,
+    procurement_item_id INTEGER NULL REFERENCES procurement_items(id) ON DELETE CASCADE,
+    category_id INTEGER NULL REFERENCES categories(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (assignment_type IN ('item', 'category')),
+    CHECK (
+        (assignment_type = 'item' AND procurement_item_id IS NOT NULL AND category_id IS NULL)
+        OR (assignment_type = 'category' AND category_id IS NOT NULL AND procurement_item_id IS NULL)
+    )
 );
 
 INSERT INTO project_licitation_items (project_id, procurement_item_id, licitation_number)
@@ -717,6 +754,12 @@ BEFORE UPDATE ON project_annex_versions
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 
+DROP TRIGGER IF EXISTS trg_touch_updated_at_project_lot_denominations ON project_lot_denominations;
+CREATE TRIGGER trg_touch_updated_at_project_lot_denominations
+BEFORE UPDATE ON project_lot_denominations
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
 DROP TRIGGER IF EXISTS trg_touch_updated_at_kits ON item_kits;
 CREATE TRIGGER trg_touch_updated_at_kits
 BEFORE UPDATE ON item_kits
@@ -979,6 +1022,20 @@ ON project_annex_versions (project_id, annex_type, content_hash);
 CREATE INDEX IF NOT EXISTS idx_project_annex_versions_project_type
 ON project_annex_versions (project_id, annex_type, version_number DESC);
 
+CREATE INDEX IF NOT EXISTS idx_project_lot_denominations_project
+ON project_lot_denominations (project_id, lot_number);
+
+CREATE INDEX IF NOT EXISTS idx_project_lot_assignments_lot
+ON project_lot_assignments (project_lot_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_project_lot_assignments_item
+ON project_lot_assignments (project_lot_id, procurement_item_id)
+WHERE assignment_type = 'item' AND procurement_item_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_project_lot_assignments_category
+ON project_lot_assignments (project_lot_id, category_id)
+WHERE assignment_type = 'category' AND category_id IS NOT NULL;
+
 SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
 SELECT setval(pg_get_serial_sequence('unit_types', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM unit_types), 0), 1), COALESCE((SELECT MAX(id) FROM unit_types), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_items), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_items), 0) > 0);
@@ -995,6 +1052,8 @@ SELECT setval(pg_get_serial_sequence('demand_supplier_quote_items', 'id'), GREAT
 SELECT setval(pg_get_serial_sequence('demand_price_references', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_price_references), 0), 1), COALESCE((SELECT MAX(id) FROM demand_price_references), 0) > 0);
 SELECT setval(pg_get_serial_sequence('project_licitation_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_licitation_items), 0), 1), COALESCE((SELECT MAX(id) FROM project_licitation_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('project_annex_versions', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_annex_versions), 0), 1), COALESCE((SELECT MAX(id) FROM project_annex_versions), 0) > 0);
+SELECT setval(pg_get_serial_sequence('project_lot_denominations', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_lot_denominations), 0), 1), COALESCE((SELECT MAX(id) FROM project_lot_denominations), 0) > 0);
+SELECT setval(pg_get_serial_sequence('project_lot_assignments', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_lot_assignments), 0), 1), COALESCE((SELECT MAX(id) FROM project_lot_assignments), 0) > 0);
 SELECT setval(pg_get_serial_sequence('justification_templates', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM justification_templates), 0), 1), COALESCE((SELECT MAX(id) FROM justification_templates), 0) > 0);
 SELECT setval(pg_get_serial_sequence('environmental_impact_templates', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM environmental_impact_templates), 0), 1), COALESCE((SELECT MAX(id) FROM environmental_impact_templates), 0) > 0);
 SELECT setval(pg_get_serial_sequence('item_kits', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM item_kits), 0), 1), COALESCE((SELECT MAX(id) FROM item_kits), 0) > 0);

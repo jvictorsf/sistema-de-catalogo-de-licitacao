@@ -1210,9 +1210,12 @@ function normalize_optional_date(mixed $value): ?string
 function project_annex_types(): array
 {
     return [
-        'annex_i' => 'Anexo I',
-        'annex_ii' => 'Anexo II',
-        'annex_iii' => 'Anexo III',
+        'annex_i' => 'Anexo I - Planilha de itens, especificacoes, quantitativos e memoria de calculo',
+        'annex_ii' => 'Anexo II - Planilha de pesquisa e estimativa de precos',
+        'annex_iii' => 'Anexo III - Quadro resumido da estimativa de precos',
+        'lot_annex_i' => 'Anexo I por lote - Planilha de itens por denominacao',
+        'lot_annex_ii' => 'Anexo II por lote - Pesquisa e estimativa de precos por lote',
+        'lot_annex_iii' => 'Anexo III por lote - Quadro resumido por lote',
     ];
 }
 
@@ -1557,6 +1560,477 @@ function renumber_project_licitation_items(int $projectId): void
     }
 }
 
+function get_next_project_lot_number(int $projectId): int
+{
+    if (!database_table_exists('project_lot_denominations')) {
+        return 1;
+    }
+
+    $stmt = db()->prepare("
+        SELECT COALESCE(MAX(lot_number), 0) + 1
+        FROM project_lot_denominations
+        WHERE project_id = :project_id
+    ");
+    $stmt->execute(['project_id' => $projectId]);
+
+    return max(1, (int) $stmt->fetchColumn());
+}
+
+function get_project_lot_denominations(int $projectId): array
+{
+    if (!database_table_exists('project_lot_denominations')) {
+        return [];
+    }
+
+    $stmt = db()->prepare("
+        SELECT
+            l.*,
+            COUNT(pla.id) AS assignment_count,
+            COUNT(pla.id) FILTER (WHERE pla.assignment_type = 'item') AS item_assignment_count,
+            COUNT(pla.id) FILTER (WHERE pla.assignment_type = 'category') AS category_assignment_count
+        FROM project_lot_denominations l
+        LEFT JOIN project_lot_assignments pla ON pla.project_lot_id = l.id
+        WHERE l.project_id = :project_id
+        GROUP BY l.id
+        ORDER BY l.lot_number, l.name
+    ");
+    $stmt->execute(['project_id' => $projectId]);
+
+    return $stmt->fetchAll();
+}
+
+function find_project_lot_denomination(int $id): ?array
+{
+    if (!database_table_exists('project_lot_denominations')) {
+        return null;
+    }
+
+    $stmt = db()->prepare("
+        SELECT *
+        FROM project_lot_denominations
+        WHERE id = :id
+    ");
+    $stmt->execute(['id' => $id]);
+    $lot = $stmt->fetch();
+
+    return $lot ?: null;
+}
+
+function create_project_lot_denomination(array $data): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO project_lot_denominations (
+            project_id,
+            lot_number,
+            name,
+            justification
+        ) VALUES (
+            :project_id,
+            :lot_number,
+            :name,
+            :justification
+        )
+        RETURNING id
+    ");
+    $stmt->execute([
+        'project_id' => (int) $data['project_id'],
+        'lot_number' => (int) $data['lot_number'],
+        'name' => trim((string) $data['name']),
+        'justification' => trim((string) $data['justification']),
+    ]);
+
+    $id = (int) $stmt->fetchColumn();
+    invalidate_project_annex_versions((int) $data['project_id']);
+
+    return $id;
+}
+
+function update_project_lot_denomination(int $id, array $data): void
+{
+    $lot = find_project_lot_denomination($id);
+
+    if (!$lot) {
+        throw new RuntimeException('Denominacao nao encontrada.');
+    }
+
+    $stmt = db()->prepare("
+        UPDATE project_lot_denominations
+        SET lot_number = :lot_number,
+            name = :name,
+            justification = :justification
+        WHERE id = :id
+    ");
+    $stmt->execute([
+        'id' => $id,
+        'lot_number' => (int) $data['lot_number'],
+        'name' => trim((string) $data['name']),
+        'justification' => trim((string) $data['justification']),
+    ]);
+
+    invalidate_project_annex_versions((int) $lot['project_id']);
+}
+
+function delete_project_lot_denomination(int $id): void
+{
+    $lot = find_project_lot_denomination($id);
+
+    if (!$lot) {
+        return;
+    }
+
+    $stmt = db()->prepare("
+        DELETE FROM project_lot_denominations
+        WHERE id = :id
+    ");
+    $stmt->execute(['id' => $id]);
+
+    invalidate_project_annex_versions((int) $lot['project_id']);
+}
+
+function get_project_lot_assignments(int $projectId): array
+{
+    if (!database_table_exists('project_lot_assignments')) {
+        return [];
+    }
+
+    $trackingCodeSql = item_tracking_code_sql('pi');
+
+    $stmt = db()->prepare("
+        SELECT
+            pla.*,
+            l.project_id,
+            l.lot_number,
+            l.name AS lot_name,
+            pi.name AS item_name,
+            {$trackingCodeSql} AS tracking_code,
+            c.name AS category_name,
+            parent.name AS parent_category_name
+        FROM project_lot_assignments pla
+        INNER JOIN project_lot_denominations l ON l.id = pla.project_lot_id
+        LEFT JOIN procurement_items pi ON pi.id = pla.procurement_item_id
+        LEFT JOIN categories c ON c.id = pla.category_id
+        LEFT JOIN categories parent ON parent.id = c.parent_id
+        WHERE l.project_id = :project_id
+        ORDER BY l.lot_number, pla.assignment_type, COALESCE(pi.name, c.name)
+    ");
+    $stmt->execute(['project_id' => $projectId]);
+
+    return $stmt->fetchAll();
+}
+
+function add_project_lot_assignment(int $projectLotId, string $assignmentType, ?int $procurementItemId, ?int $categoryId): void
+{
+    $lot = find_project_lot_denomination($projectLotId);
+
+    if (!$lot) {
+        throw new RuntimeException('Denominacao nao encontrada.');
+    }
+
+    $assignmentType = $assignmentType === 'category' ? 'category' : 'item';
+    $projectId = (int) $lot['project_id'];
+
+    if ($assignmentType === 'item') {
+        if (!$procurementItemId) {
+            throw new InvalidArgumentException('Selecione um produto.');
+        }
+
+        $delete = db()->prepare("
+            DELETE FROM project_lot_assignments pla
+            USING project_lot_denominations l
+            WHERE l.id = pla.project_lot_id
+              AND l.project_id = :project_id
+              AND pla.assignment_type = 'item'
+              AND pla.procurement_item_id = :procurement_item_id
+        ");
+        $delete->execute([
+            'project_id' => $projectId,
+            'procurement_item_id' => $procurementItemId,
+        ]);
+    } else {
+        if (!$categoryId) {
+            throw new InvalidArgumentException('Selecione uma categoria ou subcategoria.');
+        }
+
+        $delete = db()->prepare("
+            DELETE FROM project_lot_assignments pla
+            USING project_lot_denominations l
+            WHERE l.id = pla.project_lot_id
+              AND l.project_id = :project_id
+              AND pla.assignment_type = 'category'
+              AND pla.category_id = :category_id
+        ");
+        $delete->execute([
+            'project_id' => $projectId,
+            'category_id' => $categoryId,
+        ]);
+    }
+
+    $stmt = db()->prepare("
+        INSERT INTO project_lot_assignments (
+            project_lot_id,
+            assignment_type,
+            procurement_item_id,
+            category_id
+        ) VALUES (
+            :project_lot_id,
+            :assignment_type,
+            :procurement_item_id,
+            :category_id
+        )
+    ");
+    $stmt->execute([
+        'project_lot_id' => $projectLotId,
+        'assignment_type' => $assignmentType,
+        'procurement_item_id' => $assignmentType === 'item' ? $procurementItemId : null,
+        'category_id' => $assignmentType === 'category' ? $categoryId : null,
+    ]);
+
+    invalidate_project_annex_versions($projectId);
+}
+
+function delete_project_lot_assignment(int $id): void
+{
+    if (!database_table_exists('project_lot_assignments')) {
+        return;
+    }
+
+    $stmt = db()->prepare("
+        SELECT l.project_id
+        FROM project_lot_assignments pla
+        INNER JOIN project_lot_denominations l ON l.id = pla.project_lot_id
+        WHERE pla.id = :id
+    ");
+    $stmt->execute(['id' => $id]);
+    $projectId = $stmt->fetchColumn();
+
+    $delete = db()->prepare("
+        DELETE FROM project_lot_assignments
+        WHERE id = :id
+    ");
+    $delete->execute(['id' => $id]);
+
+    invalidate_project_annex_versions($projectId !== false ? (int) $projectId : null);
+}
+
+function project_lot_unassigned_group(): array
+{
+    return [
+        'lot_id' => null,
+        'lot_number' => null,
+        'name' => 'Itens sem denominacao',
+        'justification' => 'Itens ainda nao vinculados a uma denominacao de lote.',
+        'is_unassigned' => true,
+        'items' => [],
+        'subtotal' => 0.0,
+    ];
+}
+
+function project_lot_key(?int $lotId): string
+{
+    return $lotId !== null ? 'lot:' . $lotId : 'unassigned';
+}
+
+function get_project_lot_groups(int $projectId, ?array $items = null): array
+{
+    $items = $items ?? get_project_licitation_annex_i_items($projectId);
+    $lots = get_project_lot_denominations($projectId);
+    $assignments = get_project_lot_assignments($projectId);
+    $groups = [];
+    $lotById = [];
+
+    foreach ($lots as $lot) {
+        $lotId = (int) $lot['id'];
+        $key = project_lot_key($lotId);
+        $lotById[$lotId] = $lot;
+        $groups[$key] = [
+            'lot_id' => $lotId,
+            'lot_number' => (int) $lot['lot_number'],
+            'name' => $lot['name'],
+            'justification' => $lot['justification'],
+            'is_unassigned' => false,
+            'items' => [],
+            'subtotal' => 0.0,
+        ];
+    }
+
+    $directAssignments = [];
+    $categoryAssignments = [];
+
+    foreach ($assignments as $assignment) {
+        $lotId = (int) $assignment['project_lot_id'];
+
+        if (!isset($lotById[$lotId])) {
+            continue;
+        }
+
+        if (($assignment['assignment_type'] ?? '') === 'item') {
+            $directAssignments[(int) $assignment['procurement_item_id']] = $lotId;
+            continue;
+        }
+
+        if (($assignment['assignment_type'] ?? '') === 'category') {
+            $categoryAssignments[] = [
+                'category_id' => (int) $assignment['category_id'],
+                'lot_id' => $lotId,
+                'lot_number' => (int) $assignment['lot_number'],
+            ];
+        }
+    }
+
+    usort($categoryAssignments, static fn (array $left, array $right): int => $left['lot_number'] <=> $right['lot_number']);
+
+    foreach ($items as $item) {
+        $procurementItemId = (int) ($item['procurement_item_id'] ?? 0);
+        $lotId = $directAssignments[$procurementItemId] ?? null;
+
+        if ($lotId === null) {
+            $itemCategoryIds = array_filter([
+                (int) ($item['category_id'] ?? 0),
+                (int) ($item['subcategory_id'] ?? 0),
+            ]);
+
+            foreach ($categoryAssignments as $assignment) {
+                if (in_array((int) $assignment['category_id'], $itemCategoryIds, true)) {
+                    $lotId = (int) $assignment['lot_id'];
+                    break;
+                }
+            }
+        }
+
+        $key = project_lot_key($lotId);
+
+        if (!isset($groups[$key])) {
+            $groups[$key] = project_lot_unassigned_group();
+        }
+
+        $groups[$key]['items'][] = $item;
+
+        if (($item['estimated_total'] ?? null) !== null) {
+            $groups[$key]['subtotal'] += (float) $item['estimated_total'];
+        }
+    }
+
+    foreach ($groups as $key => $group) {
+        usort($groups[$key]['items'], static function (array $left, array $right): int {
+            return ((int) ($left['sequence'] ?? $left['licitation_number'] ?? PHP_INT_MAX))
+                <=> ((int) ($right['sequence'] ?? $right['licitation_number'] ?? PHP_INT_MAX));
+        });
+    }
+
+    uasort($groups, static function (array $left, array $right): int {
+        $leftNumber = $left['lot_number'] ?? PHP_INT_MAX;
+        $rightNumber = $right['lot_number'] ?? PHP_INT_MAX;
+
+        return $leftNumber <=> $rightNumber;
+    });
+
+    return array_values(array_filter($groups, static fn (array $group): bool => (bool) ($group['items'] ?? [])));
+}
+
+function find_project_lot_group_for_item(array $lotGroups, int $procurementItemId): array
+{
+    foreach ($lotGroups as $group) {
+        foreach ($group['items'] ?? [] as $item) {
+            if ((int) ($item['procurement_item_id'] ?? 0) === $procurementItemId) {
+                return $group;
+            }
+        }
+    }
+
+    return project_lot_unassigned_group();
+}
+
+function get_project_lot_licitation_annex_i_groups(int $projectId): array
+{
+    return get_project_lot_groups($projectId, get_project_licitation_annex_i_items($projectId));
+}
+
+function get_project_lot_licitation_annex_ii_groups(int $projectId): array
+{
+    $baseLotGroups = get_project_lot_groups($projectId, get_project_licitation_annex_i_items($projectId));
+    $annex = get_project_licitation_annex_ii_groups($projectId);
+    $lotGroups = [];
+    $globalTotal = 0.0;
+
+    foreach ($baseLotGroups as $group) {
+        $key = project_lot_key($group['lot_id'] !== null ? (int) $group['lot_id'] : null);
+        $group['supplier_groups'] = [];
+        $group['subtotal'] = 0.0;
+        $lotGroups[$key] = $group;
+    }
+
+    foreach ($annex['groups'] ?? [] as $supplierGroup) {
+        foreach ($supplierGroup['items'] ?? [] as $item) {
+            $lot = find_project_lot_group_for_item($baseLotGroups, (int) ($item['procurement_item_id'] ?? 0));
+            $lotKey = project_lot_key($lot['lot_id'] !== null ? (int) $lot['lot_id'] : null);
+
+            if (!isset($lotGroups[$lotKey])) {
+                $lot['supplier_groups'] = [];
+                $lot['subtotal'] = 0.0;
+                $lotGroups[$lotKey] = $lot;
+            }
+
+            $supplierGroupKey = (string) ($supplierGroup['key'] ?? 'sem-cotacao');
+
+            if (!isset($lotGroups[$lotKey]['supplier_groups'][$supplierGroupKey])) {
+                $lotGroups[$lotKey]['supplier_groups'][$supplierGroupKey] = array_merge($supplierGroup, [
+                    'items' => [],
+                    'subtotal' => 0.0,
+                ]);
+            }
+
+            $lotGroups[$lotKey]['supplier_groups'][$supplierGroupKey]['items'][] = $item;
+
+            if (($item['estimated_total'] ?? null) !== null) {
+                $estimatedTotal = (float) $item['estimated_total'];
+                $lotGroups[$lotKey]['supplier_groups'][$supplierGroupKey]['subtotal'] += $estimatedTotal;
+                $lotGroups[$lotKey]['subtotal'] += $estimatedTotal;
+                $globalTotal += $estimatedTotal;
+            }
+        }
+    }
+
+    foreach ($lotGroups as $lotKey => $lotGroup) {
+        $lotGroups[$lotKey]['supplier_groups'] = array_values(array_filter(
+            $lotGroup['supplier_groups'],
+            static fn (array $supplierGroup): bool => (bool) ($supplierGroup['items'] ?? [])
+        ));
+    }
+
+    return [
+        'lots' => array_values(array_filter(
+            $lotGroups,
+            static fn (array $lotGroup): bool => (bool) ($lotGroup['supplier_groups'] ?? [])
+        )),
+        'global_total' => round_money_value($globalTotal),
+    ];
+}
+
+function get_project_lot_licitation_annex_iii_groups(int $projectId): array
+{
+    $summary = get_project_licitation_annex_iii_summary($projectId);
+    $lotGroups = get_project_lot_groups($projectId, $summary['items'] ?? []);
+    $globalTotal = 0.0;
+
+    foreach ($lotGroups as $index => $lotGroup) {
+        $subtotal = 0.0;
+
+        foreach ($lotGroup['items'] ?? [] as $item) {
+            if (($item['estimated_total'] ?? null) !== null) {
+                $subtotal += (float) $item['estimated_total'];
+            }
+        }
+
+        $lotGroups[$index]['subtotal'] = round_money_value($subtotal);
+        $globalTotal += $subtotal;
+    }
+
+    return [
+        'lots' => $lotGroups,
+        'global_total' => round_money_value($globalTotal),
+    ];
+}
+
 function project_annex_hash(array $payload): string
 {
     return hash(
@@ -1646,6 +2120,98 @@ function project_annex_payload(int $projectId, string $annexType): array
         ];
     }
 
+    if ($annexType === 'lot_annex_i') {
+        return [
+            'type' => $annexType,
+            'lots' => array_map(static fn (array $lot): array => [
+                'lot_number' => $lot['lot_number'] !== null ? (int) $lot['lot_number'] : null,
+                'name' => (string) ($lot['name'] ?? ''),
+                'justification' => (string) ($lot['justification'] ?? ''),
+                'items' => array_map(static fn (array $item): array => [
+                    'sequence' => (int) ($item['sequence'] ?? 0),
+                    'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                    'tracking_code' => (string) ($item['tracking_code'] ?? ''),
+                    'item_name' => (string) ($item['item_name'] ?? ''),
+                    'unit' => licitation_annex_unit_text($item),
+                    'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                    'specification' => licitation_annex_specification_text($item),
+                    'demand_memory' => array_map(static fn (array $memory): array => [
+                        'demand_id' => (int) ($memory['demand_id'] ?? 0),
+                        'quantity' => (float) ($memory['quantity'] ?? 0),
+                    ], $item['demand_memory'] ?? []),
+                ], $lot['items'] ?? []),
+            ], get_project_lot_licitation_annex_i_groups($projectId)),
+        ];
+    }
+
+    if ($annexType === 'lot_annex_ii') {
+        $annex = get_project_lot_licitation_annex_ii_groups($projectId);
+
+        return [
+            'type' => $annexType,
+            'global_total' => (float) ($annex['global_total'] ?? 0),
+            'lots' => array_map(static fn (array $lot): array => [
+                'lot_number' => $lot['lot_number'] !== null ? (int) $lot['lot_number'] : null,
+                'name' => (string) ($lot['name'] ?? ''),
+                'justification' => (string) ($lot['justification'] ?? ''),
+                'supplier_groups' => array_map(static fn (array $supplierGroup): array => [
+                    'key' => (string) ($supplierGroup['key'] ?? ''),
+                    'suppliers' => array_map(static fn (array $supplier): array => [
+                        'key' => (string) ($supplier['key'] ?? ''),
+                        'id' => (int) ($supplier['id'] ?? 0),
+                        'name' => (string) ($supplier['name'] ?? ''),
+                        'document' => (string) ($supplier['document'] ?? ''),
+                        'proposal_dates' => array_values($supplier['proposal_dates'] ?? []),
+                    ], $supplierGroup['suppliers'] ?? []),
+                    'items' => array_map(static fn (array $item): array => [
+                        'sequence' => (int) ($item['sequence'] ?? 0),
+                        'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                        'item_name' => (string) ($item['item_name'] ?? ''),
+                        'unit' => licitation_annex_unit_text($item),
+                        'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                        'supplier_prices' => $item['supplier_prices'] ?? [],
+                        'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
+                            ? (float) $item['estimated_unit_price']
+                            : null,
+                        'estimated_total' => ($item['estimated_total'] ?? null) !== null
+                            ? (float) $item['estimated_total']
+                            : null,
+                    ], $supplierGroup['items'] ?? []),
+                    'subtotal' => (float) ($supplierGroup['subtotal'] ?? 0),
+                ], $lot['supplier_groups'] ?? []),
+                'subtotal' => (float) ($lot['subtotal'] ?? 0),
+            ], $annex['lots'] ?? []),
+        ];
+    }
+
+    if ($annexType === 'lot_annex_iii') {
+        $annex = get_project_lot_licitation_annex_iii_groups($projectId);
+
+        return [
+            'type' => $annexType,
+            'global_total' => (float) ($annex['global_total'] ?? 0),
+            'lots' => array_map(static fn (array $lot): array => [
+                'lot_number' => $lot['lot_number'] !== null ? (int) $lot['lot_number'] : null,
+                'name' => (string) ($lot['name'] ?? ''),
+                'justification' => (string) ($lot['justification'] ?? ''),
+                'items' => array_map(static fn (array $item): array => [
+                    'sequence' => (int) ($item['sequence'] ?? 0),
+                    'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                    'item_name' => (string) ($item['item_name'] ?? ''),
+                    'unit' => licitation_annex_unit_text($item),
+                    'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                    'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
+                        ? (float) $item['estimated_unit_price']
+                        : null,
+                    'estimated_total' => ($item['estimated_total'] ?? null) !== null
+                        ? (float) $item['estimated_total']
+                        : null,
+                ], $lot['items'] ?? []),
+                'subtotal' => (float) ($lot['subtotal'] ?? 0),
+            ], $annex['lots'] ?? []),
+        ];
+    }
+
     throw new InvalidArgumentException('Tipo de anexo invalido.');
 }
 
@@ -1661,12 +2227,34 @@ function project_annex_payload_item_count(string $annexType, array $payload): in
         return $count;
     }
 
+    if ($annexType === 'lot_annex_ii') {
+        $count = 0;
+
+        foreach ($payload['lots'] ?? [] as $lot) {
+            foreach ($lot['supplier_groups'] ?? [] as $supplierGroup) {
+                $count += count($supplierGroup['items'] ?? []);
+            }
+        }
+
+        return $count;
+    }
+
+    if (in_array($annexType, ['lot_annex_i', 'lot_annex_iii'], true)) {
+        $count = 0;
+
+        foreach ($payload['lots'] ?? [] as $lot) {
+            $count += count($lot['items'] ?? []);
+        }
+
+        return $count;
+    }
+
     return count($payload['items'] ?? []);
 }
 
 function project_annex_payload_total(string $annexType, array $payload): ?float
 {
-    if (in_array($annexType, ['annex_ii', 'annex_iii'], true)) {
+    if (in_array($annexType, ['annex_ii', 'annex_iii', 'lot_annex_ii', 'lot_annex_iii'], true)) {
         return (float) ($payload['global_total'] ?? 0);
     }
 
@@ -4442,6 +5030,31 @@ function catalog_json_table_definitions(): array
             ],
             'json' => [],
         ],
+        'project_lot_denominations' => [
+            'label' => 'Denominacoes de lotes',
+            'columns' => [
+                'id',
+                'project_id',
+                'lot_number',
+                'name',
+                'justification',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
+        'project_lot_assignments' => [
+            'label' => 'Vinculos de lotes',
+            'columns' => [
+                'id',
+                'project_lot_id',
+                'assignment_type',
+                'procurement_item_id',
+                'category_id',
+                'created_at',
+            ],
+            'json' => [],
+        ],
         'justification_templates' => [
             'label' => 'Modelos de justificativa',
             'columns' => ['id', 'title', 'content', 'category_id', 'is_active', 'created_at', 'updated_at'],
@@ -4485,6 +5098,8 @@ function catalog_json_scope_tables(string $scope): array
             'demand_price_references',
             'project_licitation_items',
             'project_annex_versions',
+            'project_lot_denominations',
+            'project_lot_assignments',
             'justification_templates',
             'environmental_impact_templates',
             'item_kits',
@@ -4509,6 +5124,8 @@ function catalog_json_scope_tables(string $scope): array
             'demand_price_references',
             'project_licitation_items',
             'project_annex_versions',
+            'project_lot_denominations',
+            'project_lot_assignments',
         ],
         'requesters' => [
             'secretariats',
@@ -4750,6 +5367,24 @@ function catalog_json_sample_row(string $table, array $columns): array
             'total_value' => null,
             'generated_at' => date('Y-m-d H:i:s'),
             'invalidated_at' => null,
+        ]);
+    }
+
+    if ($table === 'project_lot_denominations') {
+        return array_merge($row, [
+            'project_id' => 1,
+            'lot_number' => 1,
+            'name' => 'Computadores e estacoes de trabalho',
+            'justification' => 'Equipamentos computacionais destinados a postos de trabalho, normalmente comercializados pelo mesmo segmento de fornecedores especializados.',
+        ]);
+    }
+
+    if ($table === 'project_lot_assignments') {
+        return array_merge($row, [
+            'project_lot_id' => 1,
+            'assignment_type' => 'category',
+            'procurement_item_id' => null,
+            'category_id' => 1,
         ]);
     }
 

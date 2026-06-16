@@ -29,6 +29,8 @@ $primaryNavItems = [
             'project_report.php',
             'project_export_word.php',
             'project_pdf.php',
+            'project_licitation_annex_i.php',
+            'project_licitation_annex_ii.php',
             'project_quote_request.php',
             'project_quote_request_excel.php',
             'project_quote_request_excel_grouped.php',

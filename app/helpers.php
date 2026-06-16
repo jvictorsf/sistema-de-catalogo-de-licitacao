@@ -379,6 +379,76 @@ function render_package_content(array $source): string
     return e($content);
 }
 
+function licitation_annex_unit_text(array $item): string
+{
+    $unit = trim((string) (
+        ($item['unit_type_abbreviation'] ?? '')
+        ?: ($item['unit_type_name'] ?? '')
+    ));
+    $content = format_package_content($item);
+
+    if ($unit === '') {
+        $unit = '-';
+    }
+
+    if ($content !== '-') {
+        return $unit . ' - Conteudo: ' . $content;
+    }
+
+    return $unit;
+}
+
+function licitation_annex_specification_text(array $item, string $separator = "\n"): string
+{
+    $specification = item_specification_array_from_value($item['specification'] ?? []);
+    $parts = [];
+    $description = supplier_quote_request_value_text($specification['descricao_minima'] ?? null, $separator);
+
+    if ($description !== '-') {
+        $parts[] = $description;
+    }
+
+    $characteristics = $specification['caracteristicas_minimas'] ?? [];
+
+    if (is_array($characteristics)) {
+        foreach ($characteristics as $characteristic) {
+            $text = supplier_quote_request_value_text($characteristic, $separator);
+
+            if ($text !== '-') {
+                $parts[] = $text;
+            }
+        }
+    } else {
+        $text = supplier_quote_request_value_text($characteristics, $separator);
+
+        if ($text !== '-') {
+            $parts[] = $text;
+        }
+    }
+
+    $parts = array_values(array_unique($parts));
+
+    return $parts ? implode($separator, $parts) : '-';
+}
+
+function licitation_annex_demand_memory_text(array $memory, string $separator = "\n"): string
+{
+    $parts = [];
+
+    foreach ($memory as $row) {
+        $labelParts = array_filter([
+            trim((string) ($row['secretariat_name'] ?? '')),
+            trim((string) ($row['demand_name'] ?? '')),
+        ]);
+        $label = $labelParts ? implode(' - ', $labelParts) : 'Demanda';
+        $quantity = format_decimal_quantity($row['quantity'] ?? 0);
+
+        $parts[] = $label . ': ' . ($quantity !== '' ? $quantity : '0');
+    }
+
+    return $parts ? implode($separator, $parts) : '-';
+}
+
 function environmental_impacts_to_array(mixed $value): array
 {
     if (is_array($value)) {
@@ -471,6 +541,59 @@ function render_municipal_logo(string $class = 'report-logo'): string
     }
 
     return '<img src="' . e($path) . '" class="' . e($class) . '" alt="Brasao do municipio" style="width:80px;height:auto;margin-bottom:8px;">';
+}
+
+function ascii_filename_fallback(string $filename): string
+{
+    $fallback = strtr($filename, [
+        'á' => 'a',
+        'à' => 'a',
+        'ã' => 'a',
+        'â' => 'a',
+        'ä' => 'a',
+        'Á' => 'A',
+        'À' => 'A',
+        'Ã' => 'A',
+        'Â' => 'A',
+        'Ä' => 'A',
+        'é' => 'e',
+        'ê' => 'e',
+        'É' => 'E',
+        'Ê' => 'E',
+        'í' => 'i',
+        'Í' => 'I',
+        'ó' => 'o',
+        'õ' => 'o',
+        'ô' => 'o',
+        'Ó' => 'O',
+        'Õ' => 'O',
+        'Ô' => 'O',
+        'ú' => 'u',
+        'ü' => 'u',
+        'Ú' => 'U',
+        'Ü' => 'U',
+        'ç' => 'c',
+        'Ç' => 'C',
+    ]);
+    $fallback = preg_replace('/[^A-Za-z0-9 ._-]+/', '', $fallback) ?? '';
+    $fallback = preg_replace('/\s+/', ' ', $fallback) ?? '';
+    $fallback = trim($fallback);
+
+    return $fallback !== '' ? $fallback : 'documento';
+}
+
+function send_download_headers(string $contentType, string $filename): void
+{
+    $fallback = ascii_filename_fallback($filename);
+
+    header('Content-Type: ' . $contentType);
+    header(
+        'Content-Disposition: attachment; filename="'
+        . addcslashes($fallback, '"\\')
+        . '"; filename*=UTF-8\'\''
+        . rawurlencode($filename)
+    );
+    header('Cache-Control: max-age=0');
 }
 
 function supplier_quote_request_value_text(mixed $value, string $separator = '; '): string

@@ -2063,6 +2063,144 @@ function get_project_items_by_demand(int $projectId): array
     return $items;
 }
 
+function get_project_licitation_annex_i_items(int $projectId): array
+{
+    $items = get_project_consolidated_items($projectId);
+    $itemsByDemand = get_project_items_by_demand($projectId);
+    $memoryByItem = [];
+
+    foreach ($itemsByDemand as $demandItem) {
+        $procurementItemId = (int) $demandItem['procurement_item_id'];
+
+        $memoryByItem[$procurementItemId][] = [
+            'demand_id' => (int) $demandItem['demand_id'],
+            'demand_name' => $demandItem['demand_name'],
+            'secretariat_name' => $demandItem['secretariat_name'] ?? null,
+            'requester_department' => $demandItem['requester_department'] ?? null,
+            'quantity' => (float) ($demandItem['approved_quantity'] ?? $demandItem['quantity'] ?? 0),
+        ];
+    }
+
+    foreach ($items as $index => $item) {
+        $procurementItemId = (int) $item['procurement_item_id'];
+
+        $items[$index]['sequence'] = $index + 1;
+        $items[$index]['annex_quantity'] = (float) (
+            $item['total_approved_quantity']
+            ?? $item['total_quantity']
+            ?? 0
+        );
+        $items[$index]['demand_memory'] = $memoryByItem[$procurementItemId] ?? [];
+    }
+
+    return $items;
+}
+
+function get_project_licitation_annex_ii_groups(int $projectId): array
+{
+    $items = get_project_licitation_annex_i_items($projectId);
+    $supplierPrices = [];
+
+    try {
+        $stmt = db()->prepare("
+            SELECT
+                di.procurement_item_id,
+                s.id AS supplier_id,
+                s.name AS supplier_name,
+                AVG(qi.unit_price) AS unit_price
+            FROM demand_supplier_quote_items qi
+            INNER JOIN demand_supplier_quotes q
+                ON q.id = qi.demand_supplier_quote_id
+               AND q.status <> 'discarded'
+            INNER JOIN suppliers s ON s.id = q.supplier_id
+            INNER JOIN demand_items di ON di.id = qi.demand_item_id
+            INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+            WHERE dl.project_id = :project_id
+              AND qi.unit_price IS NOT NULL
+            GROUP BY
+                di.procurement_item_id,
+                s.id,
+                s.name
+            ORDER BY s.name
+        ");
+
+        $stmt->execute(['project_id' => $projectId]);
+
+        foreach ($stmt->fetchAll() as $row) {
+            $procurementItemId = (int) $row['procurement_item_id'];
+            $supplierId = (int) $row['supplier_id'];
+
+            $supplierPrices[$procurementItemId][$supplierId] = [
+                'id' => $supplierId,
+                'name' => $row['supplier_name'],
+                'unit_price' => (float) $row['unit_price'],
+            ];
+        }
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('anexo II da licitacao', $exception);
+    }
+
+    $groups = [];
+    $globalTotal = 0.0;
+
+    foreach ($items as $item) {
+        $procurementItemId = (int) $item['procurement_item_id'];
+        $suppliers = array_values($supplierPrices[$procurementItemId] ?? []);
+
+        usort(
+            $suppliers,
+            static fn (array $left, array $right): int => strcasecmp((string) $left['name'], (string) $right['name'])
+        );
+
+        $supplierIds = array_map(
+            static fn (array $supplier): int => (int) $supplier['id'],
+            $suppliers
+        );
+        $groupKey = $supplierIds ? implode('-', $supplierIds) : 'sem-cotacao';
+        $unitPrices = array_map(
+            static fn (array $supplier): float => (float) $supplier['unit_price'],
+            $suppliers
+        );
+        $averageUnitPrice = $unitPrices ? array_sum($unitPrices) / count($unitPrices) : null;
+        $quantity = (float) ($item['annex_quantity'] ?? 0);
+        $estimatedTotal = $averageUnitPrice !== null ? $averageUnitPrice * $quantity : null;
+
+        if (!isset($groups[$groupKey])) {
+            $groups[$groupKey] = [
+                'key' => $groupKey,
+                'suppliers' => $suppliers,
+                'items' => [],
+                'subtotal' => 0.0,
+            ];
+        }
+
+        $item['annex_ii_suppliers'] = $suppliers;
+        $item['supplier_prices'] = [];
+        $item['estimated_unit_price'] = $averageUnitPrice;
+        $item['estimated_total'] = $estimatedTotal;
+
+        foreach ($suppliers as $supplier) {
+            $item['supplier_prices'][(int) $supplier['id']] = (float) $supplier['unit_price'];
+        }
+
+        $groups[$groupKey]['items'][] = $item;
+
+        if ($estimatedTotal !== null) {
+            $groups[$groupKey]['subtotal'] += $estimatedTotal;
+            $globalTotal += $estimatedTotal;
+        }
+    }
+
+    return [
+        'groups' => array_values($groups),
+        'global_total' => $globalTotal,
+    ];
+}
+
 function get_project_financial_summary(int $projectId): array
 {
     $stmt = db()->prepare("

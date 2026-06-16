@@ -2,6 +2,16 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.7] - 2026-06-16
+
+### Adicionado
+- Menu Licitacao no projeto com Anexo I e Anexo II exportaveis em PDF institucional, Word e Excel.
+- Anexo I com itens sequenciais, especificacao tecnica, unidade com conteudo, quantitativo e memoria de calculo por demanda.
+- Anexo II com comparativo de fornecedores por item, media de valor unitario, valor total e valor global estimado, separando itens por combinacao de fornecedores cotantes.
+
+### Alterado
+- Acoes do projeto foram reorganizadas para reduzir a quantidade de botoes soltos no topo e melhorar a responsividade.
+
 ## [1.5.6] - 2026-06-13
 
 ### Adicionado

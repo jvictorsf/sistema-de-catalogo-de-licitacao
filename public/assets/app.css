@@ -108,6 +108,18 @@ body {
     display: inline-flex;
 }
 
+.project-licitation-menu {
+    max-height: min(78vh, 36rem);
+    min-width: 18rem;
+    overflow-y: auto;
+}
+
+.project-licitation-menu .dropdown-header {
+    color: #374151;
+    font-size: .72rem;
+    letter-spacing: 0;
+}
+
 .item-thumb {
     width: 64px;
     height: 64px;
@@ -285,6 +297,11 @@ pre {
 
     .app-shell > .d-flex.justify-content-between .dropdown-menu {
         width: 100%;
+    }
+
+    .project-licitation-menu {
+        max-height: 70vh;
+        min-width: 100%;
     }
 
     .app-shell > .d-flex.justify-content-between form,

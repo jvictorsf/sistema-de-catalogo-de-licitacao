@@ -34,7 +34,7 @@ require __DIR__ . '/../app/views/header.php';
         </p>
     </div>
 
-    <div class="page-actions d-flex gap-2 flex-wrap justify-content-end">
+    <div class="page-actions project-actions d-flex gap-2 flex-wrap justify-content-end">
         <a href="/demand_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i>Nova demanda
         </a>
@@ -68,12 +68,6 @@ require __DIR__ . '/../app/views/header.php';
                         PDF Institucional
                     </a>
                 </li>
-                <li><hr class="dropdown-divider"></li>
-                <li>
-                    <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>" target="_blank" class="dropdown-item">
-                        Solicitacao para fornecedor
-                    </a>
-                </li>
             </ul>
         </div>
 
@@ -83,10 +77,52 @@ require __DIR__ . '/../app/views/header.php';
                 class="btn btn-outline-success dropdown-toggle"
                 data-bs-toggle="dropdown"
                 aria-expanded="false">
-                <i class="bi bi-file-earmark-spreadsheet"></i>Excel fornecedor
+                <i class="bi bi-file-earmark-check"></i>Licitação
             </button>
 
-            <ul class="dropdown-menu dropdown-menu-end">
+            <ul class="dropdown-menu dropdown-menu-end project-licitation-menu">
+                <li><h6 class="dropdown-header">Anexo I</h6></li>
+                <li>
+                    <a href="/project_licitation_annex_i.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
+                        PDF institucional
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_licitation_annex_i.php?id=<?= (int) $project['id'] ?>&format=word" class="dropdown-item">
+                        Exportar Word
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_licitation_annex_i.php?id=<?= (int) $project['id'] ?>&format=excel" class="dropdown-item">
+                        Exportar Excel
+                    </a>
+                </li>
+
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Anexo II</h6></li>
+                <li>
+                    <a href="/project_licitation_annex_ii.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
+                        PDF institucional
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_licitation_annex_ii.php?id=<?= (int) $project['id'] ?>&format=word" class="dropdown-item">
+                        Exportar Word
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_licitation_annex_ii.php?id=<?= (int) $project['id'] ?>&format=excel" class="dropdown-item">
+                        Exportar Excel
+                    </a>
+                </li>
+
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Solicitação ao fornecedor</h6></li>
+                <li>
+                    <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>" target="_blank" class="dropdown-item">
+                        PDF institucional
+                    </a>
+                </li>
                 <li>
                     <a href="/project_quote_request_excel.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
                         Excel geral
@@ -100,7 +136,7 @@ require __DIR__ . '/../app/views/header.php';
 
                 <?php if ($quoteRequestGroups): ?>
                     <li><hr class="dropdown-divider"></li>
-                    <li><h6 class="dropdown-header">Arquivos por grupo</h6></li>
+                    <li><h6 class="dropdown-header">Excel por grupo</h6></li>
 
                     <?php foreach ($quoteRequestGroups as $group): ?>
                         <li>

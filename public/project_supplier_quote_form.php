@@ -21,6 +21,7 @@ $errors = [];
 $postedPrices = is_array($_POST['prices'] ?? null) ? $_POST['prices'] : [];
 $postedNotes = is_array($_POST['item_notes'] ?? null) ? $_POST['item_notes'] : [];
 $preserveBlankPriceKeys = is_array($_POST['preserve_blank_prices'] ?? null) ? $_POST['preserve_blank_prices'] : [];
+$removeAttachment = !empty($_POST['remove_attachment']);
 $quoteDefaults = [
     'quote_number' => trim($_POST['quote_number'] ?? ''),
     'quote_date' => trim($_POST['quote_date'] ?? ''),
@@ -55,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'quote_date' => $quoteDefaults['quote_date'],
             'validity_date' => $quoteDefaults['validity_date'],
             'attachment_path' => $attachmentPath,
+            'remove_attachment' => $removeAttachment,
             'notes' => $quoteDefaults['notes'],
             'status' => $quoteDefaults['status'],
         ], $postedPrices, $postedNotes, $preserveBlankPriceKeys);
@@ -78,6 +80,17 @@ $statusOptions = [
 $projectItems = [];
 $hasDemandItems = false;
 $quoteDefaultsLoaded = false;
+$selectedSupplier = null;
+$existingQuoteCount = 0;
+$existingQuoteDemandNames = [];
+$existingAttachments = [];
+
+foreach ($suppliers as $supplierOption) {
+    if ((int) $supplierOption['id'] === $selectedSupplierId) {
+        $selectedSupplier = $supplierOption;
+        break;
+    }
+}
 
 foreach ($demands as $demand) {
     $demandId = (int) $demand['id'];
@@ -86,6 +99,18 @@ foreach ($demands as $demand) {
         : null;
     $quoteItems = $quote ? get_demand_supplier_quote_items((int) $quote['id']) : [];
     $items = get_demand_items($demandId);
+
+    if ($quote) {
+        $existingQuoteCount++;
+        $existingQuoteDemandNames[] = (string) $demand['name'];
+
+        $attachmentPath = trim((string) ($quote['attachment_path'] ?? ''));
+
+        if ($attachmentPath !== '') {
+            $existingAttachments[$attachmentPath]['path'] = $attachmentPath;
+            $existingAttachments[$attachmentPath]['demands'][] = (string) $demand['name'];
+        }
+    }
 
     if ($quote && !$quoteDefaultsLoaded && $_SERVER['REQUEST_METHOD'] !== 'POST' && $quoteDefaults['quote_number'] === '') {
         $quoteDefaults = [
@@ -130,6 +155,8 @@ foreach ($demands as $demand) {
         }
     }
 }
+
+$existingAttachments = array_values($existingAttachments);
 
 foreach ($projectItems as $procurementItemId => $item) {
     $storedPrices = array_values($item['stored_price_values']);
@@ -214,6 +241,54 @@ require __DIR__ . '/../app/views/header.php';
             </div>
         </div>
 
+        <?php if ($selectedSupplierId > 0 && $selectedSupplier): ?>
+            <div class="col-12">
+                <?php if ($existingQuoteCount > 0): ?>
+                    <?php
+                        $visibleDemandNames = array_slice($existingQuoteDemandNames, 0, 4);
+                        $remainingDemandNames = max(0, count($existingQuoteDemandNames) - count($visibleDemandNames));
+                    ?>
+                    <div class="alert alert-info mb-0">
+                        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+                            <div>
+                                <strong><?= e($selectedSupplier['name']) ?></strong>
+                                já possui orçamento lançado em <?= (int) $existingQuoteCount ?> demanda(s) deste projeto.
+                                <div class="small mt-1">
+                                    <?= e(implode(', ', $visibleDemandNames)) ?><?= $remainingDemandNames > 0 ? ' +' . $remainingDemandNames : '' ?>
+                                </div>
+                                <div class="small mt-1">
+                                    Os dados foram carregados para edição. Ao salvar, os valores informados serão atualizados para este fornecedor.
+                                </div>
+                            </div>
+
+                            <?php if ($existingAttachments): ?>
+                                <div class="d-flex flex-column align-items-start align-items-lg-end gap-2">
+                                    <?php foreach ($existingAttachments as $attachmentIndex => $attachment): ?>
+                                        <a
+                                            href="<?= e($attachment['path']) ?>"
+                                            target="_blank"
+                                            class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-paperclip"></i>
+                                            Visualizar anexo <?= count($existingAttachments) > 1 ? $attachmentIndex + 1 : 'atual' ?>
+                                        </a>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="small text-muted">
+                                    Este orçamento ainda não possui anexo digital.
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-secondary mb-0">
+                        <strong><?= e($selectedSupplier['name']) ?></strong>
+                        ainda não possui orçamento lançado neste projeto.
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
         <div class="col-md-3 col-lg-2">
             <label class="form-label">Nº do orçamento</label>
             <input type="text" name="quote_number" class="form-control" value="<?= e($quoteDefaults['quote_number']) ?>">
@@ -241,9 +316,29 @@ require __DIR__ . '/../app/views/header.php';
         </div>
 
         <div class="col-lg-5">
-            <label class="form-label">Anexo do orçamento</label>
+            <label class="form-label"><?= $existingAttachments ? 'Trocar anexo do orçamento' : 'Anexo do orçamento' ?></label>
             <input type="file" name="attachment" class="form-control" accept="application/pdf,.pdf,.doc,.docx,image/jpeg,image/png,image/webp">
-            <div class="form-text">Se enviado, o mesmo anexo será associado às demandas do projeto.</div>
+            <div class="form-text">
+                <?php if ($existingAttachments): ?>
+                    Se enviado, o novo arquivo substituirá o anexo atual nas demandas deste fornecedor.
+                <?php else: ?>
+                    Se enviado, o mesmo anexo será associado às demandas do projeto.
+                <?php endif; ?>
+            </div>
+
+            <?php if ($existingAttachments): ?>
+                <div class="form-check mt-2">
+                    <input
+                        type="checkbox"
+                        name="remove_attachment"
+                        value="1"
+                        class="form-check-input"
+                        id="removeAttachment">
+                    <label class="form-check-label" for="removeAttachment">
+                        Remover anexo atual ao salvar
+                    </label>
+                </div>
+            <?php endif; ?>
         </div>
 
         <div class="col-lg-7">

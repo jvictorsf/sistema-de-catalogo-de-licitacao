@@ -2,6 +2,16 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.12] - 2026-06-16
+
+### Adicionado
+- Formulario de orcamento geral passa a avisar quando o fornecedor selecionado ja possui orcamento no projeto.
+- Orcamento geral passa a exibir link para visualizar o anexo digital ja enviado pelo fornecedor.
+- Opcao para remover ou substituir o anexo atual ao salvar o orcamento geral.
+
+### Alterado
+- Salvamento do orcamento geral agora diferencia manter, substituir ou remover o anexo existente.
+
 ## [1.5.11] - 2026-06-16
 
 ### Adicionado

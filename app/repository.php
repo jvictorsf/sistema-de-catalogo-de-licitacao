@@ -1702,6 +1702,8 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
     $priceKey = ($data['price_key'] ?? 'demand_item_id') === 'procurement_item_id'
         ? 'procurement_item_id'
         : 'demand_item_id';
+    $uploadedAttachmentPath = trim((string) ($data['attachment_path'] ?? ''));
+    $removeAttachment = !empty($data['remove_attachment']);
 
     if ($projectId <= 0 || $supplierId <= 0) {
         throw new InvalidArgumentException('Projeto e fornecedor sao obrigatorios.');
@@ -1753,8 +1755,9 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
             $quoteData = array_merge($data, [
                 'demand_list_id' => $demandId,
                 'supplier_id' => $supplierId,
-                'attachment_path' => ($data['attachment_path'] ?? null)
-                    ?: ($existingQuote['attachment_path'] ?? null),
+                'attachment_path' => $uploadedAttachmentPath !== ''
+                    ? $uploadedAttachmentPath
+                    : ($removeAttachment ? null : ($existingQuote['attachment_path'] ?? null)),
             ]);
 
             if ($existingQuote) {

@@ -34,6 +34,8 @@ if ($format === 'word') {
 }
 
 $isExcel = $format === 'excel';
+$issueDate = annex_issue_date_value();
+$issueDateText = annex_issue_date_text($issueDate);
 
 ?>
 <!doctype html>
@@ -66,8 +68,25 @@ $isExcel = $format === 'excel';
         }
 
         .print-actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
             margin-bottom: 14px;
-            text-align: right;
+        }
+
+        .print-actions .issue-date-form {
+            align-items: center;
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .print-actions input {
+            border: 1px solid #9ca3af;
+            border-radius: 4px;
+            padding: 7px 8px;
         }
 
         .print-actions button {
@@ -169,16 +188,14 @@ $isExcel = $format === 'excel';
 <body>
 
 <?php if ($format === 'pdf'): ?>
-    <div class="print-actions">
-        <button onclick="window.print()">Imprimir / Salvar PDF</button>
-    </div>
+    <?= render_annex_print_actions($issueDate) ?>
 <?php endif; ?>
 
 <div class="header">
     <?= render_municipal_logo() ?>
     <h1>Prefeitura Municipal de Espirito Santo do Turvo</h1>
     <h2><?= e($title) ?></h2>
-    <p>Projeto: <?= e($project['name']) ?> | Emissao: <?= date('d/m/Y') ?> | Versao: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
+    <p>Projeto: <?= e($project['name']) ?> | Emissao: <?= e($issueDateText) ?> | Versao do documento: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
 </div>
 
 <table>

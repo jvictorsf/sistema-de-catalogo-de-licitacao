@@ -88,7 +88,7 @@ require __DIR__ . '/../app/views/header.php';
                 ];
                 ?>
 
-                <?php foreach ($statuses as $value => $label): ?>
+                <?php foreach (project_status_options() as $value => $label): ?>
                     <option value="<?= e($value) ?>" <?= ($project['status'] ?? 'draft') === $value ? 'selected' : '' ?>>
                         <?= e($label) ?>
                     </option>

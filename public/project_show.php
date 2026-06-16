@@ -30,9 +30,14 @@ require __DIR__ . '/../app/views/header.php';
     <div class="page-title">
         <h1 class="h3 mb-1"><?= e($project['name']) ?></h1>
 
-        <p class="text-muted mb-0">
-            <?= e($project['description']) ?>
-        </p>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="badge <?= e(project_status_badge_class($project['status'] ?? null)) ?>">
+                <?= e(project_status_label($project['status'] ?? null)) ?>
+            </span>
+            <p class="text-muted mb-0">
+                <?= e($project['description']) ?>
+            </p>
+        </div>
     </div>
 
     <div class="page-actions project-actions d-flex gap-2 flex-wrap justify-content-end">

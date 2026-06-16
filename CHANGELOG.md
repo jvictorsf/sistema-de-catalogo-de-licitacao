@@ -2,6 +2,24 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.20] - 2026-06-16
+
+### Adicionado
+- Dashboard administrativo com indicadores de fornecedores, secretarias, unidades demandantes, anexos pendentes e projetos recentes.
+- Mascaras de CPF/CNPJ, telefone, CEP, CPF do proprietario e UF no cadastro de fornecedores.
+
+### Alterado
+- Projetos passam a exibir status traduzido e com cores na listagem, visualizacao e dashboard.
+- Cadastro de fornecedor passa a normalizar e validar CPF/CNPJ, telefone, e-mail, UF e CEP antes de salvar.
+
+## [1.5.19] - 2026-06-16
+
+### Adicionado
+- Anexos de licitacao passam a permitir alterar a data de emissao antes de imprimir/salvar PDF, mantendo a mesma data nos links de Word e Excel.
+
+### Alterado
+- Cabecalho dos anexos passa a exibir "Versao do documento" no lugar de "Versao".
+
 ## [1.5.18] - 2026-06-16
 
 ### Adicionado

@@ -821,7 +821,7 @@ function create_supplier(array $data): int
         'document' => normalize_supplier_document($data['document'] ?? null),
         'contact_name' => $data['contact_name'] ?: null,
         'email' => $data['email'] ?: null,
-        'phone' => $data['phone'] ?: null,
+        'phone' => normalize_supplier_phone($data['phone'] ?? null),
         'address' => $data['address'] ?: null,
         'city' => ($data['city'] ?? '') ?: null,
         'state' => normalize_supplier_state($data['state'] ?? null),
@@ -869,7 +869,7 @@ function update_supplier(int $id, array $data): void
         'document' => normalize_supplier_document($data['document'] ?? null),
         'contact_name' => $data['contact_name'] ?: null,
         'email' => $data['email'] ?: null,
-        'phone' => $data['phone'] ?: null,
+        'phone' => normalize_supplier_phone($data['phone'] ?? null),
         'address' => $data['address'] ?: null,
         'city' => ($data['city'] ?? '') ?: null,
         'state' => normalize_supplier_state($data['state'] ?? null),
@@ -912,6 +912,13 @@ function normalize_supplier_state(?string $state): ?string
 function normalize_postal_code(?string $postalCode): ?string
 {
     $digits = only_digits($postalCode);
+
+    return $digits !== '' ? $digits : null;
+}
+
+function normalize_supplier_phone(?string $phone): ?string
+{
+    $digits = only_digits($phone);
 
     return $digits !== '' ? $digits : null;
 }
@@ -4754,6 +4761,22 @@ function get_dashboard_summary(): array
         SELECT COUNT(*) FROM item_kits
     ")->fetchColumn();
 
+    $summary['total_suppliers'] = (int) db()->query("
+        SELECT COUNT(*) FROM suppliers
+    ")->fetchColumn();
+
+    $summary['active_suppliers'] = (int) db()->query("
+        SELECT COUNT(*) FROM suppliers WHERE is_active = TRUE
+    ")->fetchColumn();
+
+    $summary['total_secretariats'] = (int) db()->query("
+        SELECT COUNT(*) FROM secretariats
+    ")->fetchColumn();
+
+    $summary['total_requester_units'] = (int) db()->query("
+        SELECT COUNT(*) FROM requester_units
+    ")->fetchColumn();
+
     $summary['total_estimated_value'] = (float) db()->query("
         SELECT COALESCE(
             SUM(COALESCE(approved_quantity, quantity) * COALESCE(estimated_unit_price, 0)),
@@ -4805,6 +4828,93 @@ function get_project_financial_ranking(): array
         ORDER BY total_estimated_value DESC, p.name
         LIMIT 10
     ")->fetchAll();
+}
+
+function get_projects_by_status(): array
+{
+    return db()->query("
+        SELECT status, COUNT(*) AS total
+        FROM procurement_projects
+        GROUP BY status
+        ORDER BY total DESC, status
+    ")->fetchAll();
+}
+
+function get_recent_projects_for_dashboard(int $limit = 6): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            p.id,
+            p.name,
+            p.status,
+            p.created_at,
+            COUNT(DISTINCT dl.id) AS demand_count,
+            COALESCE(
+                SUM(COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)),
+                0
+            ) AS total_estimated_value
+        FROM procurement_projects p
+        LEFT JOIN demand_lists dl ON dl.project_id = p.id
+        LEFT JOIN demand_items di ON di.demand_list_id = dl.id
+        GROUP BY p.id, p.name, p.status, p.created_at
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT :limit
+    ");
+
+    $stmt->bindValue('limit', max(1, $limit), PDO::PARAM_INT);
+    $stmt->execute();
+
+    return $stmt->fetchAll();
+}
+
+function get_dashboard_annex_attention(int $limit = 8): array
+{
+    $summary = [
+        'valid' => 0,
+        'stale' => 0,
+        'pending' => 0,
+    ];
+    $items = [];
+
+    foreach (get_projects() as $project) {
+        foreach (get_project_annex_statuses((int) $project['id']) as $status) {
+            $statusKey = (string) ($status['status'] ?? 'pending');
+
+            if (!isset($summary[$statusKey])) {
+                $summary[$statusKey] = 0;
+            }
+
+            $summary[$statusKey]++;
+
+            if (in_array($statusKey, ['stale', 'pending'], true)) {
+                $items[] = [
+                    'project_id' => (int) $project['id'],
+                    'project_name' => (string) $project['name'],
+                    'label' => (string) ($status['label'] ?? ''),
+                    'status' => $statusKey,
+                    'short_hash' => (string) ($status['short_hash'] ?? ''),
+                    'version_number' => $status['version_number'] ?? null,
+                ];
+            }
+        }
+    }
+
+    usort($items, static function (array $left, array $right): int {
+        $weight = [
+            'stale' => 0,
+            'pending' => 1,
+        ];
+
+        return ($weight[$left['status']] ?? 2) <=> ($weight[$right['status']] ?? 2)
+            ?: strcasecmp((string) $left['project_name'], (string) $right['project_name'])
+            ?: strcasecmp((string) $left['label'], (string) $right['label']);
+    });
+
+    return [
+        'summary' => $summary,
+        'items' => array_slice($items, 0, max(1, $limit)),
+        'total_attention' => count($items),
+    ];
 }
 
 function catalog_json_scopes(): array

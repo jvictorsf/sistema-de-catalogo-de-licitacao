@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'trade_name' => trim($_POST['trade_name'] ?? ''),
         'document' => trim($_POST['document'] ?? ''),
         'contact_name' => trim($_POST['contact_name'] ?? ''),
-        'email' => trim($_POST['email'] ?? ''),
+        'email' => strtolower(trim($_POST['email'] ?? '')),
         'phone' => trim($_POST['phone'] ?? ''),
         'address' => trim($_POST['address'] ?? ''),
         'city' => trim($_POST['city'] ?? ''),
@@ -43,6 +43,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($data['email'] && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Informe um e-mail válido.';
+    }
+
+    if ($data['document'] && !in_array(strlen(only_digits($data['document'])), [11, 14], true)) {
+        $errors[] = 'Informe um CPF ou CNPJ valido.';
+    }
+
+    if ($data['phone'] && !in_array(strlen(only_digits($data['phone'])), [10, 11], true)) {
+        $errors[] = 'Informe um telefone valido com DDD.';
     }
 
     if ($data['state'] && !preg_match('/^[A-Z]{2}$/', $data['state'])) {
@@ -120,6 +128,10 @@ require __DIR__ . '/../app/views/header.php';
                     name="document"
                     id="supplierDocument"
                     class="form-control"
+                    inputmode="numeric"
+                    maxlength="18"
+                    placeholder="00.000.000/0000-00"
+                    data-mask="cpf-cnpj"
                     value="<?= e(format_brazil_document($supplier['document'] ?? '')) ?>">
                 <button type="button" class="btn btn-outline-secondary" id="lookupCnpjButton">
                     <i class="bi bi-search"></i>Consultar CNPJ
@@ -142,7 +154,15 @@ require __DIR__ . '/../app/views/header.php';
 
         <div class="col-md-4 col-lg-2">
             <label class="form-label">Telefone</label>
-            <input type="text" name="phone" class="form-control" value="<?= e($supplier['phone'] ?? '') ?>">
+            <input
+                type="text"
+                name="phone"
+                class="form-control"
+                inputmode="numeric"
+                maxlength="15"
+                placeholder="(00) 00000-0000"
+                data-mask="phone"
+                value="<?= e(format_brazil_phone($supplier['phone'] ?? '')) ?>">
         </div>
 
         <div class="col-12">
@@ -162,7 +182,7 @@ require __DIR__ . '/../app/views/header.php';
 
         <div class="col-md-3 col-lg-1">
             <label class="form-label">UF</label>
-            <input type="text" name="state" class="form-control text-uppercase" maxlength="2" value="<?= e($supplier['state'] ?? '') ?>">
+            <input type="text" name="state" class="form-control text-uppercase" maxlength="2" data-mask="uf" value="<?= e($supplier['state'] ?? '') ?>">
         </div>
 
         <div class="col-md-4 col-lg-2">
@@ -173,6 +193,10 @@ require __DIR__ . '/../app/views/header.php';
                     name="postal_code"
                     id="postalCodeInput"
                     class="form-control"
+                    inputmode="numeric"
+                    maxlength="9"
+                    placeholder="00000-000"
+                    data-mask="cep"
                     value="<?= e(format_brazil_postal_code($supplier['postal_code'] ?? '')) ?>">
                 <button
                     type="button"
@@ -211,7 +235,15 @@ require __DIR__ . '/../app/views/header.php';
 
         <div class="col-md-5">
             <label class="form-label">CPF do proprietário</label>
-            <input type="text" name="owner_cpf" class="form-control" value="<?= e(format_brazil_document($supplier['owner_cpf'] ?? '')) ?>">
+            <input
+                type="text"
+                name="owner_cpf"
+                class="form-control"
+                inputmode="numeric"
+                maxlength="14"
+                placeholder="000.000.000-00"
+                data-mask="cpf"
+                value="<?= e(format_brazil_document($supplier['owner_cpf'] ?? '')) ?>">
         </div>
 
         <div class="col-md-7">
@@ -269,6 +301,84 @@ require __DIR__ . '/../app/views/header.php';
             postal_code: document.querySelector('[name="postal_code"]'),
         };
 
+        function onlyDigits(value) {
+            return String(value || '').replace(/\D/g, '');
+        }
+
+        function formatCpf(value) {
+            const digits = onlyDigits(value).slice(0, 11);
+
+            return digits
+                .replace(/^(\d{3})(\d)/, '$1.$2')
+                .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+                .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4');
+        }
+
+        function formatCnpj(value) {
+            const digits = onlyDigits(value).slice(0, 14);
+
+            return digits
+                .replace(/^(\d{2})(\d)/, '$1.$2')
+                .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+                .replace(/^(\d{2})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3/$4')
+                .replace(/^(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, '$1.$2.$3/$4-$5');
+        }
+
+        function formatCpfCnpj(value) {
+            return onlyDigits(value).length <= 11 ? formatCpf(value) : formatCnpj(value);
+        }
+
+        function formatPhone(value) {
+            const digits = onlyDigits(value).slice(0, 11);
+
+            if (digits.length <= 10) {
+                return digits
+                    .replace(/^(\d{2})(\d)/, '($1) $2')
+                    .replace(/(\d{4})(\d{1,4})$/, '$1-$2');
+            }
+
+            return digits
+                .replace(/^(\d{2})(\d)/, '($1) $2')
+                .replace(/(\d{5})(\d{1,4})$/, '$1-$2');
+        }
+
+        function formatCep(value) {
+            return onlyDigits(value).slice(0, 8).replace(/^(\d{5})(\d)/, '$1-$2');
+        }
+
+        function applyMask(input) {
+            if (!input) {
+                return;
+            }
+
+            if (input.dataset.mask === 'cpf-cnpj') {
+                input.value = formatCpfCnpj(input.value);
+            }
+
+            if (input.dataset.mask === 'cpf') {
+                input.value = formatCpf(input.value);
+            }
+
+            if (input.dataset.mask === 'phone') {
+                input.value = formatPhone(input.value);
+            }
+
+            if (input.dataset.mask === 'cep') {
+                input.value = formatCep(input.value);
+            }
+
+            if (input.dataset.mask === 'uf') {
+                input.value = input.value.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase();
+            }
+        }
+
+        document.querySelectorAll('[data-mask]').forEach(function(input) {
+            input.addEventListener('input', function() {
+                applyMask(input);
+            });
+            applyMask(input);
+        });
+
         function setFeedback(feedback, message, state) {
             if (!feedback) {
                 return;
@@ -289,11 +399,12 @@ require __DIR__ . '/../app/views/header.php';
             }
 
             field.value = value;
+            applyMask(field);
         }
 
         if (cnpjButton && documentInput && cnpjFeedback) {
             cnpjButton.addEventListener('click', async function() {
-                const cnpj = documentInput.value.replace(/\D/g, '');
+                const cnpj = onlyDigits(documentInput.value);
 
                 if (cnpj.length !== 14) {
                     setFeedback(cnpjFeedback, 'Informe um CNPJ valido com 14 digitos para consultar.', 'error');
@@ -327,7 +438,7 @@ require __DIR__ . '/../app/views/header.php';
         }
 
         async function lookupCep() {
-            const postalCode = (fields.postal_code?.value || '').replace(/\D/g, '');
+            const postalCode = onlyDigits(fields.postal_code?.value || '');
 
             if (postalCode.length !== 8) {
                 setFeedback(cepFeedback, 'Informe um CEP valido com 8 digitos para consultar.', 'error');
@@ -362,7 +473,7 @@ require __DIR__ . '/../app/views/header.php';
         if (cepButton && fields.postal_code && cepFeedback) {
             cepButton.addEventListener('click', lookupCep);
             fields.postal_code.addEventListener('blur', function() {
-                const postalCode = fields.postal_code.value.replace(/\D/g, '');
+                const postalCode = onlyDigits(fields.postal_code.value);
 
                 if (postalCode.length === 8 && (!fields.address?.value || !fields.city?.value || !fields.state?.value)) {
                     lookupCep();

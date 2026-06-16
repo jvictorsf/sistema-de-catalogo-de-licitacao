@@ -34,6 +34,8 @@ if ($format === 'word') {
 }
 
 $isExcel = $format === 'excel';
+$issueDate = annex_issue_date_value();
+$issueDateText = annex_issue_date_text($issueDate);
 
 if (!function_exists('annex_proposal_date_text')) {
     function annex_proposal_date_text(array $supplier): string
@@ -76,7 +78,9 @@ if (!function_exists('annex_proposal_date_text')) {
         @page { size: A4 landscape; margin: 10mm; }
         * { box-sizing: border-box; }
         body { color: #111827; font-family: Arial, sans-serif; font-size: <?= $isExcel ? '10pt' : '8px' ?>; line-height: 1.3; margin: 0; }
-        .print-actions { margin-bottom: 14px; text-align: right; }
+        .print-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-bottom: 14px; }
+        .print-actions .issue-date-form { align-items: center; display: inline-flex; flex-wrap: wrap; gap: 8px; }
+        .print-actions input { border: 1px solid #9ca3af; border-radius: 4px; padding: 7px 8px; }
         .print-actions button { background: #0f766e; border: 0; border-radius: 4px; color: #fff; cursor: pointer; font-weight: 700; padding: 8px 12px; }
         .header { border-bottom: 2px solid #111827; margin-bottom: 12px; padding-bottom: 10px; text-align: center; }
         .header h1, .header h2, .header p { margin: 0; }
@@ -102,16 +106,14 @@ if (!function_exists('annex_proposal_date_text')) {
 <body>
 
 <?php if ($format === 'pdf'): ?>
-    <div class="print-actions">
-        <button onclick="window.print()">Imprimir / Salvar PDF</button>
-    </div>
+    <?= render_annex_print_actions($issueDate) ?>
 <?php endif; ?>
 
 <div class="header">
     <?= render_municipal_logo() ?>
     <h1>Prefeitura Municipal de Espirito Santo do Turvo</h1>
     <h2><?= e($title) ?></h2>
-    <p>Projeto: <?= e($project['name']) ?> | Emissao: <?= date('d/m/Y') ?> | Versao: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
+    <p>Projeto: <?= e($project['name']) ?> | Emissao: <?= e($issueDateText) ?> | Versao do documento: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
 </div>
 
 <?php if (!$lots): ?>
@@ -167,7 +169,7 @@ if (!function_exists('annex_proposal_date_text')) {
                             <td><?= e(supplier_address_text($supplier)) ?></td>
                             <td><?= e(($supplier['contact_name'] ?? '') ?: '-') ?></td>
                             <td><?= e(($supplier['email'] ?? '') ?: '-') ?></td>
-                            <td><?= e(($supplier['phone'] ?? '') ?: '-') ?></td>
+                            <td><?= e(!empty($supplier['phone']) ? format_brazil_phone($supplier['phone']) : '-') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

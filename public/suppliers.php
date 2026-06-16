@@ -66,7 +66,7 @@ require __DIR__ . '/../app/views/header.php';
                                 <div class="small text-muted"><?= e($supplier['email']) ?></div>
                             <?php endif; ?>
                             <?php if (!empty($supplier['phone'])): ?>
-                                <div class="small text-muted"><?= e($supplier['phone']) ?></div>
+                                <div class="small text-muted"><?= e(format_brazil_phone($supplier['phone'])) ?></div>
                             <?php endif; ?>
                         </td>
                         <td>

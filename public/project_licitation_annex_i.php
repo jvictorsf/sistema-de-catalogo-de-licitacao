@@ -17,7 +17,7 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
-$title = 'Anexo I - Planilha de Itens, Especificações, Quantitativos e Memória de Cálculo';
+$title = 'Anexo I - Planilha de Itens, EspecificaÃ§Ãµes, Quantitativos e MemÃ³ria de CÃ¡lculo';
 $items = get_project_licitation_annex_i_items($id);
 $annexVersion = register_project_annex_version($id, 'annex_i');
 $annexVersionText = !empty($annexVersion['version_number']) ? 'v' . $annexVersion['version_number'] : 'sem versao';
@@ -32,6 +32,8 @@ if ($format === 'word') {
 }
 
 $isExcel = $format === 'excel';
+$issueDate = annex_issue_date_value();
+$issueDateText = annex_issue_date_text($issueDate);
 
 ?>
 <!doctype html>
@@ -64,8 +66,25 @@ $isExcel = $format === 'excel';
         }
 
         .print-actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
             margin-bottom: 14px;
-            text-align: right;
+        }
+
+        .print-actions .issue-date-form {
+            align-items: center;
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .print-actions input {
+            border: 1px solid #9ca3af;
+            border-radius: 4px;
+            padding: 7px 8px;
         }
 
         .print-actions button {
@@ -161,16 +180,14 @@ $isExcel = $format === 'excel';
 <body>
 
 <?php if ($format === 'pdf'): ?>
-    <div class="print-actions">
-        <button onclick="window.print()">Imprimir / Salvar PDF</button>
-    </div>
+    <?= render_annex_print_actions($issueDate) ?>
 <?php endif; ?>
 
 <div class="header">
     <?= render_municipal_logo() ?>
-    <h1>Prefeitura Municipal de Espírito Santo do Turvo</h1>
+    <h1>Prefeitura Municipal de EspÃ­rito Santo do Turvo</h1>
     <h2><?= e($title) ?></h2>
-    <p>Projeto: <?= e($project['name']) ?> | Emissão: <?= date('d/m/Y') ?> | Versao: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
+    <p>Projeto: <?= e($project['name']) ?> | Emissao: <?= e($issueDateText) ?> | Versao do documento: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
 </div>
 
 <table>
@@ -178,10 +195,10 @@ $isExcel = $format === 'excel';
         <tr>
             <th style="width: 5%;">Item</th>
             <th style="width: 17%;">Nome do item</th>
-            <th style="width: 34%;">Especificação técnica</th>
+            <th style="width: 34%;">EspecificaÃ§Ã£o tÃ©cnica</th>
             <th style="width: 13%;">Unidade</th>
             <th style="width: 8%;">Quantidade</th>
-            <th style="width: 23%;">Demandas / memória de cálculo</th>
+            <th style="width: 23%;">Demandas / memÃ³ria de cÃ¡lculo</th>
         </tr>
     </thead>
 

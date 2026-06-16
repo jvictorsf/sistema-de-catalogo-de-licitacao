@@ -372,6 +372,35 @@ function item_status_badge_class(?string $status): string
     return $classes[$status ?? ''] ?? 'text-bg-secondary';
 }
 
+function project_status_options(): array
+{
+    return [
+        'draft' => 'Rascunho',
+        'collecting' => 'Coletando demandas',
+        'review' => 'Em revisao',
+        'closed' => 'Fechado',
+    ];
+}
+
+function project_status_label(?string $status): string
+{
+    $labels = project_status_options();
+
+    return $labels[$status ?? ''] ?? (string) $status;
+}
+
+function project_status_badge_class(?string $status): string
+{
+    $classes = [
+        'draft' => 'text-bg-secondary',
+        'collecting' => 'text-bg-info',
+        'review' => 'text-bg-warning',
+        'closed' => 'text-bg-success',
+    ];
+
+    return $classes[$status ?? ''] ?? 'text-bg-secondary';
+}
+
 function format_decimal_quantity(mixed $value): string
 {
     if ($value === null || $value === '') {
@@ -875,6 +904,74 @@ function send_download_headers(string $contentType, string $filename): void
     header('Cache-Control: max-age=0');
 }
 
+function annex_issue_date_value(): string
+{
+    $value = trim((string) ($_GET['issue_date'] ?? ''));
+
+    if ($value !== '') {
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+        if ($date && $date->format('Y-m-d') === $value) {
+            return $value;
+        }
+
+        $date = DateTimeImmutable::createFromFormat('!d/m/Y', $value);
+
+        if ($date && $date->format('d/m/Y') === $value) {
+            return $date->format('Y-m-d');
+        }
+    }
+
+    return date('Y-m-d');
+}
+
+function annex_issue_date_text(string $issueDate): string
+{
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $issueDate);
+
+    return $date ? $date->format('d/m/Y') : date('d/m/Y');
+}
+
+function annex_export_url(string $format, string $issueDate): string
+{
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    $query = $_GET;
+    $query['format'] = $format;
+    $query['issue_date'] = $issueDate;
+
+    return $path . '?' . http_build_query($query);
+}
+
+function render_annex_print_actions(string $issueDate): string
+{
+    $hiddenFields = '';
+
+    foreach ($_GET as $key => $value) {
+        if (in_array((string) $key, ['format', 'issue_date'], true)) {
+            continue;
+        }
+
+        if (is_array($value)) {
+            continue;
+        }
+
+        $hiddenFields .= '<input type="hidden" name="' . e((string) $key) . '" value="' . e((string) $value) . '">';
+    }
+
+    return '
+    <div class="print-actions">
+        <form method="get" class="issue-date-form">
+            ' . $hiddenFields . '
+            <input type="hidden" name="format" value="pdf">
+            <label>Data de emissao <input type="date" name="issue_date" value="' . e($issueDate) . '"></label>
+            <button type="submit">Atualizar data</button>
+        </form>
+        <button type="button" onclick="window.print()">Imprimir / Salvar PDF</button>
+        <button type="button" onclick="window.location.href=\'' . e(annex_export_url('word', $issueDate)) . '\'">Exportar Word</button>
+        <button type="button" onclick="window.location.href=\'' . e(annex_export_url('excel', $issueDate)) . '\'">Exportar Excel</button>
+    </div>';
+}
+
 function supplier_quote_request_value_text(mixed $value, string $separator = '; '): string
 {
     if ($value === null) {
@@ -1052,6 +1149,31 @@ function format_brazil_document(?string $value): string
     return trim((string) $value);
 }
 
+function format_brazil_phone(?string $value): string
+{
+    $digits = only_digits($value);
+
+    if (strlen($digits) === 11) {
+        return sprintf(
+            '(%s) %s-%s',
+            substr($digits, 0, 2),
+            substr($digits, 2, 5),
+            substr($digits, 7, 4)
+        );
+    }
+
+    if (strlen($digits) === 10) {
+        return sprintf(
+            '(%s) %s-%s',
+            substr($digits, 0, 2),
+            substr($digits, 2, 4),
+            substr($digits, 6, 4)
+        );
+    }
+
+    return trim((string) $value);
+}
+
 function format_brazil_postal_code(?string $value): string
 {
     $digits = only_digits($value);
@@ -1206,7 +1328,7 @@ function lookup_cnpj_brasilapi(string $cnpj): array
         'trade_name' => $tradeName,
         'document' => format_brazil_document((string) ($data['cnpj'] ?? $digits)),
         'email' => trim((string) ($data['email'] ?? '')),
-        'phone' => implode(' / ', $phones),
+        'phone' => format_brazil_phone($phones[0] ?? ''),
         'address' => supplier_lookup_address_from_data($data),
         'city' => supplier_lookup_city_from_data($data),
         'state' => supplier_lookup_state_from_data($data),

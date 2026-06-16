@@ -56,8 +56,8 @@ require __DIR__ . '/../app/views/header.php';
                         </td>
 
                         <td>
-                            <span class="badge text-bg-secondary">
-                                <?= e($project['status']) ?>
+                            <span class="badge <?= e(project_status_badge_class($project['status'] ?? null)) ?>">
+                                <?= e(project_status_label($project['status'] ?? null)) ?>
                             </span>
                         </td>
 

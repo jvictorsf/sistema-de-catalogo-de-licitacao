@@ -80,6 +80,72 @@ body {
     min-height: 112px;
 }
 
+.dashboard-kpi {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+    min-height: 112px;
+}
+
+.dashboard-kpi-compact {
+    min-height: 92px;
+}
+
+.dashboard-kpi-icon {
+    align-items: center;
+    border-radius: .5rem;
+    display: inline-flex;
+    flex: 0 0 2.75rem;
+    font-size: 1.35rem;
+    height: 2.75rem;
+    justify-content: center;
+    width: 2.75rem;
+}
+
+.dashboard-progress-row + .dashboard-progress-row {
+    margin-top: 1rem;
+}
+
+.dashboard-progress {
+    height: .45rem;
+}
+
+.dashboard-mini-stat {
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: .5rem;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    padding: .75rem .5rem;
+    text-align: center;
+}
+
+.dashboard-attention-item {
+    align-items: flex-start;
+    border: 1px solid #e5e7eb;
+    border-radius: .5rem;
+    color: inherit;
+    display: flex;
+    gap: .75rem;
+    margin-top: .6rem;
+    padding: .75rem;
+    text-decoration: none;
+}
+
+.dashboard-attention-item:hover {
+    background: #f8fafc;
+    color: inherit;
+}
+
+.dashboard-attention-item small {
+    color: #6b7280;
+    display: block;
+    margin-top: .15rem;
+}
+
 .page-header {
     gap: 1rem;
 }

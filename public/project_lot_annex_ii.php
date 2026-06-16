@@ -137,8 +137,6 @@ if (!function_exists('annex_proposal_date_text')) {
     <?php foreach ($lot['supplier_groups'] as $groupIndex => $supplierGroup): ?>
         <?php
             $suppliers = $supplierGroup['suppliers'] ?? [];
-            $supplierCount = count($suppliers);
-            $colspan = 9 + $supplierCount;
         ?>
 
         <div class="supplier-title">
@@ -180,20 +178,15 @@ if (!function_exists('annex_proposal_date_text')) {
             <thead>
                 <tr>
                     <th style="width: 5%;">Lote</th>
-                    <th style="width: 12%;">Denominacao</th>
+                    <th style="width: 10%;">Denominacao</th>
                     <th style="width: 5%;">Item</th>
                     <th style="width: 24%;">Descricao e especificacao tecnica</th>
-                    <th style="width: 10%;">Unidade</th>
-                    <th style="width: 8%;">Quantidade estimada</th>
-                    <th style="width: 16%;">Memoria / justificativa do quantitativo</th>
-                    <?php foreach ($suppliers as $supplierIndex => $supplier): ?>
-                        <th>
-                            Fornecedor <?= $supplierIndex + 1 ?><br>
-                            <span class="muted"><?= e($supplier['name']) ?></span>
-                        </th>
-                    <?php endforeach; ?>
-                    <th style="width: 10%;">Valor unitario estimado</th>
-                    <th style="width: 10%;">Valor total estimado</th>
+                    <th style="width: 9%;">Unidade</th>
+                    <th style="width: 7%;">Quantidade estimada</th>
+                    <th style="width: 15%;">Memoria / justificativa do quantitativo</th>
+                    <th style="width: 13%;">Valores dos fornecedores</th>
+                    <th style="width: 6%;">Valor unitario estimado</th>
+                    <th style="width: 6%;">Valor total estimado</th>
                 </tr>
             </thead>
             <tbody>
@@ -215,15 +208,22 @@ if (!function_exists('annex_proposal_date_text')) {
                             <?= e(format_decimal_quantity($quantity)) ?>
                         </td>
                         <td class="wrap"><?= nl2br(e($demandMemory)) ?></td>
-                        <?php foreach ($suppliers as $supplier): ?>
-                            <?php
-                                $supplierKey = (string) $supplier['key'];
-                                $price = $item['supplier_prices'][$supplierKey] ?? null;
-                            ?>
-                            <td class="money" <?= $isExcel && $price !== null ? 'x:num="' . e((string) $price) . '"' : '' ?>>
-                                <?= $price !== null ? 'R$ ' . number_format((float) $price, 2, ',', '.') : '-' ?>
-                            </td>
-                        <?php endforeach; ?>
+                        <td class="wrap">
+                            <?php if (!$suppliers): ?>
+                                -
+                            <?php endif; ?>
+
+                            <?php foreach ($suppliers as $supplierIndex => $supplier): ?>
+                                <?php
+                                    $supplierKey = (string) $supplier['key'];
+                                    $price = $item['supplier_prices'][$supplierKey] ?? null;
+                                ?>
+                                <div>
+                                    <strong>F<?= $supplierIndex + 1 ?>:</strong>
+                                    <?= $price !== null ? 'R$ ' . number_format((float) $price, 2, ',', '.') : '-' ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </td>
                         <td class="money" <?= $isExcel && $estimatedUnitPrice !== null ? 'x:num="' . e((string) $estimatedUnitPrice) . '"' : '' ?>>
                             <?= $estimatedUnitPrice !== null ? 'R$ ' . number_format((float) $estimatedUnitPrice, 2, ',', '.') : '-' ?>
                         </td>
@@ -238,7 +238,7 @@ if (!function_exists('annex_proposal_date_text')) {
 
     <table>
         <tr>
-            <th colspan="<?= $colspan - 1 ?>" class="money">Subtotal estimado do lote <?= e($lotNumberText) ?></th>
+            <th colspan="9" class="money">Subtotal estimado do lote <?= e($lotNumberText) ?></th>
             <th class="money" <?= $isExcel ? 'x:num="' . e((string) $lot['subtotal']) . '"' : '' ?>>
                 R$ <?= number_format((float) $lot['subtotal'], 2, ',', '.') ?>
             </th>

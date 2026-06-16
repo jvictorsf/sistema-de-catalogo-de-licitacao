@@ -2,6 +2,12 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.16] - 2026-06-16
+
+### Alterado
+- Tela de denominacoes de lotes reorganizada em areas separadas para cadastro/edicao, vinculo de produtos/categorias e listagem dos vinculos.
+- Anexo II por lote passa a empilhar valores dos fornecedores em coluna propria, evitando sobreposicao visual com valor unitario e total estimado.
+
 ## [1.5.15] - 2026-06-16
 
 ### Adicionado

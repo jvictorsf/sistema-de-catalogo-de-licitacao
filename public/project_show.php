@@ -19,6 +19,7 @@ $demands = get_project_demands($id);
 $consolidatedItems = get_project_consolidated_items($id);
 $quoteRequestGroups = supplier_quote_request_groups_from_items($consolidatedItems);
 $financialSummary = get_project_financial_summary($id);
+$annexStatuses = get_project_annex_statuses($id);
 $quoteSuccess = trim($_GET['quote_success'] ?? '');
 
 require __DIR__ . '/../app/views/header.php';
@@ -41,6 +42,10 @@ require __DIR__ . '/../app/views/header.php';
 
         <a href="/project_supplier_quote_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-outline-success">
             <i class="bi bi-cash-coin"></i>Orçamento geral
+        </a>
+
+        <a href="/project_licitation_numbers.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-dark">
+            <i class="bi bi-list-ol"></i>Ordenar itens
         </a>
 
         <div class="btn-group">
@@ -117,6 +122,24 @@ require __DIR__ . '/../app/views/header.php';
                 </li>
 
                 <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Anexo III</h6></li>
+                <li>
+                    <a href="/project_licitation_annex_iii.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
+                        PDF institucional
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_licitation_annex_iii.php?id=<?= (int) $project['id'] ?>&format=word" class="dropdown-item">
+                        Exportar Word
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_licitation_annex_iii.php?id=<?= (int) $project['id'] ?>&format=excel" class="dropdown-item">
+                        Exportar Excel
+                    </a>
+                </li>
+
+                <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Solicitação ao fornecedor</h6></li>
                 <li>
                     <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>" target="_blank" class="dropdown-item">
@@ -160,6 +183,50 @@ require __DIR__ . '/../app/views/header.php';
 <?php if ($quoteSuccess): ?>
     <div class="alert alert-success">
         <?= e($quoteSuccess) ?>
+    </div>
+<?php endif; ?>
+
+<?php if ($annexStatuses): ?>
+    <div class="card card-body mb-4">
+        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+                <div class="fw-semibold">Controle dos anexos de licitacao</div>
+                <div class="text-muted small">Quando os itens, a ordem ou os precos mudam, gere novamente os anexos desatualizados.</div>
+            </div>
+
+            <a href="/project_licitation_numbers.php?id=<?= (int) $project['id'] ?>" class="btn btn-sm btn-outline-dark">
+                <i class="bi bi-list-ol"></i>Ajustar numeracao
+            </a>
+        </div>
+
+        <div class="row g-2 mt-2">
+            <?php foreach ($annexStatuses as $status): ?>
+                <?php
+                    $badgeClass = match ($status['status']) {
+                        'valid' => 'text-bg-success',
+                        'stale' => 'text-bg-warning',
+                        default => 'text-bg-secondary',
+                    };
+                    $statusText = match ($status['status']) {
+                        'valid' => 'Atual',
+                        'stale' => 'Regenerar',
+                        default => 'Pendente',
+                    };
+                ?>
+                <div class="col-md-4">
+                    <div class="border rounded p-2 h-100">
+                        <div class="d-flex justify-content-between gap-2">
+                            <strong><?= e($status['label']) ?></strong>
+                            <span class="badge <?= e($badgeClass) ?>"><?= e($statusText) ?></span>
+                        </div>
+                        <div class="small text-muted mt-1">
+                            Versao: <?= e($status['version_number'] ? 'v' . $status['version_number'] : '-') ?>
+                            | Hash: <?= e($status['short_hash']) ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
     </div>
 <?php endif; ?>
 
@@ -301,6 +368,7 @@ require __DIR__ . '/../app/views/header.php';
                     <thead class="table-light">
                         <tr>
                             <th>Código</th>
+                            <th>Numero licitacao</th>
                             <th>Item</th>
                             <th>Demandas</th>
                             <th>Qtd. solicitada</th>
@@ -313,7 +381,7 @@ require __DIR__ . '/../app/views/header.php';
                     <tbody>
                         <?php if (!$consolidatedItems): ?>
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">
+                                <td colspan="8" class="text-center text-muted py-4">
                                     Nenhum item demandado.
                                 </td>
                             </tr>
@@ -325,6 +393,10 @@ require __DIR__ . '/../app/views/header.php';
                                     <span class="badge text-bg-dark">
                                         <?= e($item['tracking_code']) ?>
                                     </span>
+                                </td>
+
+                                <td class="fw-semibold">
+                                    <?= e((string) ($item['licitation_number'] ?? '-')) ?>
                                 </td>
 
                                 <td>

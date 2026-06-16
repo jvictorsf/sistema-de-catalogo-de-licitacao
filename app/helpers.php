@@ -18,6 +18,36 @@ function old(array $source, string $key, mixed $default = ''): mixed
     return $source[$key] ?? $default;
 }
 
+function boolish(mixed $value, bool $default = false): bool
+{
+    if ($value === null) {
+        return $default;
+    }
+
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    if (is_string($value)) {
+        $normalized = strtolower(trim($value));
+
+        if (in_array($normalized, ['1', 'true', 't', 'yes', 'on'], true)) {
+            return true;
+        }
+
+        if (in_array($normalized, ['0', 'false', 'f', 'no', 'off', ''], true)) {
+            return false;
+        }
+    }
+
+    return (bool) $value;
+}
+
+function checked_attr(mixed $value, bool $default = false): string
+{
+    return boolish($value, $default) ? 'checked' : '';
+}
+
 function validate_json(string $json): bool
 {
     json_decode($json, true);
@@ -553,6 +583,7 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
                 'key' => $groupKey,
                 'suppliers' => [],
                 'items' => [],
+                'min_sequence' => PHP_INT_MAX,
                 'subtotal' => 0.0,
             ];
         }
@@ -612,7 +643,20 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
         $groups[$groupKey]['suppliers'] = array_values($group['suppliers']);
         $items = [];
 
-        foreach ($group['items'] as $item) {
+        $rawItems = array_values($group['items']);
+
+        usort($rawItems, static function (array $left, array $right): int {
+            $leftSequence = (int) ($left['licitation_number'] ?? $left['sequence'] ?? 0);
+            $rightSequence = (int) ($right['licitation_number'] ?? $right['sequence'] ?? 0);
+
+            if ($leftSequence > 0 || $rightSequence > 0) {
+                return ($leftSequence ?: PHP_INT_MAX) <=> ($rightSequence ?: PHP_INT_MAX);
+            }
+
+            return strcasecmp((string) ($left['item_name'] ?? ''), (string) ($right['item_name'] ?? ''));
+        });
+
+        foreach ($rawItems as $item) {
             $unitPrices = [];
 
             foreach ($groups[$groupKey]['suppliers'] as $supplier) {
@@ -629,7 +673,9 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
                 }
             }
 
-            $item['sequence'] = $sequence++;
+            $itemSequence = (int) ($item['licitation_number'] ?? $item['sequence'] ?? 0);
+            $item['sequence'] = $itemSequence > 0 ? $itemSequence : $sequence++;
+            $sequence = max($sequence, (int) $item['sequence'] + 1);
             $item['estimated_unit_price'] = $unitPrices
                 ? round_money_value(array_sum($unitPrices) / count($unitPrices))
                 : null;
@@ -656,6 +702,11 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
                 $globalTotal += $item['estimated_total'];
             }
 
+            $groups[$groupKey]['min_sequence'] = min(
+                $groups[$groupKey]['min_sequence'],
+                (int) $item['sequence']
+            );
+
             $items[] = $item;
         }
 
@@ -663,16 +714,13 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
     }
 
     uasort($groups, static function (array $left, array $right): int {
-        if ($left['key'] === 'sem-cotacao') {
-            return 1;
-        }
-
-        if ($right['key'] === 'sem-cotacao') {
-            return -1;
-        }
-
-        return 0;
+        return ((int) ($left['min_sequence'] ?? PHP_INT_MAX))
+            <=> ((int) ($right['min_sequence'] ?? PHP_INT_MAX));
     });
+
+    foreach ($groups as $groupKey => $group) {
+        unset($groups[$groupKey]['min_sequence']);
+    }
 
     return [
         'groups' => array_values($groups),

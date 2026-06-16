@@ -17,9 +17,11 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
-$title = 'Anexo I - Planilha de Itens, Especificações, Quantitativos e Memória de Cálculo';
-$items = get_project_licitation_annex_i_items($id);
-$annexVersion = register_project_annex_version($id, 'annex_i');
+$title = 'Anexo III - Quadro resumido da estimativa de precos';
+$summary = get_project_licitation_annex_iii_summary($id);
+$items = $summary['items'];
+$globalTotal = (float) $summary['global_total'];
+$annexVersion = register_project_annex_version($id, 'annex_iii');
 $annexVersionText = !empty($annexVersion['version_number']) ? 'v' . $annexVersion['version_number'] : 'sem versao';
 $annexHashText = substr((string) ($annexVersion['content_hash'] ?? ''), 0, 12);
 
@@ -136,7 +138,13 @@ $isExcel = $format === 'excel';
             background: #f9fafb;
         }
 
-        .number {
+        tfoot th {
+            background: #111827;
+            color: #fff;
+        }
+
+        .number,
+        .money {
             text-align: right;
             white-space: nowrap;
         }
@@ -168,20 +176,20 @@ $isExcel = $format === 'excel';
 
 <div class="header">
     <?= render_municipal_logo() ?>
-    <h1>Prefeitura Municipal de Espírito Santo do Turvo</h1>
+    <h1>Prefeitura Municipal de Espirito Santo do Turvo</h1>
     <h2><?= e($title) ?></h2>
-    <p>Projeto: <?= e($project['name']) ?> | Emissão: <?= date('d/m/Y') ?> | Versao: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
+    <p>Projeto: <?= e($project['name']) ?> | Emissao: <?= date('d/m/Y') ?> | Versao: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
 </div>
 
 <table>
     <thead>
         <tr>
-            <th style="width: 5%;">Item</th>
-            <th style="width: 17%;">Nome do item</th>
-            <th style="width: 34%;">Especificação técnica</th>
-            <th style="width: 13%;">Unidade</th>
-            <th style="width: 8%;">Quantidade</th>
-            <th style="width: 23%;">Demandas / memória de cálculo</th>
+            <th style="width: 6%;">Item</th>
+            <th style="width: 38%;">Descricao</th>
+            <th style="width: 16%;">Unidade</th>
+            <th style="width: 10%;">Quantidade</th>
+            <th style="width: 15%;">Valor unitario estimado</th>
+            <th style="width: 15%;">Valor total estimado</th>
         </tr>
     </thead>
 
@@ -195,21 +203,38 @@ $isExcel = $format === 'excel';
         <?php foreach ($items as $item): ?>
             <?php
                 $quantity = (float) ($item['annex_quantity'] ?? 0);
-                $specification = licitation_annex_specification_text($item);
-                $demandMemory = licitation_annex_demand_memory_text($item['demand_memory'] ?? []);
+                $estimatedUnitPrice = $item['estimated_unit_price'];
+                $estimatedTotal = $item['estimated_total'];
             ?>
             <tr>
                 <td class="number"><?= (int) $item['sequence'] ?></td>
                 <td class="wrap"><?= e($item['item_name'] ?? '-') ?></td>
-                <td class="wrap"><?= nl2br(e($specification)) ?></td>
                 <td class="wrap"><?= e(licitation_annex_unit_text($item)) ?></td>
                 <td class="number" <?= $isExcel ? 'x:num="' . e((string) $quantity) . '"' : '' ?>>
                     <?= e(format_decimal_quantity($quantity)) ?>
                 </td>
-                <td class="wrap"><?= nl2br(e($demandMemory)) ?></td>
+                <td
+                    class="money"
+                    <?= $isExcel && $estimatedUnitPrice !== null ? 'x:num="' . e((string) $estimatedUnitPrice) . '"' : '' ?>>
+                    <?= $estimatedUnitPrice !== null ? 'R$ ' . number_format((float) $estimatedUnitPrice, 2, ',', '.') : '-' ?>
+                </td>
+                <td
+                    class="money"
+                    <?= $isExcel && $estimatedTotal !== null ? 'x:num="' . e((string) $estimatedTotal) . '"' : '' ?>>
+                    <?= $estimatedTotal !== null ? 'R$ ' . number_format((float) $estimatedTotal, 2, ',', '.') : '-' ?>
+                </td>
             </tr>
         <?php endforeach; ?>
     </tbody>
+
+    <tfoot>
+        <tr>
+            <th colspan="5" class="money">Valor global estimado</th>
+            <th class="money" <?= $isExcel ? 'x:num="' . e((string) $globalTotal) . '"' : '' ?>>
+                R$ <?= number_format($globalTotal, 2, ',', '.') ?>
+            </th>
+        </tr>
+    </tfoot>
 </table>
 
 </body>

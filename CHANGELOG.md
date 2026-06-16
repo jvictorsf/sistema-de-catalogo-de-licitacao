@@ -2,6 +2,23 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.14] - 2026-06-16
+
+### Adicionado
+- Numeracao de licitacao por item consolidado do projeto, com tela para ordenar ou renumerar os itens.
+- Controle de versoes dos anexos I, II e III com hash de validacao e status de regeneracao.
+- Anexo III - Quadro resumido da estimativa de precos, exportavel em PDF institucional, Word e Excel.
+
+### Alterado
+- Anexos I e II passam a usar a mesma numeracao/ordenacao de itens.
+- Anexo II passa a exibir "Fornecedores consultados" e remove subtotal quando existir apenas um grupo.
+- Exportacao/importacao JSON passa a contemplar numeracao de licitacao e versoes de anexos.
+
+### Corrigido
+- Orcamento geral deixa de criar cotacoes vazias por demanda sem preco, anexo ou metadados.
+- Upload de anexo do orcamento geral so ocorre apos validacoes basicas do formulario.
+- Checkbox de fornecedor ativo passa a tratar corretamente valores booleanos vindos do PostgreSQL.
+
 ## [1.5.13] - 2026-06-16
 
 ### Adicionado

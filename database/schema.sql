@@ -289,6 +289,57 @@ CREATE TABLE IF NOT EXISTS demand_price_references (
     UNIQUE (demand_item_id, source_quote_item_id)
 );
 
+CREATE TABLE IF NOT EXISTS project_licitation_items (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES procurement_projects(id) ON DELETE CASCADE,
+    procurement_item_id INTEGER NOT NULL REFERENCES procurement_items(id) ON DELETE CASCADE,
+    licitation_number INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, procurement_item_id),
+    UNIQUE (project_id, licitation_number),
+    CHECK (licitation_number > 0)
+);
+
+CREATE TABLE IF NOT EXISTS project_annex_versions (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES procurement_projects(id) ON DELETE CASCADE,
+    annex_type VARCHAR(20) NOT NULL,
+    version_number INTEGER NOT NULL,
+    content_hash CHAR(64) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'valid',
+    item_count INTEGER NOT NULL DEFAULT 0,
+    total_value NUMERIC(14,2),
+    generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    invalidated_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, annex_type, version_number),
+    CHECK (annex_type IN ('annex_i', 'annex_ii', 'annex_iii')),
+    CHECK (status IN ('valid', 'invalid'))
+);
+
+INSERT INTO project_licitation_items (project_id, procurement_item_id, licitation_number)
+SELECT
+    seed.project_id,
+    seed.procurement_item_id,
+    ROW_NUMBER() OVER (
+        PARTITION BY seed.project_id
+        ORDER BY seed.category_name NULLS LAST, seed.item_name, seed.procurement_item_id
+    ) AS licitation_number
+FROM (
+    SELECT DISTINCT
+        dl.project_id,
+        pi.id AS procurement_item_id,
+        c.name AS category_name,
+        pi.name AS item_name
+    FROM demand_items di
+    INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+    INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
+    LEFT JOIN categories c ON c.id = pi.category_id
+) AS seed
+ON CONFLICT DO NOTHING;
+
 ALTER TABLE demand_items
 ADD COLUMN IF NOT EXISTS approved_quantity NUMERIC(12,2);
 
@@ -654,6 +705,18 @@ BEFORE UPDATE ON demand_price_references
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 
+DROP TRIGGER IF EXISTS trg_touch_updated_at_project_licitation_items ON project_licitation_items;
+CREATE TRIGGER trg_touch_updated_at_project_licitation_items
+BEFORE UPDATE ON project_licitation_items
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_project_annex_versions ON project_annex_versions;
+CREATE TRIGGER trg_touch_updated_at_project_annex_versions
+BEFORE UPDATE ON project_annex_versions
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
 DROP TRIGGER IF EXISTS trg_touch_updated_at_kits ON item_kits;
 CREATE TRIGGER trg_touch_updated_at_kits
 BEFORE UPDATE ON item_kits
@@ -904,6 +967,18 @@ ON demand_price_references (demand_item_id);
 CREATE INDEX IF NOT EXISTS idx_demand_price_references_source
 ON demand_price_references (source_quote_item_id);
 
+CREATE INDEX IF NOT EXISTS idx_project_licitation_items_project
+ON project_licitation_items (project_id);
+
+CREATE INDEX IF NOT EXISTS idx_project_licitation_items_item
+ON project_licitation_items (procurement_item_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_project_annex_versions_hash
+ON project_annex_versions (project_id, annex_type, content_hash);
+
+CREATE INDEX IF NOT EXISTS idx_project_annex_versions_project_type
+ON project_annex_versions (project_id, annex_type, version_number DESC);
+
 SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
 SELECT setval(pg_get_serial_sequence('unit_types', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM unit_types), 0), 1), COALESCE((SELECT MAX(id) FROM unit_types), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_items), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_items), 0) > 0);
@@ -918,6 +993,8 @@ SELECT setval(pg_get_serial_sequence('demand_items', 'id'), GREATEST(COALESCE((S
 SELECT setval(pg_get_serial_sequence('demand_supplier_quotes', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_supplier_quote_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_price_references', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_price_references), 0), 1), COALESCE((SELECT MAX(id) FROM demand_price_references), 0) > 0);
+SELECT setval(pg_get_serial_sequence('project_licitation_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_licitation_items), 0), 1), COALESCE((SELECT MAX(id) FROM project_licitation_items), 0) > 0);
+SELECT setval(pg_get_serial_sequence('project_annex_versions', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_annex_versions), 0), 1), COALESCE((SELECT MAX(id) FROM project_annex_versions), 0) > 0);
 SELECT setval(pg_get_serial_sequence('justification_templates', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM justification_templates), 0), 1), COALESCE((SELECT MAX(id) FROM justification_templates), 0) > 0);
 SELECT setval(pg_get_serial_sequence('environmental_impact_templates', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM environmental_impact_templates), 0), 1), COALESCE((SELECT MAX(id) FROM environmental_impact_templates), 0) > 0);
 SELECT setval(pg_get_serial_sequence('item_kits', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM item_kits), 0), 1), COALESCE((SELECT MAX(id) FROM item_kits), 0) > 0);

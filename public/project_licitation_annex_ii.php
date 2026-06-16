@@ -21,6 +21,9 @@ $title = 'Anexo II – Planilha de Pesquisa e Estimativa de Preços';
 $annex = get_project_licitation_annex_ii_groups($id);
 $groups = $annex['groups'];
 $globalTotal = (float) $annex['global_total'];
+$annexVersion = register_project_annex_version($id, 'annex_ii');
+$annexVersionText = !empty($annexVersion['version_number']) ? 'v' . $annexVersion['version_number'] : 'sem versao';
+$annexHashText = substr((string) ($annexVersion['content_hash'] ?? ''), 0, 12);
 
 if ($format === 'word') {
     send_download_headers('application/msword; charset=utf-8', $title . '.doc');
@@ -31,6 +34,7 @@ if ($format === 'word') {
 }
 
 $isExcel = $format === 'excel';
+$singleGroup = count($groups) === 1;
 
 if (!function_exists('annex_proposal_date_text')) {
     function annex_proposal_date_text(array $supplier): string
@@ -229,7 +233,7 @@ if (!function_exists('annex_proposal_date_text')) {
     <?= render_municipal_logo() ?>
     <h1>Prefeitura Municipal de Espírito Santo do Turvo</h1>
     <h2><?= e($title) ?></h2>
-    <p>Projeto: <?= e($project['name']) ?> | Emissão: <?= date('d/m/Y') ?></p>
+    <p>Projeto: <?= e($project['name']) ?> | Emissão: <?= date('d/m/Y') ?> | Versao: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
 </div>
 
 <?php if (!$groups): ?>
@@ -252,7 +256,11 @@ if (!function_exists('annex_proposal_date_text')) {
     ?>
 
     <div class="group-title">
-        <?php if ($suppliers): ?>
+        <?php if ($singleGroup && $suppliers): ?>
+            Fornecedores consultados: <?= e(implode(', ', $supplierNames)) ?>
+        <?php elseif ($singleGroup): ?>
+            Itens sem cotacao de fornecedor
+        <?php elseif ($suppliers): ?>
             Grupo <?= $groupIndex + 1 ?> - Fornecedores cotantes: <?= e(implode(', ', $supplierNames)) ?>
         <?php else: ?>
             Grupo <?= $groupIndex + 1 ?> - Itens sem cotação de fornecedor
@@ -359,7 +367,7 @@ if (!function_exists('annex_proposal_date_text')) {
                 </tr>
             <?php endforeach; ?>
 
-            <?php if ($group['items']): ?>
+            <?php if (!$singleGroup && $group['items']): ?>
                 <tr>
                     <th colspan="<?= $colspan - 1 ?>" class="money">Subtotal do grupo</th>
                     <th class="money" <?= $isExcel ? 'x:num="' . e((string) $group['subtotal']) . '"' : '' ?>>

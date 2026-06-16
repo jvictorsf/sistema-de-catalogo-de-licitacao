@@ -40,6 +40,15 @@ function log_optional_schema_issue(string $feature, Throwable $exception): void
     }
 }
 
+function database_table_exists(string $tableName): bool
+{
+    $stmt = db()->prepare("SELECT to_regclass(:table_name)");
+    $stmt->execute(['table_name' => 'public.' . $tableName]);
+    $relation = $stmt->fetchColumn();
+
+    return $relation !== false && $relation !== null;
+}
+
 function item_sort_options(): array
 {
     return [
@@ -1054,12 +1063,15 @@ function update_demand_list(int $id, array $data): void
 
 function delete_demand_list(int $id): void
 {
+    $projectId = find_project_id_by_demand_list($id);
+
     $stmt = db()->prepare("
         DELETE FROM demand_lists
         WHERE id = :id
     ");
 
     $stmt->execute(['id' => $id]);
+    invalidate_project_annex_versions($projectId);
 }
 
 function get_demand_items(int $demandListId): array
@@ -1127,20 +1139,27 @@ function add_demand_item(array $data): void
         'estimated_unit_price' => $data['estimated_unit_price'] ?? null,
         'notes' => $data['notes'] ?? null,
     ]);
+
+    invalidate_project_annex_versions(find_project_id_by_demand_list((int) $data['demand_list_id']));
 }
 
 function delete_demand_item(int $id): void
 {
+    $projectId = find_project_id_by_demand_item($id);
+
     $stmt = db()->prepare("
         DELETE FROM demand_items
         WHERE id = :id
     ");
 
     $stmt->execute(['id' => $id]);
+    invalidate_project_annex_versions($projectId);
 }
 
 function update_demand_item(int $id, array $data): void
 {
+    $projectId = find_project_id_by_demand_item($id);
+
     $stmt = db()->prepare("
         UPDATE demand_items SET
             quantity = :quantity,
@@ -1157,6 +1176,8 @@ function update_demand_item(int $id, array $data): void
         'estimated_unit_price' => $data['estimated_unit_price'],
         'notes' => $data['notes'] ?? null,
     ]);
+
+    invalidate_project_annex_versions($projectId);
 }
 
 function normalize_money_value(mixed $value): ?float
@@ -1184,6 +1205,677 @@ function normalize_optional_date(mixed $value): ?string
     $date = trim((string) $value);
 
     return $date === '' ? null : $date;
+}
+
+function project_annex_types(): array
+{
+    return [
+        'annex_i' => 'Anexo I',
+        'annex_ii' => 'Anexo II',
+        'annex_iii' => 'Anexo III',
+    ];
+}
+
+function find_project_id_by_demand_list(int $demandListId): ?int
+{
+    $stmt = db()->prepare("SELECT project_id FROM demand_lists WHERE id = :id");
+    $stmt->execute(['id' => $demandListId]);
+    $projectId = $stmt->fetchColumn();
+
+    return $projectId !== false ? (int) $projectId : null;
+}
+
+function find_project_id_by_demand_item(int $demandItemId): ?int
+{
+    $stmt = db()->prepare("
+        SELECT dl.project_id
+        FROM demand_items di
+        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+        WHERE di.id = :id
+    ");
+    $stmt->execute(['id' => $demandItemId]);
+    $projectId = $stmt->fetchColumn();
+
+    return $projectId !== false ? (int) $projectId : null;
+}
+
+function find_project_id_by_supplier_quote(int $quoteId): ?int
+{
+    $stmt = db()->prepare("
+        SELECT dl.project_id
+        FROM demand_supplier_quotes q
+        INNER JOIN demand_lists dl ON dl.id = q.demand_list_id
+        WHERE q.id = :id
+    ");
+    $stmt->execute(['id' => $quoteId]);
+    $projectId = $stmt->fetchColumn();
+
+    return $projectId !== false ? (int) $projectId : null;
+}
+
+function invalidate_project_annex_versions(?int $projectId): void
+{
+    if (!$projectId) {
+        return;
+    }
+
+    if (!database_table_exists('project_annex_versions')) {
+        return;
+    }
+
+    try {
+        $stmt = db()->prepare("
+            UPDATE project_annex_versions
+            SET status = 'invalid',
+                invalidated_at = COALESCE(invalidated_at, CURRENT_TIMESTAMP)
+            WHERE project_id = :project_id
+              AND status = 'valid'
+        ");
+        $stmt->execute(['project_id' => $projectId]);
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('versoes de anexos', $exception);
+    }
+}
+
+function apply_project_licitation_number_updates(int $projectId, array $rowNumbers): void
+{
+    if (!$rowNumbers) {
+        return;
+    }
+
+    $offsetStmt = db()->prepare("
+        SELECT COALESCE(MAX(licitation_number), 0) + COUNT(*) + 1000
+        FROM project_licitation_items
+        WHERE project_id = :project_id
+    ");
+    $offsetStmt->execute(['project_id' => $projectId]);
+    $offset = max(1000, (int) $offsetStmt->fetchColumn());
+
+    $shift = db()->prepare("
+        UPDATE project_licitation_items
+        SET licitation_number = licitation_number + :offset
+        WHERE project_id = :project_id
+    ");
+    $shift->execute([
+        'project_id' => $projectId,
+        'offset' => $offset,
+    ]);
+
+    $update = db()->prepare("
+        UPDATE project_licitation_items
+        SET licitation_number = :licitation_number
+        WHERE id = :id
+          AND project_id = :project_id
+    ");
+
+    foreach ($rowNumbers as $rowId => $licitationNumber) {
+        $update->execute([
+            'id' => (int) $rowId,
+            'project_id' => $projectId,
+            'licitation_number' => (int) $licitationNumber,
+        ]);
+    }
+}
+
+function compact_project_licitation_numbers(int $projectId): void
+{
+    $stmt = db()->prepare("
+        SELECT pli.id
+        FROM project_licitation_items pli
+        INNER JOIN procurement_items pi ON pi.id = pli.procurement_item_id
+        LEFT JOIN categories c ON c.id = pi.category_id
+        WHERE pli.project_id = :project_id
+        ORDER BY pli.licitation_number, c.name NULLS LAST, pi.name, pi.id
+    ");
+    $stmt->execute(['project_id' => $projectId]);
+
+    $rowNumbers = [];
+    $sequence = 1;
+
+    foreach ($stmt->fetchAll() as $row) {
+        $rowNumbers[(int) $row['id']] = $sequence++;
+    }
+
+    apply_project_licitation_number_updates($projectId, $rowNumbers);
+}
+
+function sync_project_licitation_items(int $projectId): void
+{
+    $pdo = db();
+    $startedTransaction = !$pdo->inTransaction();
+
+    try {
+        if ($startedTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        $delete = $pdo->prepare("
+            DELETE FROM project_licitation_items pli
+            WHERE pli.project_id = :project_id
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM demand_items di
+                  INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+                  WHERE dl.project_id = pli.project_id
+                    AND di.procurement_item_id = pli.procurement_item_id
+              )
+        ");
+        $delete->execute(['project_id' => $projectId]);
+        $needsCompact = $delete->rowCount() > 0;
+
+        $nextStmt = $pdo->prepare("
+            SELECT COALESCE(MAX(licitation_number), 0) + 1
+            FROM project_licitation_items
+            WHERE project_id = :project_id
+        ");
+        $nextStmt->execute(['project_id' => $projectId]);
+        $nextNumber = max(1, (int) $nextStmt->fetchColumn());
+
+        $missing = $pdo->prepare("
+            SELECT DISTINCT
+                pi.id AS procurement_item_id,
+                c.name AS category_name,
+                pi.name AS item_name
+            FROM demand_items di
+            INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+            INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
+            LEFT JOIN categories c ON c.id = pi.category_id
+            LEFT JOIN project_licitation_items pli
+                ON pli.project_id = dl.project_id
+               AND pli.procurement_item_id = pi.id
+            WHERE dl.project_id = :project_id
+              AND pli.id IS NULL
+            ORDER BY c.name NULLS LAST, pi.name, pi.id
+        ");
+        $missing->execute(['project_id' => $projectId]);
+
+        $insert = $pdo->prepare("
+            INSERT INTO project_licitation_items (
+                project_id,
+                procurement_item_id,
+                licitation_number
+            ) VALUES (
+                :project_id,
+                :procurement_item_id,
+                :licitation_number
+            )
+            ON CONFLICT DO NOTHING
+        ");
+
+        foreach ($missing->fetchAll() as $row) {
+            $insert->execute([
+                'project_id' => $projectId,
+                'procurement_item_id' => (int) $row['procurement_item_id'],
+                'licitation_number' => $nextNumber++,
+            ]);
+        }
+
+        if ($needsCompact) {
+            compact_project_licitation_numbers($projectId);
+        }
+
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
+    } catch (Throwable $exception) {
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('numeracao de licitacao', $exception);
+    }
+}
+
+function get_project_licitation_number_map(int $projectId): array
+{
+    sync_project_licitation_items($projectId);
+
+    try {
+        $stmt = db()->prepare("
+            SELECT procurement_item_id, licitation_number
+            FROM project_licitation_items
+            WHERE project_id = :project_id
+        ");
+        $stmt->execute(['project_id' => $projectId]);
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('numeracao de licitacao', $exception);
+        return [];
+    }
+
+    $map = [];
+
+    foreach ($stmt->fetchAll() as $row) {
+        $map[(int) $row['procurement_item_id']] = (int) $row['licitation_number'];
+    }
+
+    return $map;
+}
+
+function save_project_licitation_numbers(int $projectId, array $numbers): void
+{
+    sync_project_licitation_items($projectId);
+
+    $pdo = db();
+    $startedTransaction = !$pdo->inTransaction();
+
+    try {
+        if ($startedTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT id, procurement_item_id, licitation_number
+            FROM project_licitation_items
+            WHERE project_id = :project_id
+            ORDER BY licitation_number
+        ");
+        $stmt->execute(['project_id' => $projectId]);
+        $rows = $stmt->fetchAll();
+        $used = [];
+        $rowNumbers = [];
+        $hasChanges = false;
+
+        foreach ($rows as $row) {
+            $procurementItemId = (int) $row['procurement_item_id'];
+            $rawNumber = $numbers[$procurementItemId] ?? $numbers[(string) $procurementItemId] ?? null;
+            $licitationNumber = (int) $rawNumber;
+
+            if ($licitationNumber <= 0) {
+                throw new InvalidArgumentException('Informe apenas numeros de licitacao positivos.');
+            }
+
+            if (isset($used[$licitationNumber])) {
+                throw new InvalidArgumentException('Cada numero de licitacao deve ser unico no projeto.');
+            }
+
+            $used[$licitationNumber] = true;
+            $rowNumbers[(int) $row['id']] = $licitationNumber;
+            $hasChanges = $hasChanges || $licitationNumber !== (int) $row['licitation_number'];
+        }
+
+        if ($hasChanges) {
+            apply_project_licitation_number_updates($projectId, $rowNumbers);
+            invalidate_project_annex_versions($projectId);
+        }
+
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
+    } catch (Throwable $exception) {
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        if (is_missing_database_relation($exception)) {
+            throw new RuntimeException('Atualize o schema do banco antes de ordenar os itens da licitacao.');
+        }
+
+        throw $exception;
+    }
+}
+
+function renumber_project_licitation_items(int $projectId): void
+{
+    sync_project_licitation_items($projectId);
+
+    $pdo = db();
+    $startedTransaction = !$pdo->inTransaction();
+
+    try {
+        if ($startedTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        compact_project_licitation_numbers($projectId);
+        invalidate_project_annex_versions($projectId);
+
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
+    } catch (Throwable $exception) {
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        if (is_missing_database_relation($exception)) {
+            throw new RuntimeException('Atualize o schema do banco antes de renumerar os itens da licitacao.');
+        }
+
+        throw $exception;
+    }
+}
+
+function project_annex_hash(array $payload): string
+{
+    return hash(
+        'sha256',
+        json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION)
+    );
+}
+
+function project_annex_payload(int $projectId, string $annexType): array
+{
+    if ($annexType === 'annex_i') {
+        return [
+            'type' => $annexType,
+            'items' => array_map(static function (array $item): array {
+                return [
+                    'sequence' => (int) ($item['sequence'] ?? 0),
+                    'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                    'tracking_code' => (string) ($item['tracking_code'] ?? ''),
+                    'item_name' => (string) ($item['item_name'] ?? ''),
+                    'unit' => licitation_annex_unit_text($item),
+                    'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                    'specification' => licitation_annex_specification_text($item),
+                    'demand_memory' => array_map(static fn (array $memory): array => [
+                        'demand_id' => (int) ($memory['demand_id'] ?? 0),
+                        'quantity' => (float) ($memory['quantity'] ?? 0),
+                    ], $item['demand_memory'] ?? []),
+                ];
+            }, get_project_licitation_annex_i_items($projectId)),
+        ];
+    }
+
+    if ($annexType === 'annex_ii') {
+        $annex = get_project_licitation_annex_ii_groups($projectId);
+
+        return [
+            'type' => $annexType,
+            'global_total' => (float) ($annex['global_total'] ?? 0),
+            'groups' => array_map(static function (array $group): array {
+                return [
+                    'key' => (string) ($group['key'] ?? ''),
+                    'suppliers' => array_map(static fn (array $supplier): array => [
+                        'key' => (string) ($supplier['key'] ?? ''),
+                        'id' => (int) ($supplier['id'] ?? 0),
+                        'name' => (string) ($supplier['name'] ?? ''),
+                        'document' => (string) ($supplier['document'] ?? ''),
+                        'proposal_dates' => array_values($supplier['proposal_dates'] ?? []),
+                    ], $group['suppliers'] ?? []),
+                    'items' => array_map(static fn (array $item): array => [
+                        'sequence' => (int) ($item['sequence'] ?? 0),
+                        'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                        'item_name' => (string) ($item['item_name'] ?? ''),
+                        'unit' => licitation_annex_unit_text($item),
+                        'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                        'supplier_prices' => $item['supplier_prices'] ?? [],
+                        'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
+                            ? (float) $item['estimated_unit_price']
+                            : null,
+                        'estimated_total' => ($item['estimated_total'] ?? null) !== null
+                            ? (float) $item['estimated_total']
+                            : null,
+                    ], $group['items'] ?? []),
+                    'subtotal' => (float) ($group['subtotal'] ?? 0),
+                ];
+            }, $annex['groups'] ?? []),
+        ];
+    }
+
+    if ($annexType === 'annex_iii') {
+        $summary = get_project_licitation_annex_iii_summary($projectId);
+
+        return [
+            'type' => $annexType,
+            'global_total' => (float) ($summary['global_total'] ?? 0),
+            'items' => array_map(static fn (array $item): array => [
+                'sequence' => (int) ($item['sequence'] ?? 0),
+                'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                'item_name' => (string) ($item['item_name'] ?? ''),
+                'unit' => licitation_annex_unit_text($item),
+                'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
+                    ? (float) $item['estimated_unit_price']
+                    : null,
+                'estimated_total' => ($item['estimated_total'] ?? null) !== null
+                    ? (float) $item['estimated_total']
+                    : null,
+            ], $summary['items'] ?? []),
+        ];
+    }
+
+    throw new InvalidArgumentException('Tipo de anexo invalido.');
+}
+
+function project_annex_payload_item_count(string $annexType, array $payload): int
+{
+    if ($annexType === 'annex_ii') {
+        $count = 0;
+
+        foreach ($payload['groups'] ?? [] as $group) {
+            $count += count($group['items'] ?? []);
+        }
+
+        return $count;
+    }
+
+    return count($payload['items'] ?? []);
+}
+
+function project_annex_payload_total(string $annexType, array $payload): ?float
+{
+    if (in_array($annexType, ['annex_ii', 'annex_iii'], true)) {
+        return (float) ($payload['global_total'] ?? 0);
+    }
+
+    return null;
+}
+
+function refresh_project_annex_version_status(int $projectId, string $annexType, string $currentHash): void
+{
+    if (!database_table_exists('project_annex_versions')) {
+        return;
+    }
+
+    try {
+        $stmt = db()->prepare("
+            UPDATE project_annex_versions
+            SET status = 'invalid',
+                invalidated_at = COALESCE(invalidated_at, CURRENT_TIMESTAMP)
+            WHERE project_id = :project_id
+              AND annex_type = :annex_type
+              AND status = 'valid'
+              AND content_hash <> :content_hash
+        ");
+        $stmt->execute([
+            'project_id' => $projectId,
+            'annex_type' => $annexType,
+            'content_hash' => $currentHash,
+        ]);
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('versoes de anexos', $exception);
+    }
+}
+
+function register_project_annex_version(int $projectId, string $annexType): array
+{
+    $payload = project_annex_payload($projectId, $annexType);
+    $hash = project_annex_hash($payload);
+    $itemCount = project_annex_payload_item_count($annexType, $payload);
+    $totalValue = project_annex_payload_total($annexType, $payload);
+
+    if (!database_table_exists('project_annex_versions')) {
+        return [
+            'annex_type' => $annexType,
+            'version_number' => null,
+            'content_hash' => $hash,
+            'status' => 'untracked',
+            'item_count' => $itemCount,
+            'total_value' => $totalValue,
+        ];
+    }
+
+    try {
+        refresh_project_annex_version_status($projectId, $annexType, $hash);
+
+        $existing = db()->prepare("
+            SELECT *
+            FROM project_annex_versions
+            WHERE project_id = :project_id
+              AND annex_type = :annex_type
+              AND content_hash = :content_hash
+            LIMIT 1
+        ");
+        $existing->execute([
+            'project_id' => $projectId,
+            'annex_type' => $annexType,
+            'content_hash' => $hash,
+        ]);
+        $version = $existing->fetch();
+
+        if ($version) {
+            $update = db()->prepare("
+                UPDATE project_annex_versions
+                SET status = 'valid',
+                    item_count = :item_count,
+                    total_value = :total_value,
+                    generated_at = CURRENT_TIMESTAMP,
+                    invalidated_at = NULL
+                WHERE id = :id
+            ");
+            $update->execute([
+                'id' => (int) $version['id'],
+                'item_count' => $itemCount,
+                'total_value' => $totalValue,
+            ]);
+
+            $version['status'] = 'valid';
+            $version['item_count'] = $itemCount;
+            $version['total_value'] = $totalValue;
+            $version['content_hash'] = $hash;
+
+            return $version;
+        }
+
+        $next = db()->prepare("
+            SELECT COALESCE(MAX(version_number), 0) + 1
+            FROM project_annex_versions
+            WHERE project_id = :project_id
+              AND annex_type = :annex_type
+        ");
+        $next->execute([
+            'project_id' => $projectId,
+            'annex_type' => $annexType,
+        ]);
+
+        $insert = db()->prepare("
+            INSERT INTO project_annex_versions (
+                project_id,
+                annex_type,
+                version_number,
+                content_hash,
+                status,
+                item_count,
+                total_value
+            ) VALUES (
+                :project_id,
+                :annex_type,
+                :version_number,
+                :content_hash,
+                'valid',
+                :item_count,
+                :total_value
+            )
+            RETURNING *
+        ");
+        $insert->execute([
+            'project_id' => $projectId,
+            'annex_type' => $annexType,
+            'version_number' => (int) $next->fetchColumn(),
+            'content_hash' => $hash,
+            'item_count' => $itemCount,
+            'total_value' => $totalValue,
+        ]);
+
+        return $insert->fetch();
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('versoes de anexos', $exception);
+
+        return [
+            'annex_type' => $annexType,
+            'version_number' => null,
+            'content_hash' => $hash,
+            'status' => 'untracked',
+            'item_count' => $itemCount,
+            'total_value' => $totalValue,
+        ];
+    }
+}
+
+function get_project_annex_statuses(int $projectId): array
+{
+    $statuses = [];
+
+    foreach (project_annex_types() as $annexType => $label) {
+        $payload = project_annex_payload($projectId, $annexType);
+        $hash = project_annex_hash($payload);
+
+        refresh_project_annex_version_status($projectId, $annexType, $hash);
+
+        try {
+            if (!database_table_exists('project_annex_versions')) {
+                $latest = null;
+            } else {
+                $stmt = db()->prepare("
+                    SELECT *
+                    FROM project_annex_versions
+                    WHERE project_id = :project_id
+                      AND annex_type = :annex_type
+                    ORDER BY version_number DESC
+                    LIMIT 1
+                ");
+                $stmt->execute([
+                    'project_id' => $projectId,
+                    'annex_type' => $annexType,
+                ]);
+                $latest = $stmt->fetch() ?: null;
+            }
+        } catch (Throwable $exception) {
+            if (!is_missing_database_relation($exception)) {
+                throw $exception;
+            }
+
+            log_optional_schema_issue('versoes de anexos', $exception);
+            $latest = null;
+        }
+
+        $isCurrent = $latest
+            && ($latest['content_hash'] ?? '') === $hash
+            && ($latest['status'] ?? '') === 'valid';
+
+        $statuses[$annexType] = [
+            'label' => $label,
+            'status' => $latest ? ($isCurrent ? 'valid' : 'stale') : 'pending',
+            'current_hash' => $hash,
+            'short_hash' => substr($hash, 0, 12),
+            'version_number' => $latest['version_number'] ?? null,
+            'generated_at' => $latest['generated_at'] ?? null,
+            'item_count' => project_annex_payload_item_count($annexType, $payload),
+            'total_value' => project_annex_payload_total($annexType, $payload),
+        ];
+    }
+
+    return $statuses;
 }
 
 function get_demand_supplier_quotes(int $demandListId): array
@@ -1315,11 +2007,16 @@ function create_demand_supplier_quote(array $data): int
         'status' => $data['status'] ?? 'received',
     ]);
 
-    return (int) $stmt->fetchColumn();
+    $id = (int) $stmt->fetchColumn();
+    invalidate_project_annex_versions(find_project_id_by_demand_list((int) $data['demand_list_id']));
+
+    return $id;
 }
 
 function update_demand_supplier_quote(int $id, array $data): void
 {
+    $projectId = find_project_id_by_supplier_quote($id);
+
     $stmt = db()->prepare("
         UPDATE demand_supplier_quotes SET
             supplier_id = :supplier_id,
@@ -1342,16 +2039,21 @@ function update_demand_supplier_quote(int $id, array $data): void
         'notes' => $data['notes'] ?: null,
         'status' => $data['status'] ?? 'received',
     ]);
+
+    invalidate_project_annex_versions($projectId);
 }
 
 function delete_demand_supplier_quote(int $id): void
 {
+    $projectId = find_project_id_by_supplier_quote($id);
+
     $stmt = db()->prepare("
         DELETE FROM demand_supplier_quotes
         WHERE id = :id
     ");
 
     $stmt->execute(['id' => $id]);
+    invalidate_project_annex_versions($projectId);
 }
 
 function get_demand_supplier_quote_items(int $quoteId): array
@@ -1578,6 +2280,8 @@ function get_demand_price_bank_candidates(int $demandListId, int $months = 0): a
 
 function save_demand_price_references(int $demandListId, array $selectedReferences): void
 {
+    $projectId = find_project_id_by_demand_list($demandListId);
+
     db()->beginTransaction();
 
     try {
@@ -1625,6 +2329,7 @@ function save_demand_price_references(int $demandListId, array $selectedReferenc
             }
         }
 
+        invalidate_project_annex_versions($projectId);
         db()->commit();
     } catch (Throwable $exception) {
         db()->rollBack();
@@ -1634,6 +2339,8 @@ function save_demand_price_references(int $demandListId, array $selectedReferenc
 
 function save_demand_supplier_quote_items(int $quoteId, array $prices, array $notes = [], array $sourceQuoteItemIds = []): void
 {
+    $projectId = find_project_id_by_supplier_quote($quoteId);
+
     db()->beginTransaction();
 
     try {
@@ -1688,6 +2395,7 @@ function save_demand_supplier_quote_items(int $quoteId, array $prices, array $no
             ]);
         }
 
+        invalidate_project_annex_versions($projectId);
         db()->commit();
     } catch (Throwable $exception) {
         db()->rollBack();
@@ -1752,22 +2460,16 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
             }
 
             $existingQuote = find_demand_supplier_quote_by_supplier($demandId, $supplierId);
+            $attachmentPath = $uploadedAttachmentPath !== ''
+                ? $uploadedAttachmentPath
+                : ($removeAttachment ? null : ($existingQuote['attachment_path'] ?? null));
             $quoteData = array_merge($data, [
                 'demand_list_id' => $demandId,
                 'supplier_id' => $supplierId,
-                'attachment_path' => $uploadedAttachmentPath !== ''
-                    ? $uploadedAttachmentPath
-                    : ($removeAttachment ? null : ($existingQuote['attachment_path'] ?? null)),
+                'attachment_path' => $attachmentPath,
             ]);
-
-            if ($existingQuote) {
-                update_demand_supplier_quote((int) $existingQuote['id'], $quoteData);
-                $quoteId = (int) $existingQuote['id'];
-            } else {
-                $quoteId = create_demand_supplier_quote($quoteData);
-            }
-
-            $quoteCount++;
+            $itemUpserts = [];
+            $itemDeletes = [];
 
             foreach ($items as $item) {
                 $demandItemId = (int) $item['id'];
@@ -1785,27 +2487,66 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
                 }
 
                 if ($unitPrice === null && $note === '') {
-                    $delete->execute([
-                        'quote_id' => $quoteId,
-                        'demand_item_id' => $demandItemId,
-                    ]);
+                    if ($existingQuote) {
+                        $itemDeletes[] = $demandItemId;
+                    }
 
                     continue;
                 }
 
-                $upsert->execute([
-                    'quote_id' => $quoteId,
+                $itemUpserts[] = [
                     'demand_item_id' => $demandItemId,
                     'unit_price' => $unitPrice,
                     'notes' => $note ?: null,
+                ];
+            }
+
+            $quoteHasMetadata = trim((string) ($quoteData['quote_number'] ?? '')) !== ''
+                || normalize_optional_date($quoteData['quote_date'] ?? null) !== null
+                || normalize_optional_date($quoteData['validity_date'] ?? null) !== null
+                || trim((string) ($quoteData['notes'] ?? '')) !== ''
+                || trim((string) ($quoteData['attachment_path'] ?? '')) !== '';
+
+            if (!$existingQuote && !$itemUpserts && !$quoteHasMetadata) {
+                continue;
+            }
+
+            if ($existingQuote && !$itemUpserts && !$quoteHasMetadata) {
+                delete_demand_supplier_quote((int) $existingQuote['id']);
+                continue;
+            }
+
+            if ($existingQuote) {
+                update_demand_supplier_quote((int) $existingQuote['id'], $quoteData);
+                $quoteId = (int) $existingQuote['id'];
+            } else {
+                $quoteId = create_demand_supplier_quote($quoteData);
+            }
+
+            foreach ($itemDeletes as $demandItemId) {
+                $delete->execute([
+                    'quote_id' => $quoteId,
+                    'demand_item_id' => $demandItemId,
+                ]);
+            }
+
+            foreach ($itemUpserts as $itemUpsert) {
+                $upsert->execute([
+                    'quote_id' => $quoteId,
+                    'demand_item_id' => $itemUpsert['demand_item_id'],
+                    'unit_price' => $itemUpsert['unit_price'],
+                    'notes' => $itemUpsert['notes'],
                 ]);
 
-                if ($unitPrice !== null) {
+                if ($itemUpsert['unit_price'] !== null) {
                     $pricedItemsCount++;
                 }
             }
+
+            $quoteCount++;
         }
 
+        invalidate_project_annex_versions($projectId);
         db()->commit();
     } catch (Throwable $exception) {
         db()->rollBack();
@@ -2054,6 +2795,7 @@ function get_project_consolidated_items(int $projectId): array
     }
 
     $budgetItems = get_project_demand_budget_items($projectId);
+    $licitationNumbers = get_project_licitation_number_map($projectId);
     $itemTotals = [];
 
     $stmt = db()->prepare("
@@ -2092,12 +2834,25 @@ function get_project_consolidated_items(int $projectId): array
         $total = $itemTotals[$procurementItemId]['estimated_total'] ?? (float) $item['estimated_total'];
         $approvedQuantity = (float) ($item['total_approved_quantity'] ?? 0);
 
+        $items[$index]['licitation_number'] = $licitationNumbers[$procurementItemId] ?? null;
         $items[$index]['estimated_total'] = $total;
         $items[$index]['average_unit_price'] = $approvedQuantity > 0
             ? $total / $approvedQuantity
             : 0;
         $items[$index]['uses_supplier_average'] = $itemTotals[$procurementItemId]['uses_supplier_average'] ?? false;
     }
+
+    usort($items, static function (array $left, array $right): int {
+        $leftNumber = (int) ($left['licitation_number'] ?? 0);
+        $rightNumber = (int) ($right['licitation_number'] ?? 0);
+
+        if ($leftNumber > 0 || $rightNumber > 0) {
+            return ($leftNumber ?: PHP_INT_MAX) <=> ($rightNumber ?: PHP_INT_MAX);
+        }
+
+        return strcasecmp((string) ($left['category_name'] ?? ''), (string) ($right['category_name'] ?? ''))
+            ?: strcasecmp((string) ($left['item_name'] ?? ''), (string) ($right['item_name'] ?? ''));
+    });
 
     return $items;
 }
@@ -2141,13 +2896,30 @@ function get_project_items_by_demand(int $projectId): array
 
     $items = $stmt->fetchAll();
     $budgetItems = get_project_demand_budget_items($projectId);
+    $licitationNumbers = get_project_licitation_number_map($projectId);
 
     foreach ($items as $index => $item) {
+        $procurementItemId = (int) $item['procurement_item_id'];
         $items[$index] = array_merge(
             $item,
+            ['licitation_number' => $licitationNumbers[$procurementItemId] ?? null],
             calculated_project_budget_values($item, $budgetItems)
         );
     }
+
+    usort($items, static function (array $left, array $right): int {
+        $leftNumber = (int) ($left['licitation_number'] ?? 0);
+        $rightNumber = (int) ($right['licitation_number'] ?? 0);
+
+        if ($leftNumber > 0 || $rightNumber > 0) {
+            return ($leftNumber ?: PHP_INT_MAX) <=> ($rightNumber ?: PHP_INT_MAX)
+                ?: strcasecmp((string) ($left['demand_name'] ?? ''), (string) ($right['demand_name'] ?? ''));
+        }
+
+        return strcasecmp((string) ($left['secretariat_name'] ?? ''), (string) ($right['secretariat_name'] ?? ''))
+            ?: strcasecmp((string) ($left['demand_name'] ?? ''), (string) ($right['demand_name'] ?? ''))
+            ?: strcasecmp((string) ($left['item_name'] ?? ''), (string) ($right['item_name'] ?? ''));
+    });
 
     return $items;
 }
@@ -2173,7 +2945,7 @@ function get_project_licitation_annex_i_items(int $projectId): array
     foreach ($items as $index => $item) {
         $procurementItemId = (int) $item['procurement_item_id'];
 
-        $items[$index]['sequence'] = $index + 1;
+        $items[$index]['sequence'] = (int) ($item['licitation_number'] ?? 0) ?: $index + 1;
         $items[$index]['annex_quantity'] = (float) (
             $item['total_approved_quantity']
             ?? $item['total_quantity']
@@ -2283,6 +3055,64 @@ function get_project_licitation_annex_ii_groups(int $projectId): array
     }
 
     return build_licitation_annex_ii_groups_from_rows($rows);
+}
+
+function get_project_licitation_annex_iii_summary(int $projectId): array
+{
+    $annex = get_project_licitation_annex_ii_groups($projectId);
+    $items = [];
+    $globalTotal = 0.0;
+
+    foreach ($annex['groups'] ?? [] as $group) {
+        foreach ($group['items'] ?? [] as $item) {
+            $procurementItemId = (int) ($item['procurement_item_id'] ?? 0);
+
+            if ($procurementItemId <= 0) {
+                continue;
+            }
+
+            if (!isset($items[$procurementItemId])) {
+                $items[$procurementItemId] = array_merge($item, [
+                    'annex_quantity' => 0.0,
+                    'estimated_total' => null,
+                    'estimated_unit_price' => null,
+                ]);
+            }
+
+            $quantity = (float) ($item['annex_quantity'] ?? 0);
+            $estimatedTotal = $item['estimated_total'] !== null
+                ? (float) $item['estimated_total']
+                : null;
+
+            $items[$procurementItemId]['annex_quantity'] += $quantity;
+
+            if ($estimatedTotal !== null) {
+                $items[$procurementItemId]['estimated_total'] = ($items[$procurementItemId]['estimated_total'] ?? 0.0)
+                    + $estimatedTotal;
+                $globalTotal += $estimatedTotal;
+            }
+        }
+    }
+
+    foreach ($items as $index => $item) {
+        $quantity = (float) ($item['annex_quantity'] ?? 0);
+        $total = $item['estimated_total'] !== null ? (float) $item['estimated_total'] : null;
+
+        $items[$index]['estimated_unit_price'] = $quantity > 0 && $total !== null
+            ? round_money_value($total / $quantity)
+            : null;
+        $items[$index]['estimated_total'] = $total !== null ? round_money_value($total) : null;
+    }
+
+    usort($items, static function (array $left, array $right): int {
+        return ((int) ($left['sequence'] ?? PHP_INT_MAX))
+            <=> ((int) ($right['sequence'] ?? PHP_INT_MAX));
+    });
+
+    return [
+        'items' => array_values($items),
+        'global_total' => round_money_value($globalTotal),
+    ];
 }
 
 function get_project_financial_summary(int $projectId): array
@@ -3582,6 +4412,36 @@ function catalog_json_table_definitions(): array
             ],
             'json' => [],
         ],
+        'project_licitation_items' => [
+            'label' => 'Numeracao de licitacao',
+            'columns' => [
+                'id',
+                'project_id',
+                'procurement_item_id',
+                'licitation_number',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
+        'project_annex_versions' => [
+            'label' => 'Versoes dos anexos',
+            'columns' => [
+                'id',
+                'project_id',
+                'annex_type',
+                'version_number',
+                'content_hash',
+                'status',
+                'item_count',
+                'total_value',
+                'generated_at',
+                'invalidated_at',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
         'justification_templates' => [
             'label' => 'Modelos de justificativa',
             'columns' => ['id', 'title', 'content', 'category_id', 'is_active', 'created_at', 'updated_at'],
@@ -3623,6 +4483,8 @@ function catalog_json_scope_tables(string $scope): array
             'demand_supplier_quotes',
             'demand_supplier_quote_items',
             'demand_price_references',
+            'project_licitation_items',
+            'project_annex_versions',
             'justification_templates',
             'environmental_impact_templates',
             'item_kits',
@@ -3645,6 +4507,8 @@ function catalog_json_scope_tables(string $scope): array
             'demand_supplier_quotes',
             'demand_supplier_quote_items',
             'demand_price_references',
+            'project_licitation_items',
+            'project_annex_versions',
         ],
         'requesters' => [
             'secretariats',
@@ -3864,6 +4728,28 @@ function catalog_json_sample_row(string $table, array $columns): array
             'demand_item_id' => 1,
             'source_quote_item_id' => 1,
             'notes' => null,
+        ]);
+    }
+
+    if ($table === 'project_licitation_items') {
+        return array_merge($row, [
+            'project_id' => 1,
+            'procurement_item_id' => 1,
+            'licitation_number' => 1,
+        ]);
+    }
+
+    if ($table === 'project_annex_versions') {
+        return array_merge($row, [
+            'project_id' => 1,
+            'annex_type' => 'annex_i',
+            'version_number' => 1,
+            'content_hash' => str_repeat('0', 64),
+            'status' => 'valid',
+            'item_count' => 1,
+            'total_value' => null,
+            'generated_at' => date('Y-m-d H:i:s'),
+            'invalidated_at' => null,
         ]);
     }
 

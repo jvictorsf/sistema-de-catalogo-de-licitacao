@@ -142,4 +142,27 @@ assert_true(
     'Precos proximos da mediana nao devem ser sinalizados.'
 );
 
+$ordered = build_licitation_annex_ii_groups_from_rows([
+    [
+        'procurement_item_id' => 8,
+        'licitation_number' => 2,
+        'item_name' => 'Item B',
+        'annex_quantity' => 1,
+        'suppliers' => [supplier_row('supplier:1', 'Fornecedor A', 20)],
+    ],
+    [
+        'procurement_item_id' => 7,
+        'licitation_number' => 1,
+        'item_name' => 'Item A',
+        'annex_quantity' => 1,
+        'suppliers' => [supplier_row('supplier:1', 'Fornecedor A', 10)],
+    ],
+]);
+
+assert_true(
+    (int) $ordered['groups'][0]['items'][0]['sequence'] === 1
+        && (int) $ordered['groups'][0]['items'][1]['sequence'] === 2,
+    'Anexo II deve respeitar a numeracao de licitacao dos itens.'
+);
+
 echo "CalculationsTest: OK\n";

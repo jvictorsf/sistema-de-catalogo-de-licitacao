@@ -41,10 +41,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $attachmentPath = null;
 
-    try {
-        $attachmentPath = upload_supplier_quote_file($_FILES['attachment'] ?? []);
-    } catch (RuntimeException $exception) {
-        $errors[] = $exception->getMessage();
+    if (!$errors) {
+        try {
+            $attachmentPath = upload_supplier_quote_file($_FILES['attachment'] ?? []);
+        } catch (RuntimeException $exception) {
+            $errors[] = $exception->getMessage();
+        }
     }
 
     if (!$errors) {

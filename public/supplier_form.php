@@ -232,7 +232,7 @@ require __DIR__ . '/../app/views/header.php';
                     value="1"
                     class="form-check-input"
                     id="isActive"
-                    <?= ($supplier['is_active'] ?? true) ? 'checked' : '' ?>>
+                    <?= checked_attr($supplier['is_active'] ?? null, true) ?>>
                 <label class="form-check-label" for="isActive">Fornecedor ativo</label>
             </div>
         </div>

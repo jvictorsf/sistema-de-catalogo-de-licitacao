@@ -202,6 +202,23 @@ require __DIR__ . '/../app/views/header.php';
                     </a>
                 </li>
 
+                <li><h6 class="dropdown-header">Anexo IV - Quadro resumido da estimativa por lote</h6></li>
+                <li>
+                    <a href="/project_lot_annex_iv.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
+                        PDF institucional
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_lot_annex_iv.php?id=<?= (int) $project['id'] ?>&format=word" class="dropdown-item">
+                        Exportar Word
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_lot_annex_iv.php?id=<?= (int) $project['id'] ?>&format=excel" class="dropdown-item">
+                        Exportar Excel
+                    </a>
+                </li>
+
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Solicitação ao fornecedor</h6></li>
                 <li>

@@ -2,6 +2,15 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.18] - 2026-06-16
+
+### Adicionado
+- Anexo IV por lote - Quadro resumido da estimativa de precos, com lote, denominacao, itens integrantes e valor estimado do lote.
+
+### Alterado
+- Tela de denominacoes de lotes passa a exibir apenas a listagem e acoes principais.
+- Cadastro/edicao da denominacao e gerenciamento de vinculos de produtos/categorias foram separados em paginas proprias, melhorando a leitura e reduzindo a poluicao visual.
+
 ## [1.5.17] - 2026-06-16
 
 ### Alterado

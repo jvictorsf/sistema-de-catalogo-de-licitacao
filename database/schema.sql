@@ -315,7 +315,7 @@ CREATE TABLE IF NOT EXISTS project_annex_versions (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (project_id, annex_type, version_number),
-    CHECK (annex_type IN ('annex_i', 'annex_ii', 'annex_iii', 'lot_annex_i', 'lot_annex_ii', 'lot_annex_iii')),
+    CHECK (annex_type IN ('annex_i', 'annex_ii', 'annex_iii', 'lot_annex_i', 'lot_annex_ii', 'lot_annex_iii', 'lot_annex_iv')),
     CHECK (status IN ('valid', 'invalid'))
 );
 
@@ -327,7 +327,7 @@ DROP CONSTRAINT IF EXISTS ck_project_annex_versions_annex_type;
 
 ALTER TABLE project_annex_versions
 ADD CONSTRAINT ck_project_annex_versions_annex_type
-CHECK (annex_type IN ('annex_i', 'annex_ii', 'annex_iii', 'lot_annex_i', 'lot_annex_ii', 'lot_annex_iii'));
+CHECK (annex_type IN ('annex_i', 'annex_ii', 'annex_iii', 'lot_annex_i', 'lot_annex_ii', 'lot_annex_iii', 'lot_annex_iv'));
 
 CREATE TABLE IF NOT EXISTS project_lot_denominations (
     id SERIAL PRIMARY KEY,

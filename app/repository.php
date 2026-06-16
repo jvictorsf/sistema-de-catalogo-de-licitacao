@@ -1216,6 +1216,7 @@ function project_annex_types(): array
         'lot_annex_i' => 'Anexo I por lote - Planilha de itens por denominacao',
         'lot_annex_ii' => 'Anexo II por lote - Pesquisa e estimativa de precos por lote',
         'lot_annex_iii' => 'Anexo III por lote - Quadro resumido por lote',
+        'lot_annex_iv' => 'Anexo IV por lote - Quadro resumido da estimativa de precos',
     ];
 }
 
@@ -2200,6 +2201,25 @@ function project_annex_payload(int $projectId, string $annexType): array
         ];
     }
 
+    if ($annexType === 'lot_annex_iv') {
+        $annex = get_project_lot_licitation_annex_ii_groups($projectId);
+
+        return [
+            'type' => $annexType,
+            'global_total' => (float) ($annex['global_total'] ?? 0),
+            'lots' => array_map(static fn (array $lot): array => [
+                'lot_number' => $lot['lot_number'] !== null ? (int) $lot['lot_number'] : null,
+                'name' => (string) ($lot['name'] ?? ''),
+                'items' => array_map(static fn (array $item): array => [
+                    'sequence' => (int) ($item['sequence'] ?? 0),
+                    'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                    'item_name' => (string) ($item['item_name'] ?? ''),
+                ], $lot['items'] ?? []),
+                'subtotal' => (float) ($lot['subtotal'] ?? 0),
+            ], $annex['lots'] ?? []),
+        ];
+    }
+
     throw new InvalidArgumentException('Tipo de anexo invalido.');
 }
 
@@ -2227,7 +2247,7 @@ function project_annex_payload_item_count(string $annexType, array $payload): in
         return $count;
     }
 
-    if (in_array($annexType, ['lot_annex_i', 'lot_annex_iii'], true)) {
+    if (in_array($annexType, ['lot_annex_i', 'lot_annex_iii', 'lot_annex_iv'], true)) {
         $count = 0;
 
         foreach ($payload['lots'] ?? [] as $lot) {
@@ -2242,7 +2262,7 @@ function project_annex_payload_item_count(string $annexType, array $payload): in
 
 function project_annex_payload_total(string $annexType, array $payload): ?float
 {
-    if (in_array($annexType, ['annex_ii', 'annex_iii', 'lot_annex_ii'], true)) {
+    if (in_array($annexType, ['annex_ii', 'annex_iii', 'lot_annex_ii', 'lot_annex_iv'], true)) {
         return (float) ($payload['global_total'] ?? 0);
     }
 

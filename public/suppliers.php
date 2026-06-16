@@ -26,11 +26,12 @@ require __DIR__ . '/../app/views/header.php';
 
 <div class="card">
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0 supplier-table">
             <thead class="table-light">
                 <tr>
                     <th>Fornecedor</th>
                     <th>Documento</th>
+                    <th>Endereço</th>
                     <th>Contato</th>
                     <th>Status</th>
                     <th class="text-end">Ações</th>
@@ -40,7 +41,7 @@ require __DIR__ . '/../app/views/header.php';
             <tbody>
                 <?php if (!$suppliers): ?>
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">
+                        <td colspan="6" class="text-center text-muted py-4">
                             Nenhum fornecedor cadastrado.
                         </td>
                     </tr>
@@ -50,11 +51,15 @@ require __DIR__ . '/../app/views/header.php';
                     <tr>
                         <td>
                             <strong><?= e($supplier['name']) ?></strong>
+                            <?php if (!empty($supplier['trade_name'])): ?>
+                                <div class="small text-muted"><?= e($supplier['trade_name']) ?></div>
+                            <?php endif; ?>
                             <?php if (!empty($supplier['notes'])): ?>
                                 <div class="small text-muted"><?= e($supplier['notes']) ?></div>
                             <?php endif; ?>
                         </td>
                         <td><?= e($supplier['document'] ? format_brazil_document($supplier['document']) : '-') ?></td>
+                        <td><?= e(supplier_address_text($supplier)) ?></td>
                         <td>
                             <?= e($supplier['contact_name'] ?: '-') ?>
                             <?php if (!empty($supplier['email'])): ?>
@@ -70,18 +75,20 @@ require __DIR__ . '/../app/views/header.php';
                             </span>
                         </td>
                         <td class="text-end">
+                            <div class="table-actions">
                             <a href="/supplier_form.php?id=<?= (int) $supplier['id'] ?>" class="btn btn-sm btn-outline-primary">
                                 Editar
                             </a>
 
                             <?php if ($supplier['is_active']): ?>
-                                <form action="/supplier_delete.php" method="post" class="d-inline" onsubmit="return confirm('Desativar este fornecedor?')">
+                                <form action="/supplier_delete.php" method="post" onsubmit="return confirm('Desativar este fornecedor?')">
                                     <input type="hidden" name="id" value="<?= (int) $supplier['id'] ?>">
                                     <button class="btn btn-sm btn-outline-danger">
                                         Desativar
                                     </button>
                                 </form>
                             <?php endif; ?>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>

@@ -2,6 +2,15 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.8] - 2026-06-16
+
+### Adicionado
+- Cadastro de fornecedores passa a aceitar nome fantasia, cidade, UF, CEP, dados bancarios e dados do proprietario.
+- Anexo II passa a exibir CNPJ, razao social, nome fantasia, endereco, contato, e-mail e telefone dos fornecedores cotantes.
+
+### Alterado
+- Demandas no projeto passam a ser exibidas em lista responsiva com acoes sempre visiveis.
+
 ## [1.5.7] - 2026-06-16
 
 ### Adicionado

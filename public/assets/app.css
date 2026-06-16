@@ -108,6 +108,42 @@ body {
     display: inline-flex;
 }
 
+.project-actions .btn,
+.project-actions .btn-group > .btn {
+    white-space: nowrap;
+}
+
+.project-demand-list {
+    display: grid;
+    gap: .75rem;
+}
+
+.project-demand-item {
+    align-items: flex-start;
+    border: 1px solid #e5e7eb;
+    border-radius: .5rem;
+    display: flex;
+    gap: .75rem;
+    justify-content: space-between;
+    padding: .85rem;
+}
+
+.project-demand-content {
+    min-width: 0;
+}
+
+.project-demand-actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: .35rem;
+    justify-content: flex-end;
+}
+
+.project-demand-actions form {
+    display: inline-flex;
+}
+
 .project-licitation-menu {
     max-height: min(78vh, 36rem);
     min-width: 18rem;
@@ -221,6 +257,14 @@ pre {
     min-height: 5rem;
 }
 
+.supplier-table {
+    min-width: 980px;
+}
+
+.supplier-form textarea {
+    min-height: 5rem;
+}
+
 .nav-tabs {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -257,6 +301,15 @@ pre {
     .project-quote-summary {
         align-items: stretch !important;
         flex-direction: column;
+    }
+
+    .project-demand-item {
+        flex-direction: column;
+    }
+
+    .project-demand-actions {
+        justify-content: flex-start;
+        width: 100%;
     }
 }
 
@@ -329,6 +382,7 @@ pre {
 
     .project-consolidated-table,
     .project-quote-table,
+    .supplier-table,
     .budget-matrix {
         min-width: 820px;
     }
@@ -390,6 +444,16 @@ pre {
     }
 
     .table-actions form .btn {
+        width: 100%;
+    }
+
+    .project-demand-actions .btn,
+    .project-demand-actions form {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+
+    .project-demand-actions form .btn {
         width: 100%;
     }
 

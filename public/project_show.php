@@ -206,47 +206,34 @@ require __DIR__ . '/../app/views/header.php';
                 Demandas por Unidade/Setor
             </div>
 
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 project-demand-table">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Demanda</th>
-                            <th>Secretaria</th>
-                            <th>Responsável</th>
-                            <th class="text-end">Ações</th>
-                        </tr>
-                    </thead>
+            <div class="card-body">
+                <?php if (!$demands): ?>
+                    <div class="empty-state">
+                        Nenhuma demanda cadastrada.
+                    </div>
+                <?php endif; ?>
 
-                    <tbody>
-                        <?php if (!$demands): ?>
-                            <tr>
-                                <td colspan="4" class="text-center text-muted py-4">
-                                    Nenhuma demanda cadastrada.
-                                </td>
-                            </tr>
-                        <?php endif; ?>
-
+                <?php if ($demands): ?>
+                    <div class="project-demand-list">
                         <?php foreach ($demands as $demand): ?>
-                            <tr>
-                                <td>
+                            <div class="project-demand-item">
+                                <div class="project-demand-content">
                                     <strong><?= e($demand['name']) ?></strong>
 
                                     <div class="small text-muted">
-                                        <?= e($demand['requester_department']) ?>
+                                        <?= e($demand['secretariat_name'] ?? 'Sem secretaria') ?>
                                     </div>
-                                </td>
 
-                                <td>
-                                    <?= e($demand['secretariat_name'] ?? '-') ?>
-                                </td>
+                                    <div class="small">
+                                        Setor: <?= e($demand['requester_department'] ?: '-') ?>
+                                    </div>
 
-                                <td>
-                                    <?= e($demand['responsible_name']) ?>
-                                </td>
+                                    <div class="small">
+                                        Responsável: <?= e($demand['responsible_name'] ?: '-') ?>
+                                    </div>
+                                </div>
 
-                                <td class="text-end">
-                                    <div class="table-actions">
+                                <div class="project-demand-actions">
                                     <a
                                         href="/demand_show.php?id=<?= (int) $demand['id'] ?>"
                                         class="btn btn-sm btn-outline-primary">
@@ -262,7 +249,6 @@ require __DIR__ . '/../app/views/header.php';
                                     <form
                                         action="/demand_delete.php"
                                         method="post"
-                                        class="d-inline"
                                         onsubmit="return confirm('Deseja excluir esta demanda?')">
 
                                         <input type="hidden" name="id" value="<?= (int) $demand['id'] ?>">
@@ -272,14 +258,11 @@ require __DIR__ . '/../app/views/header.php';
                                             Excluir
                                         </button>
                                     </form>
-                                    </div>
-                                </td>
-                            </tr>
+                                </div>
+                            </div>
                         <?php endforeach; ?>
-                    </tbody>
-
-                </table>
-                </div>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

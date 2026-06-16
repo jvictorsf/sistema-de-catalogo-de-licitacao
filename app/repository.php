@@ -768,20 +768,38 @@ function create_supplier(array $data): int
     $stmt = db()->prepare("
         INSERT INTO suppliers (
             name,
+            trade_name,
             document,
             contact_name,
             email,
             phone,
             address,
+            city,
+            state,
+            postal_code,
+            bank_name,
+            bank_agency,
+            bank_account,
+            owner_cpf,
+            owner_name,
             notes,
             is_active
         ) VALUES (
             :name,
+            :trade_name,
             :document,
             :contact_name,
             :email,
             :phone,
             :address,
+            :city,
+            :state,
+            :postal_code,
+            :bank_name,
+            :bank_agency,
+            :bank_account,
+            :owner_cpf,
+            :owner_name,
             :notes,
             :is_active
         )
@@ -790,11 +808,20 @@ function create_supplier(array $data): int
 
     $stmt->execute([
         'name' => $data['name'],
+        'trade_name' => ($data['trade_name'] ?? '') ?: null,
         'document' => normalize_supplier_document($data['document'] ?? null),
         'contact_name' => $data['contact_name'] ?: null,
         'email' => $data['email'] ?: null,
         'phone' => $data['phone'] ?: null,
         'address' => $data['address'] ?: null,
+        'city' => ($data['city'] ?? '') ?: null,
+        'state' => normalize_supplier_state($data['state'] ?? null),
+        'postal_code' => normalize_postal_code($data['postal_code'] ?? null),
+        'bank_name' => ($data['bank_name'] ?? '') ?: null,
+        'bank_agency' => ($data['bank_agency'] ?? '') ?: null,
+        'bank_account' => ($data['bank_account'] ?? '') ?: null,
+        'owner_cpf' => normalize_supplier_document($data['owner_cpf'] ?? null),
+        'owner_name' => ($data['owner_name'] ?? '') ?: null,
         'notes' => $data['notes'] ?: null,
         'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
@@ -807,11 +834,20 @@ function update_supplier(int $id, array $data): void
     $stmt = db()->prepare("
         UPDATE suppliers SET
             name = :name,
+            trade_name = :trade_name,
             document = :document,
             contact_name = :contact_name,
             email = :email,
             phone = :phone,
             address = :address,
+            city = :city,
+            state = :state,
+            postal_code = :postal_code,
+            bank_name = :bank_name,
+            bank_agency = :bank_agency,
+            bank_account = :bank_account,
+            owner_cpf = :owner_cpf,
+            owner_name = :owner_name,
             notes = :notes,
             is_active = :is_active
         WHERE id = :id
@@ -820,11 +856,20 @@ function update_supplier(int $id, array $data): void
     $stmt->execute([
         'id' => $id,
         'name' => $data['name'],
+        'trade_name' => ($data['trade_name'] ?? '') ?: null,
         'document' => normalize_supplier_document($data['document'] ?? null),
         'contact_name' => $data['contact_name'] ?: null,
         'email' => $data['email'] ?: null,
         'phone' => $data['phone'] ?: null,
         'address' => $data['address'] ?: null,
+        'city' => ($data['city'] ?? '') ?: null,
+        'state' => normalize_supplier_state($data['state'] ?? null),
+        'postal_code' => normalize_postal_code($data['postal_code'] ?? null),
+        'bank_name' => ($data['bank_name'] ?? '') ?: null,
+        'bank_agency' => ($data['bank_agency'] ?? '') ?: null,
+        'bank_account' => ($data['bank_account'] ?? '') ?: null,
+        'owner_cpf' => normalize_supplier_document($data['owner_cpf'] ?? null),
+        'owner_name' => ($data['owner_name'] ?? '') ?: null,
         'notes' => $data['notes'] ?: null,
         'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
@@ -844,6 +889,20 @@ function deactivate_supplier(int $id): void
 function normalize_supplier_document(?string $document): ?string
 {
     $digits = only_digits($document);
+
+    return $digits !== '' ? $digits : null;
+}
+
+function normalize_supplier_state(?string $state): ?string
+{
+    $state = strtoupper(trim((string) $state));
+
+    return $state !== '' ? substr($state, 0, 2) : null;
+}
+
+function normalize_postal_code(?string $postalCode): ?string
+{
+    $digits = only_digits($postalCode);
 
     return $digits !== '' ? $digits : null;
 }
@@ -2107,6 +2166,15 @@ function get_project_licitation_annex_ii_groups(int $projectId): array
                 di.procurement_item_id,
                 s.id AS supplier_id,
                 s.name AS supplier_name,
+                s.trade_name AS supplier_trade_name,
+                s.document AS supplier_document,
+                s.contact_name AS supplier_contact_name,
+                s.email AS supplier_email,
+                s.phone AS supplier_phone,
+                s.address AS supplier_address,
+                s.city AS supplier_city,
+                s.state AS supplier_state,
+                s.postal_code AS supplier_postal_code,
                 AVG(qi.unit_price) AS unit_price
             FROM demand_supplier_quote_items qi
             INNER JOIN demand_supplier_quotes q
@@ -2133,6 +2201,15 @@ function get_project_licitation_annex_ii_groups(int $projectId): array
             $supplierPrices[$procurementItemId][$supplierId] = [
                 'id' => $supplierId,
                 'name' => $row['supplier_name'],
+                'trade_name' => $row['supplier_trade_name'] ?? null,
+                'document' => $row['supplier_document'] ?? null,
+                'contact_name' => $row['supplier_contact_name'] ?? null,
+                'email' => $row['supplier_email'] ?? null,
+                'phone' => $row['supplier_phone'] ?? null,
+                'address' => $row['supplier_address'] ?? null,
+                'city' => $row['supplier_city'] ?? null,
+                'state' => $row['supplier_state'] ?? null,
+                'postal_code' => $row['supplier_postal_code'] ?? null,
                 'unit_price' => (float) $row['unit_price'],
             ];
         }
@@ -3393,11 +3470,20 @@ function catalog_json_table_definitions(): array
             'columns' => [
                 'id',
                 'name',
+                'trade_name',
                 'document',
                 'contact_name',
                 'email',
                 'phone',
                 'address',
+                'city',
+                'state',
+                'postal_code',
+                'bank_name',
+                'bank_agency',
+                'bank_account',
+                'owner_cpf',
+                'owner_name',
                 'notes',
                 'is_active',
                 'created_at',

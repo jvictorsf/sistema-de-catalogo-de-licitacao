@@ -207,11 +207,20 @@ CREATE TABLE IF NOT EXISTS requester_units (
 CREATE TABLE IF NOT EXISTS suppliers (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
+    trade_name VARCHAR(255),
     document VARCHAR(30),
     contact_name VARCHAR(255),
     email VARCHAR(255),
     phone VARCHAR(50),
     address TEXT,
+    city VARCHAR(120),
+    state VARCHAR(2),
+    postal_code VARCHAR(20),
+    bank_name VARCHAR(120),
+    bank_agency VARCHAR(50),
+    bank_account VARCHAR(80),
+    owner_cpf VARCHAR(30),
+    owner_name VARCHAR(255),
     notes TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -385,6 +394,9 @@ ALTER TABLE suppliers
 ADD COLUMN IF NOT EXISTS document VARCHAR(30);
 
 ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS trade_name VARCHAR(255);
+
+ALTER TABLE suppliers
 ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255);
 
 ALTER TABLE suppliers
@@ -395,6 +407,30 @@ ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
 
 ALTER TABLE suppliers
 ADD COLUMN IF NOT EXISTS address TEXT;
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS city VARCHAR(120);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS state VARCHAR(2);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS bank_name VARCHAR(120);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS bank_agency VARCHAR(50);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS bank_account VARCHAR(80);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS owner_cpf VARCHAR(30);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS owner_name VARCHAR(255);
 
 ALTER TABLE suppliers
 ADD COLUMN IF NOT EXISTS notes TEXT;

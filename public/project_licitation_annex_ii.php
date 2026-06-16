@@ -115,6 +115,10 @@ $isExcel = $format === 'excel';
             padding: 6px;
         }
 
+        .supplier-info {
+            margin-bottom: 10px;
+        }
+
         table {
             border-collapse: collapse;
             margin-bottom: 12px;
@@ -218,6 +222,38 @@ $isExcel = $format === 'excel';
             Grupo <?= $groupIndex + 1 ?> - Itens sem cotação de fornecedor
         <?php endif; ?>
     </div>
+
+    <?php if ($suppliers): ?>
+        <table class="supplier-info">
+            <thead>
+                <tr>
+                    <th style="width: 6%;">Fornecedor</th>
+                    <th style="width: 12%;">CNPJ</th>
+                    <th style="width: 18%;">Razão social</th>
+                    <th style="width: 15%;">Nome fantasia</th>
+                    <th style="width: 23%;">Endereço</th>
+                    <th style="width: 10%;">Contato</th>
+                    <th style="width: 9%;">E-mail</th>
+                    <th style="width: 7%;">Telefone</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                <?php foreach ($suppliers as $supplierIndex => $supplier): ?>
+                    <tr>
+                        <td>Fornecedor <?= $supplierIndex + 1 ?></td>
+                        <td><?= e(!empty($supplier['document']) ? format_brazil_document($supplier['document']) : '-') ?></td>
+                        <td><?= e($supplier['name'] ?? '-') ?></td>
+                        <td><?= e(($supplier['trade_name'] ?? '') ?: '-') ?></td>
+                        <td><?= e(supplier_address_text($supplier)) ?></td>
+                        <td><?= e(($supplier['contact_name'] ?? '') ?: '-') ?></td>
+                        <td><?= e(($supplier['email'] ?? '') ?: '-') ?></td>
+                        <td><?= e(($supplier['phone'] ?? '') ?: '-') ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    <?php endif; ?>
 
     <table>
         <thead>

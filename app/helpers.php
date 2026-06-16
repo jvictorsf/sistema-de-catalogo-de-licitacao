@@ -773,6 +773,33 @@ function format_brazil_document(?string $value): string
     return trim((string) $value);
 }
 
+function format_brazil_postal_code(?string $value): string
+{
+    $digits = only_digits($value);
+
+    if (strlen($digits) === 8) {
+        return substr($digits, 0, 5) . '-' . substr($digits, 5, 3);
+    }
+
+    return trim((string) $value);
+}
+
+function supplier_address_text(array $supplier): string
+{
+    $address = trim((string) ($supplier['address'] ?? ''));
+    $city = trim((string) ($supplier['city'] ?? ''));
+    $state = trim((string) ($supplier['state'] ?? ''));
+    $postalCode = format_brazil_postal_code($supplier['postal_code'] ?? '');
+    $cityState = trim($city . ($state !== '' ? ' - ' . $state : ''));
+    $parts = array_values(array_filter([
+        $address,
+        $cityState,
+        $postalCode,
+    ]));
+
+    return $parts ? implode(', ', $parts) : '-';
+}
+
 function lookup_cnpj_brasilapi(string $cnpj): array
 {
     $digits = only_digits($cnpj);
@@ -844,20 +871,20 @@ function lookup_cnpj_brasilapi(string $cnpj): array
         $data['numero'] ?? '',
         $data['complemento'] ?? '',
         $data['bairro'] ?? '',
-        $data['municipio'] ?? '',
-        $data['uf'] ?? '',
-        $data['cep'] ?? '',
     ])));
 
     $tradeName = trim((string) ($data['nome_fantasia'] ?? ''));
 
     return [
         'name' => trim((string) ($data['razao_social'] ?? $tradeName)),
+        'trade_name' => $tradeName,
         'document' => format_brazil_document((string) ($data['cnpj'] ?? $digits)),
         'email' => trim((string) ($data['email'] ?? '')),
         'phone' => implode(' / ', $phones),
         'address' => $address,
-        'notes' => $tradeName !== '' ? 'Nome fantasia: ' . $tradeName : '',
+        'city' => trim((string) ($data['municipio'] ?? '')),
+        'state' => trim((string) ($data['uf'] ?? '')),
+        'postal_code' => format_brazil_postal_code((string) ($data['cep'] ?? '')),
     ];
 }
 

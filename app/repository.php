@@ -2185,11 +2185,8 @@ function project_annex_payload(int $projectId, string $annexType): array
     }
 
     if ($annexType === 'lot_annex_iii') {
-        $annex = get_project_lot_licitation_annex_iii_groups($projectId);
-
         return [
             'type' => $annexType,
-            'global_total' => (float) ($annex['global_total'] ?? 0),
             'lots' => array_map(static fn (array $lot): array => [
                 'lot_number' => $lot['lot_number'] !== null ? (int) $lot['lot_number'] : null,
                 'name' => (string) ($lot['name'] ?? ''),
@@ -2198,17 +2195,8 @@ function project_annex_payload(int $projectId, string $annexType): array
                     'sequence' => (int) ($item['sequence'] ?? 0),
                     'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
                     'item_name' => (string) ($item['item_name'] ?? ''),
-                    'unit' => licitation_annex_unit_text($item),
-                    'quantity' => (float) ($item['annex_quantity'] ?? 0),
-                    'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
-                        ? (float) $item['estimated_unit_price']
-                        : null,
-                    'estimated_total' => ($item['estimated_total'] ?? null) !== null
-                        ? (float) $item['estimated_total']
-                        : null,
                 ], $lot['items'] ?? []),
-                'subtotal' => (float) ($lot['subtotal'] ?? 0),
-            ], $annex['lots'] ?? []),
+            ], get_project_lot_licitation_annex_i_groups($projectId)),
         ];
     }
 
@@ -2254,7 +2242,7 @@ function project_annex_payload_item_count(string $annexType, array $payload): in
 
 function project_annex_payload_total(string $annexType, array $payload): ?float
 {
-    if (in_array($annexType, ['annex_ii', 'annex_iii', 'lot_annex_ii', 'lot_annex_iii'], true)) {
+    if (in_array($annexType, ['annex_ii', 'annex_iii', 'lot_annex_ii'], true)) {
         return (float) ($payload['global_total'] ?? 0);
     }
 

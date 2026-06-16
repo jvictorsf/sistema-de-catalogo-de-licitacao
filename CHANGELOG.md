@@ -2,6 +2,12 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.17] - 2026-06-16
+
+### Alterado
+- Anexo III por lote passa a exibir somente lote, denominacao, itens integrantes e justificativa do agrupamento.
+- Versionamento do Anexo III por lote passa a considerar apenas as informacoes exibidas no quadro de agrupamento.
+
 ## [1.5.16] - 2026-06-16
 
 ### Alterado

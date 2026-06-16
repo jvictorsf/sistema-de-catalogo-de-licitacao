@@ -17,10 +17,8 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
-$title = 'Anexo III por lote - Quadro resumido por lote';
-$annex = get_project_lot_licitation_annex_iii_groups($id);
-$lots = $annex['lots'];
-$globalTotal = (float) $annex['global_total'];
+$title = 'Anexo III por lote - Quadro de agrupamento dos lotes';
+$lots = get_project_lot_licitation_annex_i_groups($id);
 $annexVersion = register_project_annex_version($id, 'lot_annex_iii');
 $annexVersionText = !empty($annexVersion['version_number']) ? 'v' . $annexVersion['version_number'] : 'sem versao';
 $annexHashText = substr((string) ($annexVersion['content_hash'] ?? ''), 0, 12);
@@ -57,15 +55,12 @@ $isExcel = $format === 'excel';
         .header h1 { font-size: 14px; text-transform: uppercase; }
         .header h2 { font-size: 12px; margin-top: 4px; text-transform: uppercase; }
         .header p { color: #4b5563; font-size: 9px; margin-top: 4px; }
-        .lot-title { background: #dbeafe; border: 1px solid #6b7280; font-weight: 700; margin: 14px 0 0; padding: 6px; }
-        .lot-justification { border: 1px solid #6b7280; border-top: 0; color: #374151; margin-bottom: 8px; padding: 6px; }
         table { border-collapse: collapse; margin-bottom: 12px; table-layout: fixed; width: 100%; }
         thead { display: table-header-group; }
         th, td { border: 1px solid #6b7280; padding: 5px; vertical-align: top; }
         th { background: #e5e7eb; font-size: 8px; text-align: left; text-transform: uppercase; }
         tbody tr:nth-child(even) { background: #f9fafb; }
-        tfoot th { background: #111827; color: #fff; }
-        .number, .money { text-align: right; white-space: nowrap; }
+        .number { text-align: right; white-space: nowrap; }
         .muted { color: #6b7280; }
         .wrap { white-space: normal; mso-data-placement: same-cell; }
         @media print { .print-actions { display: none; } }
@@ -94,74 +89,32 @@ $isExcel = $format === 'excel';
     </table>
 <?php endif; ?>
 
-<?php foreach ($lots as $lot): ?>
-    <?php
-        $lotNumberText = $lot['lot_number'] !== null ? (string) (int) $lot['lot_number'] : '-';
-        $lotTitle = $lot['lot_number'] !== null
-            ? 'Lote ' . (int) $lot['lot_number'] . ' - ' . (string) $lot['name']
-            : (string) $lot['name'];
-    ?>
-    <div class="lot-title"><?= e($lotTitle) ?></div>
-    <div class="lot-justification">
-        <strong>Justificativa:</strong> <?= nl2br(e($lot['justification'] ?? '-')) ?>
-    </div>
-
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 6%;">Lote</th>
-                <th style="width: 8%;">Item</th>
-                <th style="width: 34%;">Descricao</th>
-                <th style="width: 14%;">Unidade</th>
-                <th style="width: 10%;">Quantidade</th>
-                <th style="width: 14%;">Valor unitario estimado</th>
-                <th style="width: 14%;">Valor total estimado</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($lot['items'] as $item): ?>
-                <?php
-                    $quantity = (float) ($item['annex_quantity'] ?? 0);
-                    $estimatedUnitPrice = $item['estimated_unit_price'];
-                    $estimatedTotal = $item['estimated_total'];
-                ?>
-                <tr>
-                    <td class="number"><?= e($lotNumberText) ?></td>
-                    <td class="number"><?= (int) $item['sequence'] ?></td>
-                    <td class="wrap"><?= e($item['item_name'] ?? '-') ?></td>
-                    <td class="wrap"><?= e(licitation_annex_unit_text($item)) ?></td>
-                    <td class="number" <?= $isExcel ? 'x:num="' . e((string) $quantity) . '"' : '' ?>>
-                        <?= e(format_decimal_quantity($quantity)) ?>
-                    </td>
-                    <td class="money" <?= $isExcel && $estimatedUnitPrice !== null ? 'x:num="' . e((string) $estimatedUnitPrice) . '"' : '' ?>>
-                        <?= $estimatedUnitPrice !== null ? 'R$ ' . number_format((float) $estimatedUnitPrice, 2, ',', '.') : '-' ?>
-                    </td>
-                    <td class="money" <?= $isExcel && $estimatedTotal !== null ? 'x:num="' . e((string) $estimatedTotal) . '"' : '' ?>>
-                        <?= $estimatedTotal !== null ? 'R$ ' . number_format((float) $estimatedTotal, 2, ',', '.') : '-' ?>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-        </tbody>
-        <tfoot>
-            <tr>
-                <th colspan="6" class="money">Subtotal estimado do lote <?= e($lotNumberText) ?></th>
-                <th class="money" <?= $isExcel ? 'x:num="' . e((string) $lot['subtotal']) . '"' : '' ?>>
-                    R$ <?= number_format((float) $lot['subtotal'], 2, ',', '.') ?>
-                </th>
-            </tr>
-        </tfoot>
-    </table>
-<?php endforeach; ?>
-
 <table>
-    <tfoot>
+    <thead>
         <tr>
-            <th colspan="6" class="money">Valor global estimado</th>
-            <th class="money" <?= $isExcel ? 'x:num="' . e((string) $globalTotal) . '"' : '' ?>>
-                R$ <?= number_format($globalTotal, 2, ',', '.') ?>
-            </th>
+            <th style="width: 8%;">Lote</th>
+            <th style="width: 22%;">Denominacao</th>
+            <th style="width: 35%;">Itens integrantes</th>
+            <th style="width: 35%;">Justificativa do agrupamento</th>
         </tr>
-    </tfoot>
+    </thead>
+    <tbody>
+        <?php foreach ($lots as $lot): ?>
+            <?php
+                $itemsText = [];
+
+                foreach ($lot['items'] as $item) {
+                    $itemsText[] = ((int) ($item['sequence'] ?? 0)) . ' - ' . (string) ($item['item_name'] ?? '-');
+                }
+            ?>
+            <tr>
+                <td class="number"><?= $lot['lot_number'] !== null ? (int) $lot['lot_number'] : '-' ?></td>
+                <td class="wrap"><?= e($lot['name'] ?? '-') ?></td>
+                <td class="wrap"><?= nl2br(e(implode("\n", $itemsText))) ?></td>
+                <td class="wrap"><?= nl2br(e($lot['justification'] ?? '-')) ?></td>
+            </tr>
+        <?php endforeach; ?>
+    </tbody>
 </table>
 
 </body>

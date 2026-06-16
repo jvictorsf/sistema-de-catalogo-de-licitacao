@@ -113,6 +113,14 @@ body {
     white-space: nowrap;
 }
 
+.project-demands-card .card-body {
+    background: #f8fafc;
+}
+
+.project-demand-search {
+    max-width: 18rem;
+}
+
 .project-demand-list {
     display: grid;
     gap: .75rem;
@@ -120,16 +128,39 @@ body {
 
 .project-demand-item {
     align-items: flex-start;
-    border: 1px solid #e5e7eb;
+    background: #fff;
+    border: 1px solid #dbe3ef;
     border-radius: .5rem;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
     display: flex;
-    gap: .75rem;
+    gap: 1rem;
     justify-content: space-between;
-    padding: .85rem;
+    padding: 1rem;
 }
 
 .project-demand-content {
     min-width: 0;
+}
+
+.project-demand-name {
+    color: #111827;
+    font-weight: 700;
+}
+
+.project-demand-secretariat {
+    color: #2563eb;
+    font-size: .85rem;
+    font-weight: 600;
+    margin-top: .15rem;
+}
+
+.project-demand-meta {
+    color: #6b7280;
+    display: flex;
+    flex-wrap: wrap;
+    font-size: .8rem;
+    gap: .25rem .8rem;
+    margin-top: .45rem;
 }
 
 .project-demand-actions {
@@ -309,6 +340,11 @@ pre {
 
     .project-demand-actions {
         justify-content: flex-start;
+        width: 100%;
+    }
+
+    .project-demand-search {
+        max-width: none;
         width: 100%;
     }
 }

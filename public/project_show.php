@@ -201,9 +201,22 @@ require __DIR__ . '/../app/views/header.php';
 
 <div class="row g-4">
     <div class="col-lg-5">
-        <div class="card h-100">
-            <div class="card-header fw-semibold">
-                Demandas por Unidade/Setor
+        <div class="card h-100 project-demands-card">
+            <div class="card-header d-flex justify-content-between align-items-center gap-3">
+                <div class="fw-semibold">Demandas por Unidade/Setor</div>
+
+                <?php if ($demands): ?>
+                    <div class="project-demand-search input-group input-group-sm">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input
+                            type="search"
+                            id="projectDemandSearch"
+                            class="form-control"
+                            placeholder="Pesquisar demanda">
+                    </div>
+                <?php endif; ?>
             </div>
 
             <div class="card-body">
@@ -216,20 +229,25 @@ require __DIR__ . '/../app/views/header.php';
                 <?php if ($demands): ?>
                     <div class="project-demand-list">
                         <?php foreach ($demands as $demand): ?>
-                            <div class="project-demand-item">
+                            <?php
+                                $searchText = implode(' ', [
+                                    $demand['name'] ?? '',
+                                    $demand['secretariat_name'] ?? '',
+                                    $demand['requester_department'] ?? '',
+                                    $demand['responsible_name'] ?? '',
+                                ]);
+                            ?>
+                            <div class="project-demand-item" data-demand-search="<?= e(mb_strtolower($searchText)) ?>">
                                 <div class="project-demand-content">
-                                    <strong><?= e($demand['name']) ?></strong>
+                                    <div class="project-demand-name"><?= e($demand['name']) ?></div>
 
-                                    <div class="small text-muted">
+                                    <div class="project-demand-secretariat">
                                         <?= e($demand['secretariat_name'] ?? 'Sem secretaria') ?>
                                     </div>
 
-                                    <div class="small">
-                                        Setor: <?= e($demand['requester_department'] ?: '-') ?>
-                                    </div>
-
-                                    <div class="small">
-                                        Responsável: <?= e($demand['responsible_name'] ?: '-') ?>
+                                    <div class="project-demand-meta">
+                                        <span>Setor: <?= e($demand['requester_department'] ?: '-') ?></span>
+                                        <span>Responsável: <?= e($demand['responsible_name'] ?: '-') ?></span>
                                     </div>
                                 </div>
 
@@ -261,6 +279,10 @@ require __DIR__ . '/../app/views/header.php';
                                 </div>
                             </div>
                         <?php endforeach; ?>
+                    </div>
+
+                    <div id="projectDemandEmptySearch" class="empty-state d-none">
+                        Nenhuma demanda encontrada.
                     </div>
                 <?php endif; ?>
             </div>
@@ -341,5 +363,33 @@ require __DIR__ . '/../app/views/header.php';
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('projectDemandSearch');
+        const emptyState = document.getElementById('projectDemandEmptySearch');
+        const demandCards = Array.from(document.querySelectorAll('[data-demand-search]'));
+
+        if (!searchInput || !emptyState || demandCards.length === 0) {
+            return;
+        }
+
+        searchInput.addEventListener('input', function() {
+            const query = searchInput.value.trim().toLocaleLowerCase();
+            let visibleCount = 0;
+
+            demandCards.forEach(function(card) {
+                const visible = query === '' || card.dataset.demandSearch.includes(query);
+                card.classList.toggle('d-none', !visible);
+
+                if (visible) {
+                    visibleCount++;
+                }
+            });
+
+            emptyState.classList.toggle('d-none', visibleCount > 0);
+        });
+    });
+</script>
 
 <?php require __DIR__ . '/../app/views/footer.php'; ?>

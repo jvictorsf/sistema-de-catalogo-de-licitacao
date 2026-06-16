@@ -250,6 +250,12 @@ $isExcel = $format === 'excel';
                         <td><?= e(($supplier['email'] ?? '') ?: '-') ?></td>
                         <td><?= e(($supplier['phone'] ?? '') ?: '-') ?></td>
                     </tr>
+                    <?php if (!empty($supplier['source_label'])): ?>
+                        <tr>
+                            <td></td>
+                            <td colspan="7" class="muted">Referência: <?= e($supplier['source_label']) ?></td>
+                        </tr>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             </tbody>
         </table>
@@ -287,7 +293,7 @@ $isExcel = $format === 'excel';
                         <span class="muted">Qtd.: <?= e(format_decimal_quantity($quantity)) ?></span>
                     </td>
                     <?php foreach ($suppliers as $supplier): ?>
-                        <?php $price = $item['supplier_prices'][(int) $supplier['id']] ?? null; ?>
+                        <?php $price = $item['supplier_prices'][(string) $supplier['key']] ?? null; ?>
                         <td class="money" <?= $isExcel && $price !== null ? 'x:num="' . e((string) $price) . '"' : '' ?>>
                             <?= $price !== null ? 'R$ ' . number_format((float) $price, 2, ',', '.') : '-' ?>
                         </td>

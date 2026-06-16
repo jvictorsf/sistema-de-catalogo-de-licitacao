@@ -1193,7 +1193,15 @@ function get_demand_supplier_quotes(int $demandListId): array
             SELECT
                 q.*,
                 s.name AS supplier_name,
+                s.trade_name AS supplier_trade_name,
                 s.document AS supplier_document,
+                s.contact_name AS supplier_contact_name,
+                s.email AS supplier_email,
+                s.phone AS supplier_phone,
+                s.address AS supplier_address,
+                s.city AS supplier_city,
+                s.state AS supplier_state,
+                s.postal_code AS supplier_postal_code,
                 COUNT(qi.id) FILTER (WHERE qi.unit_price IS NOT NULL) AS priced_items_count,
                 COALESCE(
                     SUM(qi.unit_price * COALESCE(di.approved_quantity, di.quantity))
@@ -1205,7 +1213,18 @@ function get_demand_supplier_quotes(int $demandListId): array
             LEFT JOIN demand_supplier_quote_items qi ON qi.demand_supplier_quote_id = q.id
             LEFT JOIN demand_items di ON di.id = qi.demand_item_id
             WHERE q.demand_list_id = :demand_list_id
-            GROUP BY q.id, s.name, s.document
+            GROUP BY
+                q.id,
+                s.name,
+                s.trade_name,
+                s.document,
+                s.contact_name,
+                s.email,
+                s.phone,
+                s.address,
+                s.city,
+                s.state,
+                s.postal_code
             ORDER BY s.name
         ");
 
@@ -1441,6 +1460,14 @@ function get_selected_demand_price_references(int $demandListId): array
                 q.attachment_path,
                 s.name AS supplier_name,
                 s.document AS supplier_document,
+                s.trade_name AS supplier_trade_name,
+                s.contact_name AS supplier_contact_name,
+                s.email AS supplier_email,
+                s.phone AS supplier_phone,
+                s.address AS supplier_address,
+                s.city AS supplier_city,
+                s.state AS supplier_state,
+                s.postal_code AS supplier_postal_code,
                 source_dl.name AS source_demand_name,
                 source_p.name AS source_project_name
             FROM demand_price_references pr
@@ -2157,125 +2184,100 @@ function get_project_licitation_annex_i_items(int $projectId): array
 
 function get_project_licitation_annex_ii_groups(int $projectId): array
 {
-    $items = get_project_licitation_annex_i_items($projectId);
-    $supplierPrices = [];
+    $baseItems = [];
 
-    try {
-        $stmt = db()->prepare("
-            SELECT
-                di.procurement_item_id,
-                s.id AS supplier_id,
-                s.name AS supplier_name,
-                s.trade_name AS supplier_trade_name,
-                s.document AS supplier_document,
-                s.contact_name AS supplier_contact_name,
-                s.email AS supplier_email,
-                s.phone AS supplier_phone,
-                s.address AS supplier_address,
-                s.city AS supplier_city,
-                s.state AS supplier_state,
-                s.postal_code AS supplier_postal_code,
-                AVG(qi.unit_price) AS unit_price
-            FROM demand_supplier_quote_items qi
-            INNER JOIN demand_supplier_quotes q
-                ON q.id = qi.demand_supplier_quote_id
-               AND q.status <> 'discarded'
-            INNER JOIN suppliers s ON s.id = q.supplier_id
-            INNER JOIN demand_items di ON di.id = qi.demand_item_id
-            INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
-            WHERE dl.project_id = :project_id
-              AND qi.unit_price IS NOT NULL
-            GROUP BY
-                di.procurement_item_id,
-                s.id,
-                s.name
-            ORDER BY s.name
-        ");
-
-        $stmt->execute(['project_id' => $projectId]);
-
-        foreach ($stmt->fetchAll() as $row) {
-            $procurementItemId = (int) $row['procurement_item_id'];
-            $supplierId = (int) $row['supplier_id'];
-
-            $supplierPrices[$procurementItemId][$supplierId] = [
-                'id' => $supplierId,
-                'name' => $row['supplier_name'],
-                'trade_name' => $row['supplier_trade_name'] ?? null,
-                'document' => $row['supplier_document'] ?? null,
-                'contact_name' => $row['supplier_contact_name'] ?? null,
-                'email' => $row['supplier_email'] ?? null,
-                'phone' => $row['supplier_phone'] ?? null,
-                'address' => $row['supplier_address'] ?? null,
-                'city' => $row['supplier_city'] ?? null,
-                'state' => $row['supplier_state'] ?? null,
-                'postal_code' => $row['supplier_postal_code'] ?? null,
-                'unit_price' => (float) $row['unit_price'],
-            ];
-        }
-    } catch (Throwable $exception) {
-        if (!is_missing_database_relation($exception)) {
-            throw $exception;
-        }
-
-        log_optional_schema_issue('anexo II da licitacao', $exception);
+    foreach (get_project_licitation_annex_i_items($projectId) as $item) {
+        $baseItems[(int) $item['procurement_item_id']] = $item;
     }
 
-    $groups = [];
-    $globalTotal = 0.0;
+    $rows = [];
 
-    foreach ($items as $item) {
-        $procurementItemId = (int) $item['procurement_item_id'];
-        $suppliers = array_values($supplierPrices[$procurementItemId] ?? []);
+    foreach (get_project_demands($projectId) as $demand) {
+        $budget = get_demand_budget_report((int) $demand['id']);
+        $quotesById = [];
 
-        usort(
-            $suppliers,
-            static fn (array $left, array $right): int => strcasecmp((string) $left['name'], (string) $right['name'])
-        );
+        foreach ($budget['quotes'] as $quote) {
+            $quotesById[(int) $quote['id']] = $quote;
+        }
 
-        $supplierIds = array_map(
-            static fn (array $supplier): int => (int) $supplier['id'],
-            $suppliers
-        );
-        $groupKey = $supplierIds ? implode('-', $supplierIds) : 'sem-cotacao';
-        $unitPrices = array_map(
-            static fn (array $supplier): float => (float) $supplier['unit_price'],
-            $suppliers
-        );
-        $averageUnitPrice = $unitPrices ? array_sum($unitPrices) / count($unitPrices) : null;
-        $quantity = (float) ($item['annex_quantity'] ?? 0);
-        $estimatedTotal = $averageUnitPrice !== null ? $averageUnitPrice * $quantity : null;
+        foreach ($budget['items'] as $item) {
+            $procurementItemId = (int) $item['procurement_item_id'];
+            $baseItem = $baseItems[$procurementItemId] ?? $item;
+            $quantity = (float) ($item['budget_quantity'] ?? $item['approved_quantity'] ?? $item['quantity'] ?? 0);
+            $suppliers = [];
 
-        if (!isset($groups[$groupKey])) {
-            $groups[$groupKey] = [
-                'key' => $groupKey,
+            foreach ($item['supplier_prices'] ?? [] as $quoteId => $unitPrice) {
+                if ($unitPrice === null) {
+                    continue;
+                }
+
+                $quote = $quotesById[(int) $quoteId] ?? [];
+                $supplierId = (int) ($quote['supplier_id'] ?? 0);
+
+                $suppliers[] = [
+                    'key' => 'supplier:' . $supplierId,
+                    'id' => $supplierId,
+                    'name' => $quote['supplier_name'] ?? 'Fornecedor',
+                    'trade_name' => $quote['supplier_trade_name'] ?? null,
+                    'document' => $quote['supplier_document'] ?? null,
+                    'contact_name' => $quote['supplier_contact_name'] ?? null,
+                    'email' => $quote['supplier_email'] ?? null,
+                    'phone' => $quote['supplier_phone'] ?? null,
+                    'address' => $quote['supplier_address'] ?? null,
+                    'city' => $quote['supplier_city'] ?? null,
+                    'state' => $quote['supplier_state'] ?? null,
+                    'postal_code' => $quote['supplier_postal_code'] ?? null,
+                    'unit_price' => (float) $unitPrice,
+                ];
+            }
+
+            foreach ($item['historical_references'] ?? [] as $reference) {
+                if (($reference['unit_price'] ?? null) === null) {
+                    continue;
+                }
+
+                $referenceId = (int) ($reference['source_quote_item_id'] ?? $reference['id'] ?? 0);
+                $sourceLabel = implode(' - ', array_values(array_filter([
+                    trim((string) ($reference['source_project_name'] ?? '')),
+                    trim((string) ($reference['source_demand_name'] ?? '')),
+                ])));
+
+                $suppliers[] = [
+                    'key' => 'historical:' . $referenceId,
+                    'id' => $referenceId,
+                    'name' => $reference['supplier_name'] ?? 'Fornecedor historico',
+                    'trade_name' => $reference['supplier_trade_name'] ?? null,
+                    'document' => $reference['supplier_document'] ?? null,
+                    'contact_name' => $reference['supplier_contact_name'] ?? null,
+                    'email' => $reference['supplier_email'] ?? null,
+                    'phone' => $reference['supplier_phone'] ?? null,
+                    'address' => $reference['supplier_address'] ?? null,
+                    'city' => $reference['supplier_city'] ?? null,
+                    'state' => $reference['supplier_state'] ?? null,
+                    'postal_code' => $reference['supplier_postal_code'] ?? null,
+                    'source_label' => $sourceLabel,
+                    'unit_price' => (float) $reference['unit_price'],
+                ];
+            }
+
+            $rows[] = array_merge($baseItem, [
+                'annex_quantity' => $quantity,
+                'manual_unit_price' => $item['estimated_unit_price'] !== null
+                    ? (float) $item['estimated_unit_price']
+                    : null,
                 'suppliers' => $suppliers,
-                'items' => [],
-                'subtotal' => 0.0,
-            ];
-        }
-
-        $item['annex_ii_suppliers'] = $suppliers;
-        $item['supplier_prices'] = [];
-        $item['estimated_unit_price'] = $averageUnitPrice;
-        $item['estimated_total'] = $estimatedTotal;
-
-        foreach ($suppliers as $supplier) {
-            $item['supplier_prices'][(int) $supplier['id']] = (float) $supplier['unit_price'];
-        }
-
-        $groups[$groupKey]['items'][] = $item;
-
-        if ($estimatedTotal !== null) {
-            $groups[$groupKey]['subtotal'] += $estimatedTotal;
-            $globalTotal += $estimatedTotal;
+                'demand_memory' => [[
+                    'demand_id' => (int) $demand['id'],
+                    'demand_name' => $demand['name'],
+                    'secretariat_name' => $demand['secretariat_name'] ?? null,
+                    'requester_department' => $demand['requester_department'] ?? null,
+                    'quantity' => $quantity,
+                ]],
+            ]);
         }
     }
 
-    return [
-        'groups' => array_values($groups),
-        'global_total' => $globalTotal,
-    ];
+    return build_licitation_annex_ii_groups_from_rows($rows);
 }
 
 function get_project_financial_summary(int $projectId): array
@@ -3069,11 +3071,19 @@ function get_demand_financial_summary(int $demandListId): array
 
     $budget = get_demand_budget_report($demandListId);
 
-    if (($budget['priced_rows'] ?? 0) > 0) {
-        $summary['total_estimated_value'] = $budget['total_average'];
-        $summary['uses_supplier_average'] = true;
-    } else {
+    if ($budget['items'] ?? []) {
+        $summary['total_estimated_value'] = 0.0;
         $summary['uses_supplier_average'] = false;
+
+        foreach ($budget['items'] as $item) {
+            if (($item['average_total'] ?? null) !== null) {
+                $summary['total_estimated_value'] += (float) $item['average_total'];
+                $summary['uses_supplier_average'] = true;
+                continue;
+            }
+
+            $summary['total_estimated_value'] += (float) ($item['estimated_total'] ?? 0);
+        }
     }
 
     return $summary;

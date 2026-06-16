@@ -2,6 +2,19 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.9] - 2026-06-16
+
+### Adicionado
+- Campo de pesquisa rapida nas demandas do projeto.
+- Testes em PHP puro para os calculos do Anexo II e do valor global estimado.
+
+### Alterado
+- Demandas do projeto passam a ser exibidas como cards responsivos.
+- Calculo do Anexo II passa a usar medias ponderadas por quantidade e a mesma base de calculo do resumo financeiro do projeto.
+
+### Corrigido
+- Resumo financeiro passa a manter itens sem cotacao no total estimado usando a estimativa manual quando outros itens da demanda possuem orcamento.
+
 ## [1.5.8] - 2026-06-16
 
 ### Adicionado

@@ -449,6 +449,169 @@ function licitation_annex_demand_memory_text(array $memory, string $separator = 
     return $parts ? implode($separator, $parts) : '-';
 }
 
+function licitation_annex_supplier_signature(array $suppliers): string
+{
+    $keys = [];
+
+    foreach ($suppliers as $supplier) {
+        $key = trim((string) ($supplier['key'] ?? ''));
+
+        if ($key !== '') {
+            $keys[] = $key;
+        }
+    }
+
+    sort($keys, SORT_NATURAL);
+
+    return $keys ? implode('|', $keys) : 'sem-cotacao';
+}
+
+function build_licitation_annex_ii_groups_from_rows(array $rows): array
+{
+    $groups = [];
+    $globalTotal = 0.0;
+
+    foreach ($rows as $row) {
+        $quantity = (float) ($row['annex_quantity'] ?? $row['quantity'] ?? 0);
+        $suppliers = array_values(array_filter(
+            $row['suppliers'] ?? [],
+            static fn (array $supplier): bool => ($supplier['unit_price'] ?? null) !== null
+        ));
+
+        usort($suppliers, static function (array $left, array $right): int {
+            return strcasecmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''))
+                ?: strcasecmp((string) ($left['key'] ?? ''), (string) ($right['key'] ?? ''));
+        });
+
+        $groupKey = licitation_annex_supplier_signature($suppliers);
+        $itemKey = (int) ($row['procurement_item_id'] ?? 0) . '|' . $groupKey;
+
+        if (!isset($groups[$groupKey])) {
+            $groups[$groupKey] = [
+                'key' => $groupKey,
+                'suppliers' => [],
+                'items' => [],
+                'subtotal' => 0.0,
+            ];
+        }
+
+        foreach ($suppliers as $supplier) {
+            $supplierKey = (string) $supplier['key'];
+
+            if (!isset($groups[$groupKey]['suppliers'][$supplierKey])) {
+                $groups[$groupKey]['suppliers'][$supplierKey] = $supplier;
+            }
+        }
+
+        if (!isset($groups[$groupKey]['items'][$itemKey])) {
+            $groups[$groupKey]['items'][$itemKey] = array_merge($row, [
+                'annex_quantity' => 0.0,
+                'manual_price_total' => 0.0,
+                'manual_price_quantity' => 0.0,
+                'supplier_prices' => [],
+                'supplier_price_totals' => [],
+                'supplier_price_quantities' => [],
+                'estimated_unit_price' => null,
+                'estimated_total' => null,
+                'demand_memory' => [],
+            ]);
+        }
+
+        $groups[$groupKey]['items'][$itemKey]['annex_quantity'] += $quantity;
+
+        if (!$suppliers && ($row['manual_unit_price'] ?? null) !== null) {
+            $groups[$groupKey]['items'][$itemKey]['manual_price_total'] += (float) $row['manual_unit_price'] * $quantity;
+            $groups[$groupKey]['items'][$itemKey]['manual_price_quantity'] += $quantity;
+        }
+
+        foreach ($row['demand_memory'] ?? [] as $memory) {
+            $groups[$groupKey]['items'][$itemKey]['demand_memory'][] = $memory;
+        }
+
+        foreach ($suppliers as $supplier) {
+            $supplierKey = (string) $supplier['key'];
+            $unitPrice = (float) $supplier['unit_price'];
+
+            $groups[$groupKey]['items'][$itemKey]['supplier_price_totals'][$supplierKey] =
+                ($groups[$groupKey]['items'][$itemKey]['supplier_price_totals'][$supplierKey] ?? 0.0)
+                + ($unitPrice * $quantity);
+            $groups[$groupKey]['items'][$itemKey]['supplier_price_quantities'][$supplierKey] =
+                ($groups[$groupKey]['items'][$itemKey]['supplier_price_quantities'][$supplierKey] ?? 0.0)
+                + $quantity;
+        }
+    }
+
+    $sequence = 1;
+
+    foreach ($groups as $groupKey => $group) {
+        $groups[$groupKey]['suppliers'] = array_values($group['suppliers']);
+        $items = [];
+
+        foreach ($group['items'] as $item) {
+            $unitPrices = [];
+
+            foreach ($groups[$groupKey]['suppliers'] as $supplier) {
+                $supplierKey = (string) $supplier['key'];
+                $priceQuantity = (float) ($item['supplier_price_quantities'][$supplierKey] ?? 0);
+                $unitPrice = $priceQuantity > 0
+                    ? (float) $item['supplier_price_totals'][$supplierKey] / $priceQuantity
+                    : null;
+
+                $item['supplier_prices'][$supplierKey] = $unitPrice;
+
+                if ($unitPrice !== null) {
+                    $unitPrices[] = $unitPrice;
+                }
+            }
+
+            $item['sequence'] = $sequence++;
+            $item['estimated_unit_price'] = $unitPrices ? array_sum($unitPrices) / count($unitPrices) : null;
+
+            if ($item['estimated_unit_price'] === null && (float) $item['manual_price_quantity'] > 0) {
+                $item['estimated_unit_price'] = (float) $item['manual_price_total'] / (float) $item['manual_price_quantity'];
+            }
+
+            $item['estimated_total'] = $item['estimated_unit_price'] !== null
+                ? $item['estimated_unit_price'] * (float) $item['annex_quantity']
+                : null;
+
+            unset(
+                $item['manual_price_total'],
+                $item['manual_price_quantity'],
+                $item['supplier_price_totals'],
+                $item['supplier_price_quantities'],
+                $item['suppliers']
+            );
+
+            if ($item['estimated_total'] !== null) {
+                $groups[$groupKey]['subtotal'] += $item['estimated_total'];
+                $globalTotal += $item['estimated_total'];
+            }
+
+            $items[] = $item;
+        }
+
+        $groups[$groupKey]['items'] = $items;
+    }
+
+    uasort($groups, static function (array $left, array $right): int {
+        if ($left['key'] === 'sem-cotacao') {
+            return 1;
+        }
+
+        if ($right['key'] === 'sem-cotacao') {
+            return -1;
+        }
+
+        return 0;
+    });
+
+    return [
+        'groups' => array_values($groups),
+        'global_total' => $globalTotal,
+    ];
+}
+
 function environmental_impacts_to_array(mixed $value): array
 {
     if (is_array($value)) {

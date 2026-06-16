@@ -167,7 +167,23 @@ require __DIR__ . '/../app/views/header.php';
 
         <div class="col-md-4 col-lg-2">
             <label class="form-label">CEP</label>
-            <input type="text" name="postal_code" class="form-control" value="<?= e(format_brazil_postal_code($supplier['postal_code'] ?? '')) ?>">
+            <div class="input-group">
+                <input
+                    type="text"
+                    name="postal_code"
+                    id="postalCodeInput"
+                    class="form-control"
+                    value="<?= e(format_brazil_postal_code($supplier['postal_code'] ?? '')) ?>">
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    id="lookupCepButton"
+                    title="Consultar CEP"
+                    aria-label="Consultar CEP">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+            <div class="form-text" id="cepLookupFeedback"></div>
         </div>
 
         <div class="col-12">
@@ -235,13 +251,11 @@ require __DIR__ . '/../app/views/header.php';
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const button = document.getElementById('lookupCnpjButton');
+        const cnpjButton = document.getElementById('lookupCnpjButton');
+        const cepButton = document.getElementById('lookupCepButton');
         const documentInput = document.getElementById('supplierDocument');
-        const feedback = document.getElementById('cnpjLookupFeedback');
-
-        if (!button || !documentInput || !feedback) {
-            return;
-        }
+        const cnpjFeedback = document.getElementById('cnpjLookupFeedback');
+        const cepFeedback = document.getElementById('cepLookupFeedback');
 
         const fields = {
             name: document.querySelector('[name="name"]'),
@@ -255,56 +269,106 @@ require __DIR__ . '/../app/views/header.php';
             postal_code: document.querySelector('[name="postal_code"]'),
         };
 
-        function setFeedback(message, state) {
+        function setFeedback(feedback, message, state) {
+            if (!feedback) {
+                return;
+            }
+
             feedback.textContent = message;
             feedback.classList.remove('text-danger', 'text-success', 'text-muted');
             feedback.classList.add(state === 'error' ? 'text-danger' : state === 'success' ? 'text-success' : 'text-muted');
         }
 
-        function fillField(field, value) {
+        function fillField(field, value, force) {
             if (!field || !value) {
                 return;
             }
 
-            if (field.value && field.name !== 'document') {
+            if (field.value && field.name !== 'document' && !force) {
                 return;
             }
 
             field.value = value;
         }
 
-        button.addEventListener('click', async function() {
-            const cnpj = documentInput.value.replace(/\D/g, '');
+        if (cnpjButton && documentInput && cnpjFeedback) {
+            cnpjButton.addEventListener('click', async function() {
+                const cnpj = documentInput.value.replace(/\D/g, '');
 
-            if (cnpj.length !== 14) {
-                setFeedback('Informe um CNPJ valido com 14 digitos para consultar.', 'error');
-                documentInput.focus();
+                if (cnpj.length !== 14) {
+                    setFeedback(cnpjFeedback, 'Informe um CNPJ valido com 14 digitos para consultar.', 'error');
+                    documentInput.focus();
+                    return;
+                }
+
+                cnpjButton.disabled = true;
+                setFeedback(cnpjFeedback, 'Consultando CNPJ...', 'muted');
+
+                try {
+                    const response = await fetch('/supplier_cnpj_lookup.php?cnpj=' + encodeURIComponent(cnpj));
+                    const payload = await response.json();
+
+                    if (!response.ok || !payload.success) {
+                        throw new Error(payload.message || 'Nao foi possivel consultar o CNPJ.');
+                    }
+
+                    Object.entries(payload.data || {}).forEach(function(entry) {
+                        const field = fields[entry[0]];
+                        fillField(field, entry[1], false);
+                    });
+
+                    setFeedback(cnpjFeedback, 'Dados encontrados e preenchidos.', 'success');
+                } catch (error) {
+                    setFeedback(cnpjFeedback, error.message || 'Nao foi possivel consultar o CNPJ.', 'error');
+                } finally {
+                    cnpjButton.disabled = false;
+                }
+            });
+        }
+
+        async function lookupCep() {
+            const postalCode = (fields.postal_code?.value || '').replace(/\D/g, '');
+
+            if (postalCode.length !== 8) {
+                setFeedback(cepFeedback, 'Informe um CEP valido com 8 digitos para consultar.', 'error');
+                fields.postal_code?.focus();
                 return;
             }
 
-            button.disabled = true;
-            setFeedback('Consultando CNPJ...', 'muted');
+            cepButton.disabled = true;
+            setFeedback(cepFeedback, 'Consultando CEP...', 'muted');
 
             try {
-                const response = await fetch('/supplier_cnpj_lookup.php?cnpj=' + encodeURIComponent(cnpj));
+                const response = await fetch('/supplier_cep_lookup.php?cep=' + encodeURIComponent(postalCode));
                 const payload = await response.json();
 
                 if (!response.ok || !payload.success) {
-                    throw new Error(payload.message || 'Nao foi possivel consultar o CNPJ.');
+                    throw new Error(payload.message || 'Nao foi possivel consultar o CEP.');
                 }
 
                 Object.entries(payload.data || {}).forEach(function(entry) {
                     const field = fields[entry[0]];
-                    fillField(field, entry[1]);
+                    fillField(field, entry[1], entry[0] !== 'postal_code');
                 });
 
-                setFeedback('Dados encontrados e preenchidos.', 'success');
+                setFeedback(cepFeedback, 'Endereco encontrado e preenchido.', 'success');
             } catch (error) {
-                setFeedback(error.message || 'Nao foi possivel consultar o CNPJ.', 'error');
+                setFeedback(cepFeedback, error.message || 'Nao foi possivel consultar o CEP.', 'error');
             } finally {
-                button.disabled = false;
+                cepButton.disabled = false;
             }
-        });
+        }
+
+        if (cepButton && fields.postal_code && cepFeedback) {
+            cepButton.addEventListener('click', lookupCep);
+            fields.postal_code.addEventListener('blur', function() {
+                const postalCode = fields.postal_code.value.replace(/\D/g, '');
+
+                if (postalCode.length === 8 && (!fields.address?.value || !fields.city?.value || !fields.state?.value)) {
+                    lookupCep();
+                }
+            });
+        }
     });
 </script>
 

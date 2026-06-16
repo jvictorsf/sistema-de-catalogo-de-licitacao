@@ -466,6 +466,68 @@ function licitation_annex_supplier_signature(array $suppliers): string
     return $keys ? implode('|', $keys) : 'sem-cotacao';
 }
 
+function round_money_value(float $value): float
+{
+    return round($value, 2);
+}
+
+function price_outlier_flags(array $supplierPrices, float $threshold = 0.30): array
+{
+    $prices = array_values(array_filter(
+        array_map(
+            static fn (mixed $price): ?float => $price !== null ? (float) $price : null,
+            $supplierPrices
+        ),
+        static fn (?float $price): bool => $price !== null
+    ));
+
+    if (count($prices) < 3) {
+        return [];
+    }
+
+    sort($prices, SORT_NUMERIC);
+
+    $middle = intdiv(count($prices), 2);
+    $median = count($prices) % 2 === 0
+        ? ($prices[$middle - 1] + $prices[$middle]) / 2
+        : $prices[$middle];
+
+    if ($median <= 0) {
+        return [];
+    }
+
+    $flags = [];
+
+    foreach ($supplierPrices as $supplierKey => $price) {
+        if ($price === null) {
+            continue;
+        }
+
+        $deviation = abs((float) $price - $median) / $median;
+
+        if ($deviation > $threshold) {
+            $flags[(string) $supplierKey] = 'Possível preço discrepante. Necessária análise e justificativa antes da exclusão.';
+        }
+    }
+
+    return $flags;
+}
+
+function supplier_proposal_dates(array $supplier): array
+{
+    $dates = $supplier['proposal_dates'] ?? [];
+    $dates = is_array($dates) ? $dates : [];
+    $proposalDate = trim((string) ($supplier['proposal_date'] ?? ''));
+
+    if ($proposalDate !== '' && !in_array($proposalDate, $dates, true)) {
+        $dates[] = $proposalDate;
+    }
+
+    sort($dates);
+
+    return $dates;
+}
+
 function build_licitation_annex_ii_groups_from_rows(array $rows): array
 {
     $groups = [];
@@ -497,20 +559,29 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
 
         foreach ($suppliers as $supplier) {
             $supplierKey = (string) $supplier['key'];
+            $supplier['proposal_dates'] = supplier_proposal_dates($supplier);
 
             if (!isset($groups[$groupKey]['suppliers'][$supplierKey])) {
                 $groups[$groupKey]['suppliers'][$supplierKey] = $supplier;
+                continue;
             }
+
+            foreach ($supplier['proposal_dates'] as $proposalDate) {
+                if (!in_array($proposalDate, $groups[$groupKey]['suppliers'][$supplierKey]['proposal_dates'], true)) {
+                    $groups[$groupKey]['suppliers'][$supplierKey]['proposal_dates'][] = $proposalDate;
+                }
+            }
+
+            sort($groups[$groupKey]['suppliers'][$supplierKey]['proposal_dates']);
         }
 
         if (!isset($groups[$groupKey]['items'][$itemKey])) {
             $groups[$groupKey]['items'][$itemKey] = array_merge($row, [
                 'annex_quantity' => 0.0,
-                'manual_price_total' => 0.0,
-                'manual_price_quantity' => 0.0,
+                'manual_price_values' => [],
                 'supplier_prices' => [],
-                'supplier_price_totals' => [],
-                'supplier_price_quantities' => [],
+                'supplier_price_values' => [],
+                'supplier_price_alerts' => [],
                 'estimated_unit_price' => null,
                 'estimated_total' => null,
                 'demand_memory' => [],
@@ -520,8 +591,7 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
         $groups[$groupKey]['items'][$itemKey]['annex_quantity'] += $quantity;
 
         if (!$suppliers && ($row['manual_unit_price'] ?? null) !== null) {
-            $groups[$groupKey]['items'][$itemKey]['manual_price_total'] += (float) $row['manual_unit_price'] * $quantity;
-            $groups[$groupKey]['items'][$itemKey]['manual_price_quantity'] += $quantity;
+            $groups[$groupKey]['items'][$itemKey]['manual_price_values'][] = (float) $row['manual_unit_price'];
         }
 
         foreach ($row['demand_memory'] ?? [] as $memory) {
@@ -532,12 +602,7 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
             $supplierKey = (string) $supplier['key'];
             $unitPrice = (float) $supplier['unit_price'];
 
-            $groups[$groupKey]['items'][$itemKey]['supplier_price_totals'][$supplierKey] =
-                ($groups[$groupKey]['items'][$itemKey]['supplier_price_totals'][$supplierKey] ?? 0.0)
-                + ($unitPrice * $quantity);
-            $groups[$groupKey]['items'][$itemKey]['supplier_price_quantities'][$supplierKey] =
-                ($groups[$groupKey]['items'][$itemKey]['supplier_price_quantities'][$supplierKey] ?? 0.0)
-                + $quantity;
+            $groups[$groupKey]['items'][$itemKey]['supplier_price_values'][$supplierKey][] = $unitPrice;
         }
     }
 
@@ -552,9 +617,9 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
 
             foreach ($groups[$groupKey]['suppliers'] as $supplier) {
                 $supplierKey = (string) $supplier['key'];
-                $priceQuantity = (float) ($item['supplier_price_quantities'][$supplierKey] ?? 0);
-                $unitPrice = $priceQuantity > 0
-                    ? (float) $item['supplier_price_totals'][$supplierKey] / $priceQuantity
+                $priceValues = $item['supplier_price_values'][$supplierKey] ?? [];
+                $unitPrice = $priceValues
+                    ? round_money_value(array_sum($priceValues) / count($priceValues))
                     : null;
 
                 $item['supplier_prices'][$supplierKey] = $unitPrice;
@@ -565,21 +630,24 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
             }
 
             $item['sequence'] = $sequence++;
-            $item['estimated_unit_price'] = $unitPrices ? array_sum($unitPrices) / count($unitPrices) : null;
+            $item['estimated_unit_price'] = $unitPrices
+                ? round_money_value(array_sum($unitPrices) / count($unitPrices))
+                : null;
+            $item['supplier_price_alerts'] = price_outlier_flags($item['supplier_prices']);
 
-            if ($item['estimated_unit_price'] === null && (float) $item['manual_price_quantity'] > 0) {
-                $item['estimated_unit_price'] = (float) $item['manual_price_total'] / (float) $item['manual_price_quantity'];
+            if ($item['estimated_unit_price'] === null && $item['manual_price_values']) {
+                $item['estimated_unit_price'] = round_money_value(
+                    array_sum($item['manual_price_values']) / count($item['manual_price_values'])
+                );
             }
 
             $item['estimated_total'] = $item['estimated_unit_price'] !== null
-                ? $item['estimated_unit_price'] * (float) $item['annex_quantity']
+                ? round_money_value($item['estimated_unit_price'] * (float) $item['annex_quantity'])
                 : null;
 
             unset(
-                $item['manual_price_total'],
-                $item['manual_price_quantity'],
-                $item['supplier_price_totals'],
-                $item['supplier_price_quantities'],
+                $item['manual_price_values'],
+                $item['supplier_price_values'],
                 $item['suppliers']
             );
 
@@ -963,15 +1031,53 @@ function supplier_address_text(array $supplier): string
     return $parts ? implode(', ', $parts) : '-';
 }
 
-function lookup_cnpj_brasilapi(string $cnpj): array
+function lookup_response_field(array $data, array $keys): string
 {
-    $digits = only_digits($cnpj);
+    foreach ($keys as $key) {
+        $value = trim((string) ($data[$key] ?? ''));
 
-    if (strlen($digits) !== 14) {
-        throw new RuntimeException('Informe um CNPJ com 14 digitos.');
+        if ($value !== '') {
+            return $value;
+        }
     }
 
-    $url = 'https://brasilapi.com.br/api/cnpj/v1/' . $digits;
+    return '';
+}
+
+function supplier_lookup_address_from_data(array $data): string
+{
+    $streetType = lookup_response_field($data, [
+        'descricao_tipo_de_logradouro',
+        'tipo_logradouro',
+        'street_type',
+    ]);
+    $street = lookup_response_field($data, ['logradouro', 'street']);
+    $streetLine = trim($streetType . ($streetType !== '' && $street !== '' ? ' ' : '') . $street);
+
+    if ($streetLine === '') {
+        $streetLine = lookup_response_field($data, ['address', 'endereco']);
+    }
+
+    return implode(', ', array_values(array_filter([
+        $streetLine,
+        lookup_response_field($data, ['numero', 'number']),
+        lookup_response_field($data, ['complemento', 'complement']),
+        lookup_response_field($data, ['bairro', 'neighborhood']),
+    ])));
+}
+
+function supplier_lookup_city_from_data(array $data): string
+{
+    return lookup_response_field($data, ['municipio', 'city', 'localidade']);
+}
+
+function supplier_lookup_state_from_data(array $data): string
+{
+    return lookup_response_field($data, ['uf', 'state']);
+}
+
+function fetch_public_api_json(string $url, string $errorMessage, int $timeout = 8): array
+{
     $response = null;
     $httpCode = 0;
 
@@ -981,7 +1087,7 @@ function lookup_cnpj_brasilapi(string $cnpj): array
         curl_setopt_array($curl, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_TIMEOUT => 8,
+            CURLOPT_TIMEOUT => $timeout,
             CURLOPT_USERAGENT => (defined('APP_NAME') ? APP_NAME : 'catalogo-licitacao') . '/1.0',
         ]);
 
@@ -991,12 +1097,12 @@ function lookup_cnpj_brasilapi(string $cnpj): array
         curl_close($curl);
 
         if ($response === false) {
-            throw new RuntimeException('Nao foi possivel consultar o CNPJ: ' . $error);
+            throw new RuntimeException($errorMessage . ': ' . $error);
         }
     } else {
         $context = stream_context_create([
             'http' => [
-                'timeout' => 8,
+                'timeout' => $timeout,
                 'header' => "User-Agent: catalogo-licitacao/1.0\r\n",
             ],
         ]);
@@ -1008,33 +1114,42 @@ function lookup_cnpj_brasilapi(string $cnpj): array
         }
 
         if ($response === false) {
-            throw new RuntimeException('Nao foi possivel consultar o CNPJ.');
+            throw new RuntimeException($errorMessage . '.');
         }
     }
 
     if ($httpCode >= 400) {
         throw new RuntimeException($httpCode === 404
-            ? 'CNPJ nao encontrado na BrasilAPI.'
-            : 'A consulta de CNPJ retornou erro HTTP ' . $httpCode . '.');
+            ? $errorMessage . ': registro nao encontrado.'
+            : $errorMessage . ': erro HTTP ' . $httpCode . '.');
     }
 
     $data = json_decode((string) $response, true);
 
     if (!is_array($data)) {
-        throw new RuntimeException('A consulta de CNPJ retornou uma resposta invalida.');
+        throw new RuntimeException($errorMessage . ': resposta invalida.');
     }
+
+    return $data;
+}
+
+function lookup_cnpj_brasilapi(string $cnpj): array
+{
+    $digits = only_digits($cnpj);
+
+    if (strlen($digits) !== 14) {
+        throw new RuntimeException('Informe um CNPJ com 14 digitos.');
+    }
+
+    $data = fetch_public_api_json(
+        'https://brasilapi.com.br/api/cnpj/v1/' . $digits,
+        'Nao foi possivel consultar o CNPJ'
+    );
 
     $phones = array_values(array_filter([
         $data['ddd_telefone_1'] ?? '',
         $data['ddd_telefone_2'] ?? '',
     ]));
-
-    $address = implode(', ', array_values(array_filter([
-        $data['logradouro'] ?? '',
-        $data['numero'] ?? '',
-        $data['complemento'] ?? '',
-        $data['bairro'] ?? '',
-    ])));
 
     $tradeName = trim((string) ($data['nome_fantasia'] ?? ''));
 
@@ -1044,11 +1159,62 @@ function lookup_cnpj_brasilapi(string $cnpj): array
         'document' => format_brazil_document((string) ($data['cnpj'] ?? $digits)),
         'email' => trim((string) ($data['email'] ?? '')),
         'phone' => implode(' / ', $phones),
-        'address' => $address,
-        'city' => trim((string) ($data['municipio'] ?? '')),
-        'state' => trim((string) ($data['uf'] ?? '')),
+        'address' => supplier_lookup_address_from_data($data),
+        'city' => supplier_lookup_city_from_data($data),
+        'state' => supplier_lookup_state_from_data($data),
         'postal_code' => format_brazil_postal_code((string) ($data['cep'] ?? '')),
     ];
+}
+
+function lookup_cep_brasilapi(string $postalCode): array
+{
+    $digits = only_digits($postalCode);
+
+    if (strlen($digits) !== 8) {
+        throw new RuntimeException('Informe um CEP com 8 digitos.');
+    }
+
+    $data = fetch_public_api_json(
+        'https://brasilapi.com.br/api/cep/v1/' . $digits,
+        'Nao foi possivel consultar o CEP'
+    );
+
+    return [
+        'address' => supplier_lookup_address_from_data($data),
+        'city' => supplier_lookup_city_from_data($data),
+        'state' => supplier_lookup_state_from_data($data),
+        'postal_code' => format_brazil_postal_code((string) ($data['cep'] ?? $digits)),
+    ];
+}
+
+function supplier_quote_storage_dir(): string
+{
+    return (defined('APP_STORAGE_PATH') ? APP_STORAGE_PATH : dirname(__DIR__) . '/storage')
+        . '/uploads/supplier_quotes';
+}
+
+function ensure_writable_upload_dir(string $uploadDir, string $label): void
+{
+    if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) {
+        if (function_exists('app_log')) {
+            app_log('error', 'Falha ao criar pasta de upload: ' . $label, [
+                'path' => $uploadDir,
+            ]);
+        }
+
+        throw new RuntimeException('Não foi possível preparar a pasta de uploads.');
+    }
+
+    if (!is_writable($uploadDir)) {
+        if (function_exists('app_log')) {
+            app_log('error', 'Pasta de upload sem permissao de escrita: ' . $label, [
+                'path' => $uploadDir,
+                'owner' => function_exists('posix_geteuid') ? posix_geteuid() : null,
+            ]);
+        }
+
+        throw new RuntimeException('Não foi possível salvar o orçamento. A pasta de uploads não tem permissão de escrita.');
+    }
 }
 
 function upload_supplier_quote_file(array $file): ?string
@@ -1082,19 +1248,27 @@ function upload_supplier_quote_file(array $file): ?string
 
     $extension = $allowedTypes[$mime];
     $filename = 'orcamento_' . date('YmdHis') . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
-    $uploadDir = __DIR__ . '/../public/uploads/supplier_quotes';
-
-    if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0775, true);
-    }
+    $uploadDir = supplier_quote_storage_dir();
+    ensure_writable_upload_dir($uploadDir, 'orcamentos de fornecedores');
 
     $destination = $uploadDir . '/' . $filename;
 
-    if (!move_uploaded_file($file['tmp_name'], $destination)) {
-        throw new RuntimeException('Não foi possível salvar o orçamento.');
+    if (!@move_uploaded_file($file['tmp_name'], $destination)) {
+        if (function_exists('app_log')) {
+            app_log('error', 'Falha ao mover arquivo de orçamento enviado.', [
+                'destination' => $destination,
+                'tmp_name' => $file['tmp_name'] ?? null,
+                'upload_dir_writable' => is_writable($uploadDir),
+                'last_error' => error_get_last()['message'] ?? null,
+            ]);
+        }
+
+        throw new RuntimeException('Não foi possível salvar o orçamento. Verifique as permissões da pasta de uploads.');
     }
 
-    return '/uploads/supplier_quotes/' . $filename;
+    @chmod($destination, 0664);
+
+    return '/supplier_quote_file.php?file=' . rawurlencode($filename);
 }
 
 function upload_item_image(array $file): ?string

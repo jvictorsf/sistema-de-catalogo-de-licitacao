@@ -2227,6 +2227,7 @@ function get_project_licitation_annex_ii_groups(int $projectId): array
                     'city' => $quote['supplier_city'] ?? null,
                     'state' => $quote['supplier_state'] ?? null,
                     'postal_code' => $quote['supplier_postal_code'] ?? null,
+                    'proposal_date' => $quote['quote_date'] ?? null,
                     'unit_price' => (float) $unitPrice,
                 ];
             }
@@ -2255,6 +2256,7 @@ function get_project_licitation_annex_ii_groups(int $projectId): array
                     'city' => $reference['supplier_city'] ?? null,
                     'state' => $reference['supplier_state'] ?? null,
                     'postal_code' => $reference['supplier_postal_code'] ?? null,
+                    'proposal_date' => $reference['quote_date'] ?? null,
                     'source_label' => $sourceLabel,
                     'unit_price' => (float) $reference['unit_price'],
                 ];
@@ -2304,15 +2306,17 @@ function get_project_financial_summary(int $projectId): array
 
     $summary['total_requested_quantity'] = $summary['total_requested_quantity'] ?? 0;
     $summary['total_approved_quantity'] = $summary['total_approved_quantity'] ?? 0;
-    $summary['total_estimated_value'] = 0;
+    $annex = get_project_licitation_annex_ii_groups($projectId);
+    $summary['total_estimated_value'] = (float) ($annex['global_total'] ?? 0);
     $summary['uses_supplier_average'] = false;
 
-    foreach (get_project_demands($projectId) as $demand) {
-        $demandSummary = get_demand_financial_summary((int) $demand['id']);
-
-        $summary['total_estimated_value'] += (float) ($demandSummary['total_estimated_value'] ?? 0);
-        $summary['uses_supplier_average'] = $summary['uses_supplier_average']
-            || !empty($demandSummary['uses_supplier_average']);
+    foreach ($annex['groups'] ?? [] as $group) {
+        foreach ($group['items'] ?? [] as $item) {
+            if (array_filter($item['supplier_prices'] ?? [], static fn (mixed $price): bool => $price !== null)) {
+                $summary['uses_supplier_average'] = true;
+                break 2;
+            }
+        }
     }
 
     return $summary;

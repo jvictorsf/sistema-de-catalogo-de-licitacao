@@ -2,6 +2,33 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.11] - 2026-06-16
+
+### Adicionado
+- Consulta de CEP no cadastro de fornecedores para preencher endereco, cidade e UF.
+- Endpoint protegido para servir anexos de orcamentos salvos em storage.
+- Teste para montagem de endereco a partir dos retornos das APIs de CNPJ e CEP.
+
+### Alterado
+- Upload de anexos de orcamentos passa a gravar em storage/uploads/supplier_quotes, evitando dependencia de escrita em public/uploads.
+- Consulta de CNPJ passa a aceitar diferentes nomes de campos de logradouro retornados pela API.
+
+### Corrigido
+- Mensagem e log de falha de upload agora indicam permissao de escrita na pasta de uploads quando o servidor bloqueia a gravacao.
+
+## [1.5.10] - 2026-06-16
+
+### Adicionado
+- Anexo II passa a exibir a data da proposta nas informacoes dos fornecedores.
+- Alerta de possivel preco discrepante no Anexo II, exigindo analise e justificativa antes de exclusao.
+- Testes para media aritmetica simples, arredondamento monetario e sinalizacao de outliers.
+
+### Alterado
+- Anexo II padronizado como "Anexo II – Planilha de Pesquisa e Estimativa de Preços".
+- Calculo do Anexo II passa a usar media aritmetica simples dos precos validos, arredondando o valor unitario estimado antes do total.
+- Anexo II passa a separar quantidade e unidade em colunas distintas.
+- Resumo financeiro do projeto passa a usar o mesmo valor global estimado calculado para o Anexo II.
+
 ## [1.5.9] - 2026-06-16
 
 ### Adicionado

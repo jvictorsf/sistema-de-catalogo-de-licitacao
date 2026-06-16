@@ -9,3 +9,8 @@
 !/storage/imports/.gitkeep
 /storage/exports/*
 !/storage/exports/.gitkeep
+/storage/uploads/*
+!/storage/uploads/.gitkeep
+!/storage/uploads/supplier_quotes/
+/storage/uploads/supplier_quotes/*
+!/storage/uploads/supplier_quotes/.gitkeep

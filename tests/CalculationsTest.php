@@ -27,7 +27,7 @@ function supplier_row(string $key, string $name, float $unitPrice): array
     ];
 }
 
-$weighted = build_licitation_annex_ii_groups_from_rows([
+$arithmetic = build_licitation_annex_ii_groups_from_rows([
     [
         'procurement_item_id' => 1,
         'item_name' => 'Computador',
@@ -50,15 +50,15 @@ $weighted = build_licitation_annex_ii_groups_from_rows([
     ],
 ]);
 
-assert_true(count($weighted['groups']) === 1, 'Itens com a mesma combinacao de fornecedores devem ficar no mesmo grupo.');
+assert_true(count($arithmetic['groups']) === 1, 'Itens com a mesma combinacao de fornecedores devem ficar no mesmo grupo.');
 
-$weightedItem = $weighted['groups'][0]['items'][0];
-assert_close(5.0, (float) $weightedItem['annex_quantity'], 'Quantidade consolidada incorreta.');
-assert_close(16.0, $weightedItem['supplier_prices']['supplier:1'], 'Preco ponderado do fornecedor A incorreto.');
-assert_close(18.8, $weightedItem['supplier_prices']['supplier:2'], 'Preco ponderado do fornecedor B incorreto.');
-assert_close(17.4, $weightedItem['estimated_unit_price'], 'Valor unitario estimado ponderado incorreto.');
-assert_close(87.0, $weightedItem['estimated_total'], 'Total estimado ponderado incorreto.');
-assert_close(87.0, $weighted['global_total'], 'Valor global estimado ponderado incorreto.');
+$arithmeticItem = $arithmetic['groups'][0]['items'][0];
+assert_close(5.0, (float) $arithmeticItem['annex_quantity'], 'Quantidade consolidada incorreta.');
+assert_close(15.0, $arithmeticItem['supplier_prices']['supplier:1'], 'Media aritmetica do fornecedor A incorreta.');
+assert_close(18.0, $arithmeticItem['supplier_prices']['supplier:2'], 'Media aritmetica do fornecedor B incorreta.');
+assert_close(16.5, $arithmeticItem['estimated_unit_price'], 'Valor unitario estimado por media aritmetica incorreto.');
+assert_close(82.5, $arithmeticItem['estimated_total'], 'Total estimado por media aritmetica incorreto.');
+assert_close(82.5, $arithmetic['global_total'], 'Valor global estimado por media aritmetica incorreto.');
 
 $split = build_licitation_annex_ii_groups_from_rows([
     [
@@ -99,5 +99,47 @@ assert_true($withoutQuote['groups'][0]['key'] === 'sem-cotacao', 'Grupo sem cota
 assert_close(75.0, $withoutQuote['groups'][0]['items'][0]['estimated_unit_price'], 'Item sem cotacao deve usar estimativa manual.');
 assert_close(300.0, $withoutQuote['groups'][0]['items'][0]['estimated_total'], 'Item sem cotacao deve compor total estimado manual.');
 assert_close(300.0, $withoutQuote['global_total'], 'Item sem cotacao deve compor valor global pela estimativa manual.');
+
+$rounded = build_licitation_annex_ii_groups_from_rows([
+    [
+        'procurement_item_id' => 3,
+        'item_name' => 'Switch',
+        'annex_quantity' => 3,
+        'suppliers' => [
+            supplier_row('supplier:1', 'Fornecedor A', 10),
+            supplier_row('supplier:2', 'Fornecedor B', 10),
+            supplier_row('supplier:3', 'Fornecedor C', 10.02),
+        ],
+    ],
+]);
+
+$roundedItem = $rounded['groups'][0]['items'][0];
+assert_close(10.01, $roundedItem['estimated_unit_price'], 'Valor unitario estimado deve ser arredondado antes do total.');
+assert_close(30.03, $roundedItem['estimated_total'], 'Total estimado deve usar o valor unitario arredondado.');
+
+$outlier = build_licitation_annex_ii_groups_from_rows([
+    [
+        'procurement_item_id' => 4,
+        'item_name' => 'Monitor',
+        'annex_quantity' => 1,
+        'suppliers' => [
+            supplier_row('supplier:1', 'Fornecedor A', 100),
+            supplier_row('supplier:2', 'Fornecedor B', 102),
+            supplier_row('supplier:3', 'Fornecedor C', 300),
+        ],
+    ],
+]);
+
+$outlierItem = $outlier['groups'][0]['items'][0];
+$expectedAlert = 'Possível preço discrepante. Necessária análise e justificativa antes da exclusão.';
+assert_true(
+    ($outlierItem['supplier_price_alerts']['supplier:3'] ?? null) === $expectedAlert,
+    'Preco discrepante deve ser sinalizado com a mensagem padrao.'
+);
+assert_true(
+    empty($outlierItem['supplier_price_alerts']['supplier:1'])
+        && empty($outlierItem['supplier_price_alerts']['supplier:2']),
+    'Precos proximos da mediana nao devem ser sinalizados.'
+);
 
 echo "CalculationsTest: OK\n";

@@ -17,7 +17,7 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
-$title = 'Anexo II - Planilha Comparativa de Preços e Valor Global Estimado';
+$title = 'Anexo II – Planilha de Pesquisa e Estimativa de Preços';
 $annex = get_project_licitation_annex_ii_groups($id);
 $groups = $annex['groups'];
 $globalTotal = (float) $annex['global_total'];
@@ -31,6 +31,32 @@ if ($format === 'word') {
 }
 
 $isExcel = $format === 'excel';
+
+if (!function_exists('annex_proposal_date_text')) {
+    function annex_proposal_date_text(array $supplier): string
+    {
+        $dates = $supplier['proposal_dates'] ?? [];
+        $dates = is_array($dates) ? $dates : [];
+
+        if (!$dates && !empty($supplier['proposal_date'])) {
+            $dates[] = $supplier['proposal_date'];
+        }
+
+        $formatted = [];
+
+        foreach ($dates as $date) {
+            $timestamp = strtotime((string) $date);
+
+            if ($timestamp !== false) {
+                $formatted[] = date('d/m/Y', $timestamp);
+            }
+        }
+
+        $formatted = array_values(array_unique($formatted));
+
+        return $formatted ? implode(', ', $formatted) : '-';
+    }
+}
 
 ?>
 <!doctype html>
@@ -158,6 +184,16 @@ $isExcel = $format === 'excel';
             color: #6b7280;
         }
 
+        .price-alert {
+            color: #991b1b;
+            display: block;
+            font-size: 7px;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-top: 3px;
+            white-space: normal;
+        }
+
         .wrap {
             white-space: normal;
             mso-data-placement: same-cell;
@@ -208,7 +244,7 @@ $isExcel = $format === 'excel';
     <?php
         $suppliers = $group['suppliers'];
         $supplierCount = count($suppliers);
-        $colspan = 5 + $supplierCount;
+        $colspan = 6 + $supplierCount;
         $supplierNames = array_map(
             static fn (array $supplier): string => (string) $supplier['name'],
             $suppliers
@@ -228,13 +264,14 @@ $isExcel = $format === 'excel';
             <thead>
                 <tr>
                     <th style="width: 6%;">Fornecedor</th>
-                    <th style="width: 12%;">CNPJ</th>
-                    <th style="width: 18%;">Razão social</th>
-                    <th style="width: 15%;">Nome fantasia</th>
-                    <th style="width: 23%;">Endereço</th>
-                    <th style="width: 10%;">Contato</th>
+                    <th style="width: 8%;">Data da proposta</th>
+                    <th style="width: 11%;">CNPJ</th>
+                    <th style="width: 16%;">Razão social</th>
+                    <th style="width: 14%;">Nome fantasia</th>
+                    <th style="width: 22%;">Endereço</th>
+                    <th style="width: 8%;">Contato</th>
                     <th style="width: 9%;">E-mail</th>
-                    <th style="width: 7%;">Telefone</th>
+                    <th style="width: 6%;">Telefone</th>
                 </tr>
             </thead>
 
@@ -242,6 +279,7 @@ $isExcel = $format === 'excel';
                 <?php foreach ($suppliers as $supplierIndex => $supplier): ?>
                     <tr>
                         <td>Fornecedor <?= $supplierIndex + 1 ?></td>
+                        <td><?= e(annex_proposal_date_text($supplier)) ?></td>
                         <td><?= e(!empty($supplier['document']) ? format_brazil_document($supplier['document']) : '-') ?></td>
                         <td><?= e($supplier['name'] ?? '-') ?></td>
                         <td><?= e(($supplier['trade_name'] ?? '') ?: '-') ?></td>
@@ -253,7 +291,7 @@ $isExcel = $format === 'excel';
                     <?php if (!empty($supplier['source_label'])): ?>
                         <tr>
                             <td></td>
-                            <td colspan="7" class="muted">Referência: <?= e($supplier['source_label']) ?></td>
+                            <td colspan="8" class="muted">Referência: <?= e($supplier['source_label']) ?></td>
                         </tr>
                     <?php endif; ?>
                 <?php endforeach; ?>
@@ -265,8 +303,9 @@ $isExcel = $format === 'excel';
         <thead>
             <tr>
                 <th style="width: 5%;">Item</th>
-                <th style="width: 25%;">Descrição do item/produto</th>
-                <th style="width: 12%;">Unidade</th>
+                <th style="width: 23%;">Descrição do item/produto</th>
+                <th style="width: 11%;">Unidade</th>
+                <th style="width: 9%;">Quantidade</th>
                 <?php foreach ($suppliers as $supplierIndex => $supplier): ?>
                     <th>
                         Fornecedor <?= $supplierIndex + 1 ?><br>
@@ -289,13 +328,22 @@ $isExcel = $format === 'excel';
                     <td class="number"><?= (int) $item['sequence'] ?></td>
                     <td class="wrap"><?= e($item['item_name'] ?? '-') ?></td>
                     <td class="wrap">
-                        <?= e(licitation_annex_unit_text($item)) ?><br>
-                        <span class="muted">Qtd.: <?= e(format_decimal_quantity($quantity)) ?></span>
+                        <?= e(licitation_annex_unit_text($item)) ?>
+                    </td>
+                    <td class="number" <?= $isExcel ? 'x:num="' . e((string) $quantity) . '"' : '' ?>>
+                        <?= e(format_decimal_quantity($quantity)) ?>
                     </td>
                     <?php foreach ($suppliers as $supplier): ?>
-                        <?php $price = $item['supplier_prices'][(string) $supplier['key']] ?? null; ?>
+                        <?php
+                            $supplierKey = (string) $supplier['key'];
+                            $price = $item['supplier_prices'][$supplierKey] ?? null;
+                            $alert = $item['supplier_price_alerts'][$supplierKey] ?? null;
+                        ?>
                         <td class="money" <?= $isExcel && $price !== null ? 'x:num="' . e((string) $price) . '"' : '' ?>>
                             <?= $price !== null ? 'R$ ' . number_format((float) $price, 2, ',', '.') : '-' ?>
+                            <?php if ($alert): ?>
+                                <span class="price-alert"><?= e($alert) ?></span>
+                            <?php endif; ?>
                         </td>
                     <?php endforeach; ?>
                     <td

@@ -93,23 +93,23 @@ require __DIR__ . '/../app/views/header.php';
                 <li><h6 class="dropdown-header">Demandas sem precos</h6></li>
                 <li>
                     <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=unit&prices=0&format=pdf" target="_blank" class="dropdown-item">
-                        Por unidade
+                        Por unidade filtrada
                     </a>
                 </li>
                 <li>
                     <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=secretariat&prices=0&format=pdf" target="_blank" class="dropdown-item">
-                        Por secretaria
+                        Por secretaria filtrada
                     </a>
                 </li>
                 <li><h6 class="dropdown-header">Demandas com precos</h6></li>
                 <li>
                     <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=unit&prices=1&format=pdf" target="_blank" class="dropdown-item">
-                        Por unidade
+                        Por unidade filtrada
                     </a>
                 </li>
                 <li>
                     <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=secretariat&prices=1&format=pdf" target="_blank" class="dropdown-item">
-                        Por secretaria
+                        Por secretaria filtrada
                     </a>
                 </li>
             </ul>

@@ -14,6 +14,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 - Projetos fechados passam a bloquear alteracoes em demandas, itens, orcamentos, banco de precos, numeracao de licitacao e denominacoes de lote.
 - Telas de projeto, demanda, orcamento, numeracao e lotes passam a exibir avisos de somente leitura quando o projeto esta fechado.
 - Ao fechar um projeto, os status Rascunho, Coletando demandas e Em revisao ficam indisponiveis; permanecem apenas Fechado e Retificacao.
+- Relatorios de demanda por unidade/secretaria passam a abrir com seletor de filtro, permitindo gerar PDF, Word e Excel apenas para a unidade ou secretaria escolhida.
 
 ## [1.5.20] - 2026-06-16
 

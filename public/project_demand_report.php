@@ -6,9 +6,21 @@ require_once __DIR__ . '/../app/config.php';
 require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';
 
+function project_demand_report_export_url(string $format, string $issueDate, string $filterKey): string
+{
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/project_demand_report.php';
+    $query = $_GET;
+    $query['format'] = $format;
+    $query['issue_date'] = $issueDate;
+    $query['filter'] = $filterKey;
+
+    return $path . '?' . http_build_query($query);
+}
+
 $id = (int) ($_GET['id'] ?? 0);
 $groupBy = ($_GET['group'] ?? 'unit') === 'secretariat' ? 'secretariat' : 'unit';
 $withPrices = boolish($_GET['prices'] ?? false);
+$filterKey = trim((string) ($_GET['filter'] ?? ''));
 $format = strtolower((string) ($_GET['format'] ?? 'pdf'));
 $format = in_array($format, ['pdf', 'word', 'excel'], true) ? $format : 'pdf';
 
@@ -23,12 +35,38 @@ $groupLabel = $groupBy === 'secretariat' ? 'secretaria' : 'unidade';
 $title = $withPrices
     ? 'Relatorio de demanda com precos por ' . $groupLabel
     : 'Relatorio de demanda por ' . $groupLabel;
-$report = get_project_demand_group_report($id, $groupBy);
+$filterOptions = get_project_demand_report_options($id, $groupBy);
+
+if ($filterKey === '' && count($filterOptions) === 1) {
+    $filterKey = (string) $filterOptions[0]['key'];
+}
+
+$selectedFilter = null;
+
+foreach ($filterOptions as $filterOption) {
+    if ((string) $filterOption['key'] === $filterKey) {
+        $selectedFilter = $filterOption;
+        break;
+    }
+}
+
+$hasSelectedFilter = $selectedFilter !== null;
+$report = $hasSelectedFilter
+    ? get_project_demand_group_report($id, $groupBy, $filterKey)
+    : [
+        'group_by' => $groupBy,
+        'groups' => [],
+        'total_quantity' => 0,
+        'global_total' => 0,
+    ];
+$displayTitle = $hasSelectedFilter
+    ? $title . ' - ' . (string) $selectedFilter['name']
+    : $title;
 
 if ($format === 'word') {
-    send_download_headers('application/msword; charset=utf-8', $title . '.doc');
+    send_download_headers('application/msword; charset=utf-8', $displayTitle . '.doc');
 } elseif ($format === 'excel') {
-    send_download_headers('application/vnd.ms-excel; charset=utf-8', $title . '.xls');
+    send_download_headers('application/vnd.ms-excel; charset=utf-8', $displayTitle . '.xls');
 } else {
     header('Content-Type: text/html; charset=utf-8');
 }
@@ -37,6 +75,7 @@ $isExcel = $format === 'excel';
 $issueDate = annex_issue_date_value();
 $issueDateText = annex_issue_date_text($issueDate);
 $columnCount = $withPrices ? 5 : 2;
+$filterLabel = $groupBy === 'secretariat' ? 'Secretaria' : 'Unidade';
 
 ?>
 <!doctype html>
@@ -48,7 +87,7 @@ $columnCount = $withPrices ? 5 : 2;
     <?php endif; ?>>
 <head>
     <meta charset="utf-8">
-    <title><?= e($title) ?> - <?= e($project['name']) ?></title>
+    <title><?= e($displayTitle) ?> - <?= e($project['name']) ?></title>
 
     <style>
         @page {
@@ -84,7 +123,8 @@ $columnCount = $withPrices ? 5 : 2;
             gap: 8px;
         }
 
-        .print-actions input {
+        .print-actions input,
+        .print-actions select {
             border: 1px solid #9ca3af;
             border-radius: 4px;
             padding: 7px 8px;
@@ -189,6 +229,15 @@ $columnCount = $withPrices ? 5 : 2;
             color: #6b7280;
         }
 
+        .selector-empty {
+            border: 1px dashed #9ca3af;
+            color: #4b5563;
+            font-size: 12px;
+            margin-top: 18px;
+            padding: 18px;
+            text-align: center;
+        }
+
         @media print {
             .print-actions {
                 display: none;
@@ -200,16 +249,53 @@ $columnCount = $withPrices ? 5 : 2;
 <body>
 
 <?php if ($format === 'pdf'): ?>
-    <?= render_annex_print_actions($issueDate) ?>
+    <div class="print-actions">
+        <form method="get" class="issue-date-form">
+            <input type="hidden" name="id" value="<?= (int) $id ?>">
+            <input type="hidden" name="group" value="<?= e($groupBy) ?>">
+            <input type="hidden" name="prices" value="<?= $withPrices ? '1' : '0' ?>">
+            <input type="hidden" name="format" value="pdf">
+
+            <label>
+                <?= e($filterLabel) ?>
+                <select name="filter" required>
+                    <option value="">Selecione...</option>
+                    <?php foreach ($filterOptions as $filterOption): ?>
+                        <option value="<?= e($filterOption['key']) ?>" <?= (string) $filterOption['key'] === $filterKey ? 'selected' : '' ?>>
+                            <?= e($filterOption['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+
+            <label>
+                Data de emissao
+                <input type="date" name="issue_date" value="<?= e($issueDate) ?>">
+            </label>
+
+            <button type="submit">Atualizar relatorio</button>
+        </form>
+
+        <?php if ($hasSelectedFilter): ?>
+            <button type="button" onclick="window.print()">Imprimir / Salvar PDF</button>
+            <button type="button" onclick="window.location.href='<?= e(project_demand_report_export_url('word', $issueDate, $filterKey)) ?>'">Exportar Word</button>
+            <button type="button" onclick="window.location.href='<?= e(project_demand_report_export_url('excel', $issueDate, $filterKey)) ?>'">Exportar Excel</button>
+        <?php endif; ?>
+    </div>
 <?php endif; ?>
 
 <div class="header">
     <?= render_municipal_logo() ?>
     <h1>Prefeitura Municipal de Espirito Santo do Turvo</h1>
-    <h2><?= e($title) ?></h2>
+    <h2><?= e($displayTitle) ?></h2>
     <p>Projeto: <?= e($project['name']) ?> | Emissao: <?= e($issueDateText) ?></p>
 </div>
 
+<?php if (!$hasSelectedFilter): ?>
+    <div class="selector-empty">
+        <?= $filterOptions ? e('Selecione uma opcao de ' . mb_strtolower($filterLabel) . ' para gerar o relatorio.') : e('Nenhuma opcao de ' . mb_strtolower($filterLabel) . ' possui itens demandados neste projeto.') ?>
+    </div>
+<?php else: ?>
 <table>
     <thead>
         <tr>
@@ -299,6 +385,7 @@ $columnCount = $withPrices ? 5 : 2;
         </tfoot>
     <?php endif; ?>
 </table>
+<?php endif; ?>
 
 </body>
 </html>

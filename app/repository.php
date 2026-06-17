@@ -642,23 +642,31 @@ function find_document_hash_records(string $hash): array
     return $records;
 }
 
-function get_project_demand_group_report(int $projectId, string $groupBy = 'unit'): array
+function get_project_demand_group_report(int $projectId, string $groupBy = 'unit', ?string $filterKey = null): array
 {
     $groupBy = $groupBy === 'secretariat' ? 'secretariat' : 'unit';
+    $filterKey = $filterKey !== null ? trim($filterKey) : null;
+    $filterKey = $filterKey !== '' ? $filterKey : null;
+
     $groups = [];
     $globalQuantity = 0.0;
     $globalTotal = 0.0;
 
     foreach (get_project_items_by_demand($projectId) as $item) {
-        $groupName = $groupBy === 'secretariat'
-            ? (string) (($item['secretariat_name'] ?? '') ?: 'Sem secretaria vinculada')
-            : (string) (($item['requester_department'] ?? '') ?: 'Sem unidade vinculada');
+        $groupKey = project_demand_report_group_key($groupBy, $item);
+
+        if ($filterKey !== null && $groupKey !== $filterKey) {
+            continue;
+        }
+
+        $groupName = project_demand_report_group_name($groupBy, $item);
         $itemKey = (int) ($item['procurement_item_id'] ?? 0);
         $quantity = (float) ($item['approved_quantity'] ?? $item['quantity'] ?? 0);
         $total = (float) ($item['calculated_total'] ?? $item['estimated_total'] ?? 0);
 
         if (!isset($groups[$groupName])) {
             $groups[$groupName] = [
+                'key' => $groupKey,
                 'name' => $groupName,
                 'items' => [],
                 'quantity' => 0.0,
@@ -724,6 +732,53 @@ function get_project_demand_group_report(int $projectId, string $groupBy = 'unit
         'total_quantity' => $globalQuantity,
         'global_total' => round_money_value($globalTotal),
     ];
+}
+
+function project_demand_report_group_name(string $groupBy, array $source): string
+{
+    if ($groupBy === 'secretariat') {
+        return (string) (($source['secretariat_name'] ?? '') ?: 'Sem secretaria vinculada');
+    }
+
+    return (string) (($source['requester_department'] ?? '') ?: 'Sem unidade vinculada');
+}
+
+function project_demand_report_group_key(string $groupBy, array $source): string
+{
+    if ($groupBy === 'secretariat') {
+        return !empty($source['secretariat_id'])
+            ? 'secretariat:' . (int) $source['secretariat_id']
+            : 'secretariat:none';
+    }
+
+    if (!empty($source['requester_unit_id'])) {
+        return 'unit:' . (int) $source['requester_unit_id'];
+    }
+
+    return 'unit:manual:' . sha1(mb_strtolower(project_demand_report_group_name('unit', $source)));
+}
+
+function get_project_demand_report_options(int $projectId, string $groupBy = 'unit'): array
+{
+    $groupBy = $groupBy === 'secretariat' ? 'secretariat' : 'unit';
+    $options = [];
+
+    foreach (get_project_items_by_demand($projectId) as $item) {
+        $key = project_demand_report_group_key($groupBy, $item);
+
+        if (isset($options[$key])) {
+            continue;
+        }
+
+        $options[$key] = [
+            'key' => $key,
+            'name' => project_demand_report_group_name($groupBy, $item),
+        ];
+    }
+
+    uasort($options, static fn (array $left, array $right): int => strcasecmp($left['name'], $right['name']));
+
+    return array_values($options);
 }
 
 function create_project(array $data): int
@@ -3792,6 +3847,8 @@ function get_project_items_by_demand(int $projectId): array
             pi.id AS procurement_item_id,
             dl.id AS demand_id,
             dl.name AS demand_name,
+            dl.requester_unit_id,
+            dl.secretariat_id,
             s.name AS secretariat_name,
             dl.requester_department,
             dl.responsible_name,

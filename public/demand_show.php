@@ -17,10 +17,12 @@ if (!$demand) {
 }
 
 $project = find_project((int) $demand['project_id']);
+$projectLocked = project_is_closed($project);
 $items = get_demand_items($id);
 $catalogItems = search_items();
 $supplierQuotes = get_demand_supplier_quotes($id);
 $budgetReport = get_demand_budget_report($id);
+$actionError = trim((string) ($_GET['error'] ?? ''));
 $budgetItemsByDemandItem = [];
 
 foreach ($budgetReport['items'] as $budgetItem) {
@@ -47,6 +49,7 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 
     <div class="d-flex gap-2 flex-wrap justify-content-end">
+        <?php if (!$projectLocked): ?>
         <a href="/demand_form.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-secondary">
             Editar dados
         </a>
@@ -58,6 +61,8 @@ require __DIR__ . '/../app/views/header.php';
         <a href="/demand_price_bank.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-success">
             <i class="bi bi-archive"></i>Banco de preços
         </a>
+
+        <?php endif; ?>
 
         <a href="/demand_export_word.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-primary">
             Exportar Word
@@ -72,6 +77,18 @@ require __DIR__ . '/../app/views/header.php';
         </a>
     </div>
 </div>
+
+<?php if ($actionError): ?>
+    <div class="alert alert-danger">
+        <?= e($actionError) ?>
+    </div>
+<?php endif; ?>
+
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning">
+        <?= e(project_closed_edit_message()) ?>
+    </div>
+<?php endif; ?>
 
 <div class="card card-body mb-4">
     <div class="row g-3">
@@ -99,9 +116,11 @@ require __DIR__ . '/../app/views/header.php';
         </div>
 
         <div class="d-flex gap-2">
+            <?php if (!$projectLocked): ?>
             <a href="/demand_supplier_quote_form.php?demand_id=<?= (int) $demand['id'] ?>" class="btn btn-sm btn-primary">
                 <i class="bi bi-plus-lg"></i>Adicionar orçamento
             </a>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -163,6 +182,7 @@ require __DIR__ . '/../app/views/header.php';
                             <?php endif; ?>
                         </td>
                         <td class="text-end">
+                            <?php if (!$projectLocked): ?>
                             <a href="/demand_supplier_quote_form.php?id=<?= $quoteId ?>" class="btn btn-sm btn-outline-primary">
                                 Editar
                             </a>
@@ -174,6 +194,9 @@ require __DIR__ . '/../app/views/header.php';
                                     Remover
                                 </button>
                             </form>
+                            <?php else: ?>
+                                <span class="text-muted">Somente leitura</span>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -182,6 +205,7 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 </div>
 
+<?php if (!$projectLocked): ?>
 <div class="card card-body mb-4">
     <h2 class="h5 mb-3">Adicionar item à demanda</h2>
 
@@ -326,6 +350,8 @@ require __DIR__ . '/../app/views/header.php';
     </form>
 </div>
 
+<?php endif; ?>
+
 <div class="card">
     <div class="card-header fw-semibold">
         Itens demandados
@@ -350,7 +376,7 @@ require __DIR__ . '/../app/views/header.php';
             <tbody>
                 <?php if (!$items): ?>
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">
+                            <td colspan="9" class="text-center text-muted py-4">
                             Nenhum item adicionado.
                         </td>
                     </tr>
@@ -413,6 +439,7 @@ require __DIR__ . '/../app/views/header.php';
                         </td>
 
                         <td class="text-end">
+                            <?php if (!$projectLocked): ?>
                             <button
                                 type="button"
                                 class="btn btn-sm btn-outline-primary"
@@ -442,6 +469,9 @@ require __DIR__ . '/../app/views/header.php';
                                     Remover
                                 </button>
                             </form>
+                            <?php else: ?>
+                                <span class="text-muted">Somente leitura</span>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

@@ -30,6 +30,7 @@ if (!$project) {
 }
 
 $errors = [];
+$projectLocked = project_is_closed($project);
 $requesterUnits = get_requester_units(!$isEditing);
 $cancelUrl = $isEditing
     ? '/demand_show.php?id=' . (int) $id
@@ -54,15 +55,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Selecione a unidade/setor demandante.';
     }
 
-    if (!$errors) {
-        if ($isEditing) {
-            update_demand_list($id, $demand);
-            $demandId = $id;
-        } else {
-            $demandId = create_demand_list($demand);
-        }
+    if ($projectLocked) {
+        $errors[] = project_closed_edit_message();
+    }
 
-        redirect('/demand_show.php?id=' . $demandId);
+    if (!$errors) {
+        try {
+            if ($isEditing) {
+                update_demand_list($id, $demand);
+                $demandId = $id;
+            } else {
+                $demandId = create_demand_list($demand);
+            }
+
+            redirect('/demand_show.php?id=' . $demandId);
+        } catch (Throwable $exception) {
+            $errors[] = $exception->getMessage();
+        }
     }
 }
 
@@ -92,6 +101,11 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 <?php endif; ?>
 
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning">
+        <?= e(project_closed_edit_message()) ?>
+    </div>
+<?php else: ?>
 <form method="post" class="card card-body shadow-sm">
     <?php if ($isEditing): ?>
         <input type="hidden" name="id" value="<?= (int) $id ?>">
@@ -188,6 +202,7 @@ require __DIR__ . '/../app/views/header.php';
         </div>
     </div>
 </form>
+<?php endif; ?>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {

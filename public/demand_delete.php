@@ -13,7 +13,11 @@ $id = (int) ($_POST['id'] ?? 0);
 $projectId = (int) ($_POST['project_id'] ?? 0);
 
 if ($id > 0) {
-    delete_demand_list($id);
+    try {
+        delete_demand_list($id);
+    } catch (Throwable $exception) {
+        redirect('/project_show.php?id=' . $projectId . '&project_error=' . rawurlencode($exception->getMessage()));
+    }
 }
 
 redirect('/project_show.php?id=' . $projectId);

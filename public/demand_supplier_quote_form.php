@@ -26,6 +26,7 @@ if (!$demand) {
 }
 
 $project = find_project((int) $demand['project_id']);
+$projectLocked = project_is_closed($project);
 $items = get_demand_items($demandId);
 $suppliers = get_suppliers(!$isEditing);
 $quoteItems = $isEditing ? get_demand_supplier_quote_items($id) : [];
@@ -36,6 +37,10 @@ $postedNotes = $_POST['item_notes'] ?? [];
 $postedSourceQuoteItemIds = $_POST['source_quote_item_ids'] ?? [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($projectLocked) {
+        $errors[] = project_closed_edit_message();
+    }
+
     $attachmentPath = $quote['attachment_path'] ?? null;
 
     try {
@@ -76,21 +81,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
-        if ($isEditing) {
-            update_demand_supplier_quote($id, $data);
-            $quoteId = $id;
-        } else {
-            $quoteId = create_demand_supplier_quote($data);
+        try {
+            if ($isEditing) {
+                update_demand_supplier_quote($id, $data);
+                $quoteId = $id;
+            } else {
+                $quoteId = create_demand_supplier_quote($data);
+            }
+
+            save_demand_supplier_quote_items(
+                $quoteId,
+                is_array($postedPrices) ? $postedPrices : [],
+                is_array($postedNotes) ? $postedNotes : [],
+                is_array($postedSourceQuoteItemIds) ? $postedSourceQuoteItemIds : []
+            );
+
+            redirect('/demand_show.php?id=' . $demandId);
+        } catch (Throwable $exception) {
+            $errors[] = $exception->getMessage();
         }
-
-        save_demand_supplier_quote_items(
-            $quoteId,
-            is_array($postedPrices) ? $postedPrices : [],
-            is_array($postedNotes) ? $postedNotes : [],
-            is_array($postedSourceQuoteItemIds) ? $postedSourceQuoteItemIds : []
-        );
-
-        redirect('/demand_show.php?id=' . $demandId);
     }
 
     $quote = array_merge($quote ?? [], $data);
@@ -135,6 +144,11 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 <?php endif; ?>
 
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning">
+        <?= e(project_closed_edit_message()) ?>
+    </div>
+<?php else: ?>
 <form method="post" enctype="multipart/form-data" class="card card-body shadow-sm">
     <?php if ($isEditing): ?>
         <input type="hidden" name="id" value="<?= (int) $id ?>">
@@ -332,6 +346,7 @@ require __DIR__ . '/../app/views/header.php';
         </button>
     </div>
 </form>
+<?php endif; ?>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {

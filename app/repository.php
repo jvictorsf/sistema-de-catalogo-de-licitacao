@@ -474,8 +474,266 @@ function find_project(int $id): ?array
     return $project ?: null;
 }
 
+function assert_project_editable(?int $projectId): void
+{
+    if (!$projectId) {
+        return;
+    }
+
+    $project = find_project($projectId);
+
+    if ($project && project_is_closed($project)) {
+        throw new RuntimeException(project_closed_edit_message());
+    }
+}
+
+function project_closure_payload(int $projectId): array
+{
+    $project = find_project($projectId);
+
+    if (!$project) {
+        throw new RuntimeException('Projeto nao encontrado.');
+    }
+
+    return [
+        'type' => 'project_closure',
+        'project' => [
+            'id' => (int) $project['id'],
+            'name' => (string) ($project['name'] ?? ''),
+            'description' => (string) ($project['description'] ?? ''),
+        ],
+        'demands' => array_map(static fn (array $demand): array => [
+            'id' => (int) ($demand['id'] ?? 0),
+            'name' => (string) ($demand['name'] ?? ''),
+            'secretariat' => (string) ($demand['secretariat_name'] ?? ''),
+            'requester_department' => (string) ($demand['requester_department'] ?? ''),
+            'responsible_name' => (string) ($demand['responsible_name'] ?? ''),
+        ], get_project_demands($projectId)),
+        'items' => array_map(static fn (array $item): array => [
+            'licitation_number' => $item['licitation_number'] !== null ? (int) $item['licitation_number'] : null,
+            'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+            'tracking_code' => (string) ($item['tracking_code'] ?? ''),
+            'item_name' => (string) ($item['item_name'] ?? ''),
+            'unit' => licitation_annex_unit_text($item),
+            'quantity' => (float) ($item['total_approved_quantity'] ?? 0),
+            'estimated_unit_price' => (float) ($item['average_unit_price'] ?? 0),
+            'estimated_total' => (float) ($item['estimated_total'] ?? 0),
+        ], get_project_consolidated_items($projectId)),
+        'items_by_demand' => array_map(static fn (array $item): array => [
+            'demand_id' => (int) ($item['demand_id'] ?? 0),
+            'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+            'quantity' => (float) ($item['approved_quantity'] ?? 0),
+            'estimated_total' => (float) ($item['calculated_total'] ?? 0),
+        ], get_project_items_by_demand($projectId)),
+        'lots' => array_map(static fn (array $lot): array => [
+            'id' => (int) ($lot['id'] ?? 0),
+            'lot_number' => (int) ($lot['lot_number'] ?? 0),
+            'name' => (string) ($lot['name'] ?? ''),
+            'justification' => (string) ($lot['justification'] ?? ''),
+        ], get_project_lot_denominations($projectId)),
+        'lot_assignments' => array_map(static fn (array $assignment): array => [
+            'project_lot_id' => (int) ($assignment['project_lot_id'] ?? 0),
+            'assignment_type' => (string) ($assignment['assignment_type'] ?? ''),
+            'procurement_item_id' => $assignment['procurement_item_id'] !== null ? (int) $assignment['procurement_item_id'] : null,
+            'category_id' => $assignment['category_id'] !== null ? (int) $assignment['category_id'] : null,
+        ], get_project_lot_assignments($projectId)),
+    ];
+}
+
+function project_closure_hash(int $projectId): string
+{
+    return project_annex_hash(project_closure_payload($projectId));
+}
+
+function refresh_project_closure_hash(int $projectId): string
+{
+    $hash = project_closure_hash($projectId);
+
+    $stmt = db()->prepare("
+        UPDATE procurement_projects
+        SET closure_hash = :closure_hash,
+            closed_at = CURRENT_TIMESTAMP
+        WHERE id = :id
+    ");
+    $stmt->execute([
+        'id' => $projectId,
+        'closure_hash' => $hash,
+    ]);
+
+    return $hash;
+}
+
+function normalize_document_hash_input(string $hash): string
+{
+    return strtolower((string) preg_replace('/[^a-f0-9]/i', '', $hash));
+}
+
+function find_document_hash_records(string $hash): array
+{
+    $normalized = normalize_document_hash_input($hash);
+
+    if ($normalized === '') {
+        return [];
+    }
+
+    $needle = strlen($normalized) >= 64 ? substr($normalized, 0, 64) : $normalized . '%';
+    $operator = strlen($normalized) >= 64 ? '=' : 'LIKE';
+    $records = [];
+
+    if (database_table_exists('project_annex_versions')) {
+        $stmt = db()->prepare("
+            SELECT
+                'annex' AS record_type,
+                pav.project_id,
+                p.name AS project_name,
+                p.status AS project_status,
+                pav.annex_type,
+                pav.version_number,
+                pav.content_hash,
+                pav.status,
+                pav.item_count,
+                pav.total_value,
+                pav.generated_at,
+                pav.invalidated_at
+            FROM project_annex_versions pav
+            INNER JOIN procurement_projects p ON p.id = pav.project_id
+            WHERE lower(pav.content_hash) {$operator} :hash
+            ORDER BY pav.generated_at DESC
+            LIMIT 20
+        ");
+        $stmt->execute(['hash' => $needle]);
+
+        foreach ($stmt->fetchAll() as $record) {
+            $record['annex_label'] = project_annex_types()[$record['annex_type']] ?? $record['annex_type'];
+            $records[] = $record;
+        }
+    }
+
+    try {
+        $stmt = db()->prepare("
+            SELECT
+                'project_closure' AS record_type,
+                id AS project_id,
+                name AS project_name,
+                status AS project_status,
+                closure_hash AS content_hash,
+                closed_at AS generated_at
+            FROM procurement_projects
+            WHERE closure_hash IS NOT NULL
+              AND lower(closure_hash) {$operator} :hash
+            ORDER BY closed_at DESC NULLS LAST
+            LIMIT 20
+        ");
+        $stmt->execute(['hash' => $needle]);
+
+        foreach ($stmt->fetchAll() as $record) {
+            $record['annex_label'] = 'Fechamento do projeto';
+            $record['status'] = $record['project_status'] === 'closed' ? 'valid' : 'rectification';
+            $records[] = $record;
+        }
+    } catch (Throwable $exception) {
+        if (!str_contains($exception->getMessage(), 'SQLSTATE[42703]')) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('hash de fechamento do projeto', $exception);
+    }
+
+    return $records;
+}
+
+function get_project_demand_group_report(int $projectId, string $groupBy = 'unit'): array
+{
+    $groupBy = $groupBy === 'secretariat' ? 'secretariat' : 'unit';
+    $groups = [];
+    $globalQuantity = 0.0;
+    $globalTotal = 0.0;
+
+    foreach (get_project_items_by_demand($projectId) as $item) {
+        $groupName = $groupBy === 'secretariat'
+            ? (string) (($item['secretariat_name'] ?? '') ?: 'Sem secretaria vinculada')
+            : (string) (($item['requester_department'] ?? '') ?: 'Sem unidade vinculada');
+        $itemKey = (int) ($item['procurement_item_id'] ?? 0);
+        $quantity = (float) ($item['approved_quantity'] ?? $item['quantity'] ?? 0);
+        $total = (float) ($item['calculated_total'] ?? $item['estimated_total'] ?? 0);
+
+        if (!isset($groups[$groupName])) {
+            $groups[$groupName] = [
+                'name' => $groupName,
+                'items' => [],
+                'quantity' => 0.0,
+                'total' => 0.0,
+            ];
+        }
+
+        if (!isset($groups[$groupName]['items'][$itemKey])) {
+            $groups[$groupName]['items'][$itemKey] = [
+                'sequence' => $item['licitation_number'] !== null ? (int) $item['licitation_number'] : null,
+                'procurement_item_id' => $itemKey,
+                'tracking_code' => (string) ($item['tracking_code'] ?? ''),
+                'item_name' => (string) ($item['item_name'] ?? ''),
+                'unit' => licitation_annex_unit_text($item),
+                'quantity' => 0.0,
+                'estimated_unit_price' => null,
+                'estimated_total' => 0.0,
+                'uses_supplier_average' => false,
+            ];
+        }
+
+        $groups[$groupName]['items'][$itemKey]['quantity'] += $quantity;
+        $groups[$groupName]['items'][$itemKey]['estimated_total'] += $total;
+        $groups[$groupName]['items'][$itemKey]['uses_supplier_average'] =
+            $groups[$groupName]['items'][$itemKey]['uses_supplier_average']
+            || !empty($item['uses_supplier_average']);
+
+        $groups[$groupName]['quantity'] += $quantity;
+        $groups[$groupName]['total'] += $total;
+        $globalQuantity += $quantity;
+        $globalTotal += $total;
+    }
+
+    foreach ($groups as $groupName => $group) {
+        foreach ($group['items'] as $itemKey => $row) {
+            $quantity = (float) ($row['quantity'] ?? 0);
+            $groups[$groupName]['items'][$itemKey]['estimated_unit_price'] = $quantity > 0
+                ? round_money_value((float) $row['estimated_total'] / $quantity)
+                : null;
+            $groups[$groupName]['items'][$itemKey]['estimated_total'] = round_money_value((float) $row['estimated_total']);
+        }
+
+        uasort($groups[$groupName]['items'], static function (array $left, array $right): int {
+            $leftNumber = (int) ($left['sequence'] ?? 0);
+            $rightNumber = (int) ($right['sequence'] ?? 0);
+
+            if ($leftNumber > 0 || $rightNumber > 0) {
+                return ($leftNumber ?: PHP_INT_MAX) <=> ($rightNumber ?: PHP_INT_MAX);
+            }
+
+            return strcasecmp((string) ($left['item_name'] ?? ''), (string) ($right['item_name'] ?? ''));
+        });
+
+        $groups[$groupName]['items'] = array_values($groups[$groupName]['items']);
+        $groups[$groupName]['total'] = round_money_value((float) $group['total']);
+    }
+
+    uasort($groups, static fn (array $left, array $right): int => strcasecmp($left['name'], $right['name']));
+
+    return [
+        'group_by' => $groupBy,
+        'groups' => array_values($groups),
+        'total_quantity' => $globalQuantity,
+        'global_total' => round_money_value($globalTotal),
+    ];
+}
+
 function create_project(array $data): int
 {
+    $status = (string) ($data['status'] ?? 'draft');
+
+    if ($status === 'rectification') {
+        throw new InvalidArgumentException('Retificacao deve ser usada apenas apos o fechamento do projeto.');
+    }
+
     $stmt = db()->prepare("
         INSERT INTO procurement_projects (
             name,
@@ -492,14 +750,46 @@ function create_project(array $data): int
     $stmt->execute([
         'name' => $data['name'],
         'description' => $data['description'] ?? null,
-        'status' => $data['status'] ?? 'draft',
+        'status' => $status,
     ]);
 
-    return (int) $stmt->fetchColumn();
+    $projectId = (int) $stmt->fetchColumn();
+
+    if ($status === 'closed') {
+        refresh_project_closure_hash($projectId);
+    }
+
+    return $projectId;
 }
 
 function update_project(int $id, array $data): void
 {
+    $project = find_project($id);
+
+    if (!$project) {
+        throw new RuntimeException('Projeto nao encontrado.');
+    }
+
+    $currentStatus = (string) ($project['status'] ?? 'draft');
+    $nextStatus = (string) ($data['status'] ?? 'draft');
+
+    if ($currentStatus === 'closed') {
+        if (!in_array($nextStatus, ['closed', 'rectification'], true)) {
+            throw new InvalidArgumentException('Projeto fechado aceita apenas os status Fechado ou Retificacao.');
+        }
+
+        $data['name'] = $project['name'];
+        $data['description'] = $project['description'];
+    }
+
+    if ($currentStatus === 'rectification' && !in_array($nextStatus, ['closed', 'rectification'], true)) {
+        throw new InvalidArgumentException('Projeto em retificacao pode permanecer em Retificacao ou voltar para Fechado.');
+    }
+
+    if ($currentStatus !== 'closed' && $currentStatus !== 'rectification' && $nextStatus === 'rectification') {
+        throw new InvalidArgumentException('Retificacao deve ser usada apenas apos o fechamento do projeto.');
+    }
+
     $stmt = db()->prepare("
         UPDATE procurement_projects SET
             name = :name,
@@ -512,12 +802,18 @@ function update_project(int $id, array $data): void
         'id' => $id,
         'name' => $data['name'],
         'description' => $data['description'] ?? null,
-        'status' => $data['status'] ?? 'draft',
+        'status' => $nextStatus,
     ]);
+
+    if ($nextStatus === 'closed') {
+        refresh_project_closure_hash($id);
+    }
 }
 
 function delete_project(int $id): void
 {
+    assert_project_editable($id);
+
     $stmt = db()->prepare("
         DELETE FROM procurement_projects
         WHERE id = :id
@@ -1007,6 +1303,7 @@ function find_demand_list(int $id): ?array
 function create_demand_list(array $data): int
 {
     $data = normalize_demand_requester_data($data);
+    assert_project_editable((int) $data['project_id']);
 
     $stmt = db()->prepare("
         INSERT INTO demand_lists (
@@ -1044,6 +1341,7 @@ function create_demand_list(array $data): int
 
 function update_demand_list(int $id, array $data): void
 {
+    assert_project_editable(find_project_id_by_demand_list($id));
     $data = normalize_demand_requester_data($data);
 
     $stmt = db()->prepare("
@@ -1071,6 +1369,7 @@ function update_demand_list(int $id, array $data): void
 function delete_demand_list(int $id): void
 {
     $projectId = find_project_id_by_demand_list($id);
+    assert_project_editable($projectId);
 
     $stmt = db()->prepare("
         DELETE FROM demand_lists
@@ -1114,6 +1413,8 @@ function get_demand_items(int $demandListId): array
 
 function add_demand_item(array $data): void
 {
+    assert_project_editable(find_project_id_by_demand_list((int) $data['demand_list_id']));
+
     $stmt = db()->prepare("
         INSERT INTO demand_items (
             demand_list_id,
@@ -1153,6 +1454,7 @@ function add_demand_item(array $data): void
 function delete_demand_item(int $id): void
 {
     $projectId = find_project_id_by_demand_item($id);
+    assert_project_editable($projectId);
 
     $stmt = db()->prepare("
         DELETE FROM demand_items
@@ -1166,6 +1468,7 @@ function delete_demand_item(int $id): void
 function update_demand_item(int $id, array $data): void
 {
     $projectId = find_project_id_by_demand_item($id);
+    assert_project_editable($projectId);
 
     $stmt = db()->prepare("
         UPDATE demand_items SET
@@ -1476,6 +1779,7 @@ function get_project_licitation_number_map(int $projectId): array
 
 function save_project_licitation_numbers(int $projectId, array $numbers): void
 {
+    assert_project_editable($projectId);
     sync_project_licitation_items($projectId);
 
     $pdo = db();
@@ -1539,6 +1843,7 @@ function save_project_licitation_numbers(int $projectId, array $numbers): void
 
 function renumber_project_licitation_items(int $projectId): void
 {
+    assert_project_editable($projectId);
     sync_project_licitation_items($projectId);
 
     $pdo = db();
@@ -1626,6 +1931,8 @@ function find_project_lot_denomination(int $id): ?array
 
 function create_project_lot_denomination(array $data): int
 {
+    assert_project_editable((int) $data['project_id']);
+
     $stmt = db()->prepare("
         INSERT INTO project_lot_denominations (
             project_id,
@@ -1661,6 +1968,8 @@ function update_project_lot_denomination(int $id, array $data): void
         throw new RuntimeException('Denominacao nao encontrada.');
     }
 
+    assert_project_editable((int) $lot['project_id']);
+
     $stmt = db()->prepare("
         UPDATE project_lot_denominations
         SET lot_number = :lot_number,
@@ -1685,6 +1994,8 @@ function delete_project_lot_denomination(int $id): void
     if (!$lot) {
         return;
     }
+
+    assert_project_editable((int) $lot['project_id']);
 
     $stmt = db()->prepare("
         DELETE FROM project_lot_denominations
@@ -1736,6 +2047,7 @@ function add_project_lot_assignment(int $projectLotId, string $assignmentType, ?
 
     $assignmentType = $assignmentType === 'category' ? 'category' : 'item';
     $projectId = (int) $lot['project_id'];
+    assert_project_editable($projectId);
 
     if ($assignmentType === 'item') {
         if (!$procurementItemId) {
@@ -1810,6 +2122,8 @@ function delete_project_lot_assignment(int $id): void
     ");
     $stmt->execute(['id' => $id]);
     $projectId = $stmt->fetchColumn();
+
+    assert_project_editable($projectId !== false ? (int) $projectId : null);
 
     $delete = db()->prepare("
         DELETE FROM project_lot_assignments
@@ -2576,6 +2890,8 @@ function find_demand_supplier_quote_by_supplier(int $demandListId, int $supplier
 
 function create_demand_supplier_quote(array $data): int
 {
+    assert_project_editable(find_project_id_by_demand_list((int) $data['demand_list_id']));
+
     $stmt = db()->prepare("
         INSERT INTO demand_supplier_quotes (
             demand_list_id,
@@ -2619,6 +2935,7 @@ function create_demand_supplier_quote(array $data): int
 function update_demand_supplier_quote(int $id, array $data): void
 {
     $projectId = find_project_id_by_supplier_quote($id);
+    assert_project_editable($projectId);
 
     $stmt = db()->prepare("
         UPDATE demand_supplier_quotes SET
@@ -2649,6 +2966,7 @@ function update_demand_supplier_quote(int $id, array $data): void
 function delete_demand_supplier_quote(int $id): void
 {
     $projectId = find_project_id_by_supplier_quote($id);
+    assert_project_editable($projectId);
 
     $stmt = db()->prepare("
         DELETE FROM demand_supplier_quotes
@@ -2884,6 +3202,7 @@ function get_demand_price_bank_candidates(int $demandListId, int $months = 0): a
 function save_demand_price_references(int $demandListId, array $selectedReferences): void
 {
     $projectId = find_project_id_by_demand_list($demandListId);
+    assert_project_editable($projectId);
 
     db()->beginTransaction();
 
@@ -2943,6 +3262,7 @@ function save_demand_price_references(int $demandListId, array $selectedReferenc
 function save_demand_supplier_quote_items(int $quoteId, array $prices, array $notes = [], array $sourceQuoteItemIds = []): void
 {
     $projectId = find_project_id_by_supplier_quote($quoteId);
+    assert_project_editable($projectId);
 
     db()->beginTransaction();
 
@@ -3019,6 +3339,8 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
     if ($projectId <= 0 || $supplierId <= 0) {
         throw new InvalidArgumentException('Projeto e fornecedor sao obrigatorios.');
     }
+
+    assert_project_editable($projectId);
 
     $demands = get_project_demands($projectId);
     $quoteCount = 0;

@@ -10,6 +10,8 @@ $id = isset($_GET['id']) ? (int) $_GET['id'] : null;
 $project = $id ? find_project($id) : null;
 
 $errors = [];
+$projectLocked = $project ? project_is_closed($project) : false;
+$projectInRectification = $project ? project_is_rectification($project) : false;
 
 if ($id && !$project) {
     http_response_code(404);
@@ -28,16 +30,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
-        if ($project) {
-            update_project((int) $project['id'], $data);
-            redirect('/project_show.php?id=' . (int) $project['id']);
-        }
+        try {
+            if ($project) {
+                update_project((int) $project['id'], $data);
+                redirect('/project_show.php?id=' . (int) $project['id']);
+            }
 
-        $newId = create_project($data);
-        redirect('/project_show.php?id=' . $newId);
+            $newId = create_project($data);
+            redirect('/project_show.php?id=' . $newId);
+        } catch (Throwable $exception) {
+            $errors[] = $exception->getMessage();
+        }
     }
 
     $project = array_merge($project ?? [], $data);
+    $projectLocked = $project ? project_is_closed($project) : false;
+    $projectInRectification = $project ? project_is_rectification($project) : false;
 }
 
 require __DIR__ . '/../app/views/header.php';
@@ -69,11 +77,27 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 <?php endif; ?>
 
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning">
+        <?= e(project_closed_edit_message()) ?>
+    </div>
+<?php elseif ($projectInRectification): ?>
+    <div class="alert alert-danger">
+        Projeto em retificacao. Depois de concluir as correcoes, altere o status para Fechado para gerar novo hash.
+    </div>
+<?php endif; ?>
+
 <form method="post" class="card card-body shadow-sm">
     <div class="row g-3">
         <div class="col-md-8">
             <label class="form-label">Nome do projeto</label>
-            <input type="text" name="name" class="form-control" required value="<?= e($project['name'] ?? '') ?>">
+            <input
+                type="text"
+                name="name"
+                class="form-control"
+                required
+                value="<?= e($project['name'] ?? '') ?>"
+                <?= $projectLocked ? 'readonly' : '' ?>>
         </div>
 
         <div class="col-md-4">
@@ -88,7 +112,7 @@ require __DIR__ . '/../app/views/header.php';
                 ];
                 ?>
 
-                <?php foreach (project_status_options() as $value => $label): ?>
+                <?php foreach (project_status_options_for_form($project) as $value => $label): ?>
                     <option value="<?= e($value) ?>" <?= ($project['status'] ?? 'draft') === $value ? 'selected' : '' ?>>
                         <?= e($label) ?>
                     </option>
@@ -98,7 +122,11 @@ require __DIR__ . '/../app/views/header.php';
 
         <div class="col-12">
             <label class="form-label">Descrição</label>
-            <textarea name="description" rows="4" class="form-control"><?= e($project['description'] ?? '') ?></textarea>
+            <textarea
+                name="description"
+                rows="4"
+                class="form-control"
+                <?= $projectLocked ? 'readonly' : '' ?>><?= e($project['description'] ?? '') ?></textarea>
         </div>
 
         <div class="col-12 d-flex justify-content-end gap-2">

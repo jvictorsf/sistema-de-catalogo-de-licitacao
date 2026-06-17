@@ -21,6 +21,11 @@ $quoteRequestGroups = supplier_quote_request_groups_from_items($consolidatedItem
 $financialSummary = get_project_financial_summary($id);
 $annexStatuses = get_project_annex_statuses($id);
 $quoteSuccess = trim($_GET['quote_success'] ?? '');
+$projectError = trim($_GET['project_error'] ?? '');
+$projectLocked = project_is_closed($project);
+$projectInRectification = project_is_rectification($project);
+$closureHash = trim((string) ($project['closure_hash'] ?? ''));
+$closureShortHash = $closureHash !== '' ? substr($closureHash, 0, 12) : '';
 
 require __DIR__ . '/../app/views/header.php';
 
@@ -41,6 +46,7 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 
     <div class="page-actions project-actions d-flex gap-2 flex-wrap justify-content-end">
+        <?php if (!$projectLocked): ?>
         <a href="/demand_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i>Nova demanda
         </a>
@@ -56,6 +62,7 @@ require __DIR__ . '/../app/views/header.php';
         <a href="/project_lots.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-dark">
             <i class="bi bi-boxes"></i>Denominacoes
         </a>
+        <?php endif; ?>
 
         <div class="btn-group">
             <button
@@ -80,6 +87,29 @@ require __DIR__ . '/../app/views/header.php';
                 <li>
                     <a href="/project_pdf.php?id=<?= (int) $project['id'] ?>" target="_blank" class="dropdown-item">
                         PDF Institucional
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Demandas sem precos</h6></li>
+                <li>
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=unit&prices=0&format=pdf" target="_blank" class="dropdown-item">
+                        Por unidade
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=secretariat&prices=0&format=pdf" target="_blank" class="dropdown-item">
+                        Por secretaria
+                    </a>
+                </li>
+                <li><h6 class="dropdown-header">Demandas com precos</h6></li>
+                <li>
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=unit&prices=1&format=pdf" target="_blank" class="dropdown-item">
+                        Por unidade
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=secretariat&prices=1&format=pdf" target="_blank" class="dropdown-item">
+                        Por secretaria
                     </a>
                 </li>
             </ul>
@@ -271,6 +301,38 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 <?php endif; ?>
 
+<?php if ($projectError): ?>
+    <div class="alert alert-danger">
+        <?= e($projectError) ?>
+    </div>
+<?php endif; ?>
+
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning d-flex gap-3 align-items-start">
+        <i class="bi bi-lock-fill fs-5"></i>
+        <div>
+            <div class="fw-semibold">Projeto fechado para alteracoes</div>
+            <div>
+                <?= e(project_closed_edit_message()) ?>
+                <?php if ($closureShortHash): ?>
+                    Hash de fechamento:
+                    <a href="/document_hash_validate.php?hash=<?= e($closureHash) ?>" class="alert-link font-monospace">
+                        <?= e($closureShortHash) ?>
+                    </a>.
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+<?php elseif ($projectInRectification): ?>
+    <div class="alert alert-danger d-flex gap-3 align-items-start">
+        <i class="bi bi-exclamation-triangle fs-5"></i>
+        <div>
+            <div class="fw-semibold">Projeto em retificacao</div>
+            <div>As alteracoes estao liberadas para correcao. Ao concluir, altere o status para Fechado para gerar novo hash.</div>
+        </div>
+    </div>
+<?php endif; ?>
+
 <?php if ($annexStatuses): ?>
     <div class="card card-body mb-4">
         <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
@@ -279,9 +341,11 @@ require __DIR__ . '/../app/views/header.php';
                 <div class="text-muted small">Quando os itens, a ordem ou os precos mudam, gere novamente os anexos desatualizados.</div>
             </div>
 
-            <a href="/project_licitation_numbers.php?id=<?= (int) $project['id'] ?>" class="btn btn-sm btn-outline-dark">
-                <i class="bi bi-list-ol"></i>Ajustar numeracao
-            </a>
+            <?php if (!$projectLocked): ?>
+                <a href="/project_licitation_numbers.php?id=<?= (int) $project['id'] ?>" class="btn btn-sm btn-outline-dark">
+                    <i class="bi bi-list-ol"></i>Ajustar numeracao
+                </a>
+            <?php endif; ?>
         </div>
 
         <div class="row g-2 mt-2">
@@ -410,6 +474,7 @@ require __DIR__ . '/../app/views/header.php';
                                         Abrir
                                     </a>
 
+                                    <?php if (!$projectLocked): ?>
                                     <a
                                         href="/demand_budget.php?id=<?= (int) $demand['id'] ?>"
                                         class="btn btn-sm btn-outline-success">
@@ -428,6 +493,7 @@ require __DIR__ . '/../app/views/header.php';
                                             Excluir
                                         </button>
                                     </form>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>

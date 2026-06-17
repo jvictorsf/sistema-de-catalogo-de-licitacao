@@ -14,7 +14,11 @@ $id = (int) ($_POST['id'] ?? 0);
 $demandId = (int) ($_POST['demand_id'] ?? 0);
 
 if ($id > 0) {
-    delete_demand_supplier_quote($id);
+    try {
+        delete_demand_supplier_quote($id);
+    } catch (Throwable $exception) {
+        redirect('/demand_show.php?id=' . $demandId . '&error=' . rawurlencode($exception->getMessage()));
+    }
 }
 
 redirect('/demand_show.php?id=' . $demandId);

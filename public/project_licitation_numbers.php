@@ -16,6 +16,7 @@ if (!$project) {
 
 $errors = [];
 $success = trim((string) ($_GET['success'] ?? ''));
+$projectLocked = project_is_closed($project);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -64,6 +65,12 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 <?php endif; ?>
 
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning">
+        <?= e(project_closed_edit_message()) ?>
+    </div>
+<?php endif; ?>
+
 <form method="post" class="card">
     <input type="hidden" name="id" value="<?= (int) $project['id'] ?>">
 
@@ -71,11 +78,11 @@ require __DIR__ . '/../app/views/header.php';
         <div class="fw-semibold">Numero de licitacao por item</div>
 
         <div class="d-flex gap-2">
-            <button type="submit" name="action" value="renumber" class="btn btn-outline-dark">
+            <button type="submit" name="action" value="renumber" class="btn btn-outline-dark" <?= $projectLocked ? 'disabled' : '' ?>>
                 <i class="bi bi-sort-numeric-down"></i>Renumerar
             </button>
 
-            <button type="submit" name="action" value="save" class="btn btn-primary">
+            <button type="submit" name="action" value="save" class="btn btn-primary" <?= $projectLocked ? 'disabled' : '' ?>>
                 <i class="bi bi-check2-circle"></i>Salvar
             </button>
         </div>
@@ -113,6 +120,7 @@ require __DIR__ . '/../app/views/header.php';
                                     min="1"
                                     step="1"
                                     value="<?= e((string) ($item['licitation_number'] ?? '')) ?>"
+                                    <?= $projectLocked ? 'readonly' : '' ?>
                                     required>
                             </td>
                             <td>

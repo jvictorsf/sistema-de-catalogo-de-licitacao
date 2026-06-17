@@ -15,15 +15,25 @@ if (!$demand) {
 }
 
 $project = find_project((int) $demand['project_id']);
+$projectLocked = project_is_closed($project);
 $items = get_demand_items($id);
 $months = (int) ($_GET['months'] ?? $_POST['months'] ?? 0);
 $selectedReferences = get_selected_demand_price_references($id);
 $success = false;
+$error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    save_demand_price_references($id, is_array($_POST['references'] ?? null) ? $_POST['references'] : []);
+    try {
+        if ($projectLocked) {
+            throw new RuntimeException(project_closed_edit_message());
+        }
 
-    redirect('/demand_price_bank.php?id=' . $id . '&months=' . $months . '&success=1');
+        save_demand_price_references($id, is_array($_POST['references'] ?? null) ? $_POST['references'] : []);
+
+        redirect('/demand_price_bank.php?id=' . $id . '&months=' . $months . '&success=1');
+    } catch (Throwable $exception) {
+        $error = $exception->getMessage();
+    }
 }
 
 $success = ($_GET['success'] ?? '') === '1';
@@ -54,6 +64,18 @@ require __DIR__ . '/../app/views/header.php';
 <?php if ($success): ?>
     <div class="alert alert-success">
         Base de preços atualizada para esta demanda.
+    </div>
+<?php endif; ?>
+
+<?php if ($error): ?>
+    <div class="alert alert-danger">
+        <?= e($error) ?>
+    </div>
+<?php endif; ?>
+
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning">
+        <?= e(project_closed_edit_message()) ?>
     </div>
 <?php endif; ?>
 
@@ -206,7 +228,7 @@ require __DIR__ . '/../app/views/header.php';
             Cancelar
         </a>
 
-        <button class="btn btn-primary">
+        <button class="btn btn-primary" <?= $projectLocked ? 'disabled' : '' ?>>
             Salvar base de preços
         </button>
     </div>

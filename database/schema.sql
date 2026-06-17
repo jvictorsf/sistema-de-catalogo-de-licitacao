@@ -180,6 +180,8 @@ CREATE TABLE IF NOT EXISTS procurement_projects (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'draft',
+    closure_hash CHAR(64),
+    closed_at TIMESTAMP NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -436,6 +438,12 @@ ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 
 ALTER TABLE procurement_projects
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS closure_hash CHAR(64);
+
+ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL;
 
 ALTER TABLE secretariats
 ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
@@ -1015,6 +1023,9 @@ ON project_licitation_items (project_id);
 
 CREATE INDEX IF NOT EXISTS idx_project_licitation_items_item
 ON project_licitation_items (procurement_item_id);
+
+CREATE INDEX IF NOT EXISTS idx_procurement_projects_closure_hash
+ON procurement_projects (closure_hash);
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_project_annex_versions_hash
 ON project_annex_versions (project_id, annex_type, content_hash);

@@ -18,7 +18,11 @@ if ($multiplier <= 0) {
 }
 
 if ($demandListId > 0 && $kitId > 0) {
-    add_kit_to_demand($demandListId, $kitId, $multiplier);
+    try {
+        add_kit_to_demand($demandListId, $kitId, $multiplier);
+    } catch (Throwable $exception) {
+        redirect('/demand_show.php?id=' . $demandListId . '&error=' . rawurlencode($exception->getMessage()));
+    }
 }
 
 redirect('/demand_show.php?id=' . $demandListId);

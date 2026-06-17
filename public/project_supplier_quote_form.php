@@ -14,6 +14,7 @@ if (!$project) {
     exit('Projeto não encontrado.');
 }
 
+$projectLocked = project_is_closed($project);
 $demands = get_project_demands($projectId);
 $suppliers = get_suppliers(true);
 $selectedSupplierId = (int) ($_POST['supplier_id'] ?? $_GET['supplier_id'] ?? 0);
@@ -31,6 +32,10 @@ $quoteDefaults = [
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($projectLocked) {
+        $errors[] = project_closed_edit_message();
+    }
+
     if ($selectedSupplierId <= 0) {
         $errors[] = 'Selecione o fornecedor.';
     }
@@ -50,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
+        try {
         $summary = save_project_supplier_quote([
             'project_id' => $projectId,
             'supplier_id' => $selectedSupplierId,
@@ -70,6 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
 
         redirect('/project_show.php?id=' . $projectId . '&quote_success=' . rawurlencode($message));
+        } catch (Throwable $exception) {
+            $errors[] = $exception->getMessage();
+        }
     }
 }
 
@@ -235,6 +244,11 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 <?php endif; ?>
 
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning">
+        <?= e(project_closed_edit_message()) ?>
+    </div>
+<?php else: ?>
 <form method="post" enctype="multipart/form-data" class="card card-body shadow-sm project-quote-form">
     <input type="hidden" name="project_id" value="<?= (int) $projectId ?>">
 
@@ -468,6 +482,7 @@ require __DIR__ . '/../app/views/header.php';
         </button>
     </div>
 </form>
+<?php endif; ?>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {

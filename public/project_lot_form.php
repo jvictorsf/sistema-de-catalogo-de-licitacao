@@ -27,6 +27,7 @@ if (!$project) {
 }
 
 $errors = [];
+$projectLocked = project_is_closed($project);
 $isEditing = $lot !== null;
 $formData = [
     'lot_number' => (string) ($lot['lot_number'] ?? get_next_project_lot_number($projectId)),
@@ -96,6 +97,10 @@ require __DIR__ . '/../app/views/header.php';
     <div class="alert alert-danger"><?= e(implode(' ', $errors)) ?></div>
 <?php endif; ?>
 
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning"><?= e(project_closed_edit_message()) ?></div>
+<?php else: ?>
+
 <div class="row g-4">
     <div class="col-lg-8">
         <form method="post" class="card">
@@ -160,5 +165,6 @@ require __DIR__ . '/../app/views/header.php';
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <?php require __DIR__ . '/../app/views/footer.php'; ?>

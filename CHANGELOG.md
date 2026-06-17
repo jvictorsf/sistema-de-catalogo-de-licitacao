@@ -2,6 +2,19 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.21] - 2026-06-17
+
+### Adicionado
+- Relatorios de demanda por unidade e por secretaria, com versoes sem precos e com precos, exportaveis em PDF, Word e Excel.
+- Status "Retificacao" para projetos fechados que precisem voltar a permitir correcoes.
+- Hash de fechamento do projeto ao marcar o status como Fechado.
+- Pagina administrativa para validar hashes de anexos e fechamentos de projeto.
+
+### Alterado
+- Projetos fechados passam a bloquear alteracoes em demandas, itens, orcamentos, banco de precos, numeracao de licitacao e denominacoes de lote.
+- Telas de projeto, demanda, orcamento, numeracao e lotes passam a exibir avisos de somente leitura quando o projeto esta fechado.
+- Ao fechar um projeto, os status Rascunho, Coletando demandas e Em revisao ficam indisponiveis; permanecem apenas Fechado e Retificacao.
+
 ## [1.5.20] - 2026-06-16
 
 ### Adicionado

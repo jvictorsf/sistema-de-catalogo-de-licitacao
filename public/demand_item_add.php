@@ -33,7 +33,11 @@ if (
     $data['procurement_item_id'] > 0 &&
     $data['quantity'] > 0
 ) {
-    add_demand_item($data);
+    try {
+        add_demand_item($data);
+    } catch (Throwable $exception) {
+        redirect('/demand_show.php?id=' . $demandListId . '&error=' . rawurlencode($exception->getMessage()));
+    }
 }
 
 redirect('/demand_show.php?id=' . $demandListId);

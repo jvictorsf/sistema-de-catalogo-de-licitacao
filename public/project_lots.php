@@ -16,6 +16,7 @@ if (!$project) {
 
 $errors = [];
 $success = trim((string) ($_GET['success'] ?? ''));
+$projectLocked = project_is_closed($project);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
@@ -53,9 +54,11 @@ require __DIR__ . '/../app/views/header.php';
         <a href="/project_show.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i>Voltar
         </a>
-        <a href="/project_lot_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
-            <i class="bi bi-plus-lg"></i>Nova denominacao
-        </a>
+        <?php if (!$projectLocked): ?>
+            <a href="/project_lot_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i>Nova denominacao
+            </a>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -65,6 +68,10 @@ require __DIR__ . '/../app/views/header.php';
 
 <?php if ($errors): ?>
     <div class="alert alert-danger"><?= e(implode(' ', $errors)) ?></div>
+<?php endif; ?>
+
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning"><?= e(project_closed_edit_message()) ?></div>
 <?php endif; ?>
 
 <div class="alert alert-info d-flex gap-3 align-items-start">
@@ -104,9 +111,11 @@ require __DIR__ . '/../app/views/header.php';
                         <tr>
                             <td colspan="5" class="text-center text-muted py-5">
                                 <div class="mb-3">Nenhuma denominacao cadastrada para este projeto.</div>
-                                <a href="/project_lot_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
-                                    <i class="bi bi-plus-lg"></i>Criar primeira denominacao
-                                </a>
+                                <?php if (!$projectLocked): ?>
+                                    <a href="/project_lot_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
+                                        <i class="bi bi-plus-lg"></i>Criar primeira denominacao
+                                    </a>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endif; ?>
@@ -131,6 +140,7 @@ require __DIR__ . '/../app/views/header.php';
                                         class="btn btn-sm btn-outline-success">
                                         <i class="bi bi-link-45deg"></i>Vinculos
                                     </a>
+                                    <?php if (!$projectLocked): ?>
                                     <a
                                         href="/project_lot_form.php?id=<?= (int) $lot['id'] ?>"
                                         class="btn btn-sm btn-outline-primary">
@@ -144,6 +154,7 @@ require __DIR__ . '/../app/views/header.php';
                                             <i class="bi bi-trash"></i>Remover
                                         </button>
                                     </form>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>

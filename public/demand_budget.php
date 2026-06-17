@@ -15,6 +15,7 @@ if (!$demand) {
 }
 
 $project = find_project((int) $demand['project_id']);
+$projectLocked = project_is_closed($project);
 $budget = get_demand_budget_report($id);
 $quotes = $budget['quotes'];
 $items = $budget['items'];
@@ -37,6 +38,7 @@ require __DIR__ . '/../app/views/header.php';
             <i class="bi bi-printer"></i>Imprimir/PDF
         </button>
 
+        <?php if (!$projectLocked): ?>
         <a href="/demand_supplier_quote_form.php?demand_id=<?= (int) $demand['id'] ?>" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i>Adicionar orçamento
         </a>
@@ -45,11 +47,19 @@ require __DIR__ . '/../app/views/header.php';
             <i class="bi bi-archive"></i>Banco de preços
         </a>
 
+        <?php endif; ?>
+
         <a href="/demand_show.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-secondary">
             Voltar
         </a>
     </div>
 </div>
+
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning print-hide">
+        <?= e(project_closed_edit_message()) ?>
+    </div>
+<?php endif; ?>
 
 <div class="card card-body mb-4">
     <div class="text-center mb-3">

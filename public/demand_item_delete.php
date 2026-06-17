@@ -13,7 +13,11 @@ $id = (int) ($_POST['id'] ?? 0);
 $demandListId = (int) ($_POST['demand_list_id'] ?? 0);
 
 if ($id > 0) {
-    delete_demand_item($id);
+    try {
+        delete_demand_item($id);
+    } catch (Throwable $exception) {
+        redirect('/demand_show.php?id=' . $demandListId . '&error=' . rawurlencode($exception->getMessage()));
+    }
 }
 
 redirect('/demand_show.php?id=' . $demandListId);

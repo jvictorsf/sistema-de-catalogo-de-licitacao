@@ -24,6 +24,7 @@ if (!$project) {
 
 $errors = [];
 $success = trim((string) ($_GET['success'] ?? ''));
+$projectLocked = project_is_closed($project);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
@@ -89,9 +90,11 @@ require __DIR__ . '/../app/views/header.php';
         <a href="/project_lots.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i>Voltar
         </a>
-        <a href="/project_lot_form.php?id=<?= (int) $lot['id'] ?>" class="btn btn-outline-primary">
-            <i class="bi bi-pencil-square"></i>Editar denominacao
-        </a>
+        <?php if (!$projectLocked): ?>
+            <a href="/project_lot_form.php?id=<?= (int) $lot['id'] ?>" class="btn btn-outline-primary">
+                <i class="bi bi-pencil-square"></i>Editar denominacao
+            </a>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -101,6 +104,10 @@ require __DIR__ . '/../app/views/header.php';
 
 <?php if ($errors): ?>
     <div class="alert alert-danger"><?= e(implode(' ', $errors)) ?></div>
+<?php endif; ?>
+
+<?php if ($projectLocked): ?>
+    <div class="alert alert-warning"><?= e(project_closed_edit_message()) ?></div>
 <?php endif; ?>
 
 <div class="row g-4">
@@ -121,6 +128,7 @@ require __DIR__ . '/../app/views/header.php';
             </div>
         </div>
 
+        <?php if (!$projectLocked): ?>
         <form method="post" class="card">
             <input type="hidden" name="action" value="add_assignment">
             <input type="hidden" name="lot_id" value="<?= (int) $lot['id'] ?>">
@@ -181,6 +189,7 @@ require __DIR__ . '/../app/views/header.php';
                 </button>
             </div>
         </form>
+        <?php endif; ?>
     </div>
 
     <div class="col-xl-8">
@@ -230,6 +239,7 @@ require __DIR__ . '/../app/views/header.php';
                                     </td>
                                     <td><?= e($label !== '' ? $label : '-') ?></td>
                                     <td class="text-end">
+                                        <?php if (!$projectLocked): ?>
                                         <form method="post" class="d-inline" onsubmit="return confirm('Remover este vinculo?')">
                                             <input type="hidden" name="action" value="delete_assignment">
                                             <input type="hidden" name="lot_id" value="<?= (int) $lot['id'] ?>">
@@ -238,6 +248,9 @@ require __DIR__ . '/../app/views/header.php';
                                                 <i class="bi bi-trash"></i>Remover
                                             </button>
                                         </form>
+                                        <?php else: ?>
+                                            <span class="text-muted">Somente leitura</span>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

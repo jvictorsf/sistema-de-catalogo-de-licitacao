@@ -35,7 +35,11 @@ if (
     $quantity > 0 &&
     $approvedQuantity >= 0
 ) {
-    update_demand_item($id, $data);
+    try {
+        update_demand_item($id, $data);
+    } catch (Throwable $exception) {
+        redirect('/demand_show.php?id=' . $demandListId . '&error=' . rawurlencode($exception->getMessage()));
+    }
 }
 
 redirect('/demand_show.php?id=' . $demandListId);

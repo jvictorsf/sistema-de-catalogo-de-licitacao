@@ -379,6 +379,26 @@ function project_status_options(): array
         'collecting' => 'Coletando demandas',
         'review' => 'Em revisao',
         'closed' => 'Fechado',
+        'rectification' => 'Retificacao',
+    ];
+}
+
+function project_status_options_for_form(?array $project = null): array
+{
+    $status = (string) ($project['status'] ?? 'draft');
+
+    if (in_array($status, ['closed', 'rectification'], true)) {
+        return [
+            'closed' => 'Fechado',
+            'rectification' => 'Retificacao',
+        ];
+    }
+
+    return [
+        'draft' => 'Rascunho',
+        'collecting' => 'Coletando demandas',
+        'review' => 'Em revisao',
+        'closed' => 'Fechado',
     ];
 }
 
@@ -396,9 +416,29 @@ function project_status_badge_class(?string $status): string
         'collecting' => 'text-bg-info',
         'review' => 'text-bg-warning',
         'closed' => 'text-bg-success',
+        'rectification' => 'text-bg-danger',
     ];
 
     return $classes[$status ?? ''] ?? 'text-bg-secondary';
+}
+
+function project_is_closed(mixed $project): bool
+{
+    $status = is_array($project) ? ($project['status'] ?? null) : $project;
+
+    return $status === 'closed';
+}
+
+function project_is_rectification(mixed $project): bool
+{
+    $status = is_array($project) ? ($project['status'] ?? null) : $project;
+
+    return $status === 'rectification';
+}
+
+function project_closed_edit_message(): string
+{
+    return 'Projeto fechado. Para corrigir ou alterar dados, mude o status do projeto para Retificacao.';
 }
 
 function format_decimal_quantity(mixed $value): string

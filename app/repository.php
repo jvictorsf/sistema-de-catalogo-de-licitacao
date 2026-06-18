@@ -642,9 +642,15 @@ function find_document_hash_records(string $hash): array
     return $records;
 }
 
-function get_project_demand_group_report(int $projectId, string $groupBy = 'unit', ?string $filterKey = null): array
+function get_project_demand_group_report(
+    int $projectId,
+    string $groupBy = 'unit',
+    ?string $filterKey = null,
+    ?string $filterBy = null
+): array
 {
     $groupBy = $groupBy === 'secretariat' ? 'secretariat' : 'unit';
+    $filterBy = in_array($filterBy, ['unit', 'secretariat'], true) ? $filterBy : $groupBy;
     $filterKey = $filterKey !== null ? trim($filterKey) : null;
     $filterKey = $filterKey !== '' ? $filterKey : null;
 
@@ -653,9 +659,10 @@ function get_project_demand_group_report(int $projectId, string $groupBy = 'unit
     $globalTotal = 0.0;
 
     foreach (get_project_items_by_demand($projectId) as $item) {
+        $itemFilterKey = project_demand_report_group_key($filterBy, $item);
         $groupKey = project_demand_report_group_key($groupBy, $item);
 
-        if ($filterKey !== null && $groupKey !== $filterKey) {
+        if ($filterKey !== null && $itemFilterKey !== $filterKey) {
             continue;
         }
 

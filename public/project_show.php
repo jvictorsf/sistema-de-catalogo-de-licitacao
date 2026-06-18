@@ -92,24 +92,54 @@ require __DIR__ . '/../app/views/header.php';
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Demandas sem precos</h6></li>
                 <li>
-                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=unit&prices=0&format=pdf" target="_blank" class="dropdown-item">
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&mode=unit_all&prices=0&format=pdf" target="_blank" class="dropdown-item">
+                        Por unidade
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&mode=unit_filtered&prices=0&format=pdf" target="_blank" class="dropdown-item">
                         Por unidade filtrada
                     </a>
                 </li>
                 <li>
-                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=secretariat&prices=0&format=pdf" target="_blank" class="dropdown-item">
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&mode=secretariat_all&prices=0&format=pdf" target="_blank" class="dropdown-item">
+                        Por secretaria
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&mode=secretariat_filtered&prices=0&format=pdf" target="_blank" class="dropdown-item">
                         Por secretaria filtrada
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&mode=secretariat_units_filtered&prices=0&format=pdf" target="_blank" class="dropdown-item">
+                        Por secretaria filtrada com unidades
                     </a>
                 </li>
                 <li><h6 class="dropdown-header">Demandas com precos</h6></li>
                 <li>
-                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=unit&prices=1&format=pdf" target="_blank" class="dropdown-item">
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&mode=unit_all&prices=1&format=pdf" target="_blank" class="dropdown-item">
+                        Por unidade
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&mode=unit_filtered&prices=1&format=pdf" target="_blank" class="dropdown-item">
                         Por unidade filtrada
                     </a>
                 </li>
                 <li>
-                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&group=secretariat&prices=1&format=pdf" target="_blank" class="dropdown-item">
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&mode=secretariat_all&prices=1&format=pdf" target="_blank" class="dropdown-item">
+                        Por secretaria
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&mode=secretariat_filtered&prices=1&format=pdf" target="_blank" class="dropdown-item">
                         Por secretaria filtrada
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_demand_report.php?id=<?= (int) $project['id'] ?>&mode=secretariat_units_filtered&prices=1&format=pdf" target="_blank" class="dropdown-item">
+                        Por secretaria filtrada com unidades
                     </a>
                 </li>
             </ul>

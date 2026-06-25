@@ -2,6 +2,12 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.23] - 2026-06-25
+
+### Corrigido
+- Clonagem de projetos passa a copiar demandas, itens, numeracao de licitacao, denominacoes de lote, vinculos, orcamentos de fornecedores, itens cotados e referencias de banco de precos.
+- Exportacoes Word e Excel passam a emitir BOM UTF-8 e os exports antigos foram alinhados ao helper de download para evitar mojibake em textos acentuados no Office.
+
 ## [1.5.22] - 2026-06-18
 
 ### Alterado

@@ -9,8 +9,7 @@ require_once __DIR__ . '/../app/repository.php';
 $items = search_items();
 $filename = 'catalogo-itens-licitacao.doc';
 
-header('Content-Type: application/msword; charset=utf-8');
-header('Content-Disposition: attachment; filename="' . $filename . '"');
+send_download_headers('application/msword; charset=utf-8', $filename);
 
 ?>
 

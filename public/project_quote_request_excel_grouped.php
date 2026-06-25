@@ -25,9 +25,7 @@ $totalQuantity = array_reduce(
 
 $filename = 'solicitacao-orcamento-projeto-' . $id . '-por-grupo.xls';
 
-header('Content-Type: application/vnd.ms-excel; charset=utf-8');
-header('Content-Disposition: attachment; filename="' . $filename . '"');
-header('Cache-Control: max-age=0');
+send_download_headers('application/vnd.ms-excel; charset=utf-8', $filename);
 
 ?>
 <!doctype html>

@@ -4177,55 +4177,405 @@ function get_project_secretariat_summary(int $projectId): array
     return array_values($summary);
 }
 
+function insert_cloned_demand_list(array $demand, int $newProjectId): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO demand_lists (
+            project_id,
+            requester_unit_id,
+            secretariat_id,
+            name,
+            requester_department,
+            responsible_name,
+            notes
+        ) VALUES (
+            :project_id,
+            :requester_unit_id,
+            :secretariat_id,
+            :name,
+            :requester_department,
+            :responsible_name,
+            :notes
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'project_id' => $newProjectId,
+        'requester_unit_id' => $demand['requester_unit_id'] ?? null,
+        'secretariat_id' => $demand['secretariat_id'] ?? null,
+        'name' => $demand['name'],
+        'requester_department' => $demand['requester_department'] ?? null,
+        'responsible_name' => $demand['responsible_name'] ?? null,
+        'notes' => $demand['notes'] ?? null,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function insert_cloned_demand_item(array $item, int $newDemandId): int
+{
+    $stmt = db()->prepare("
+        INSERT INTO demand_items (
+            demand_list_id,
+            procurement_item_id,
+            quantity,
+            approved_quantity,
+            estimated_unit_price,
+            notes
+        ) VALUES (
+            :demand_list_id,
+            :procurement_item_id,
+            :quantity,
+            :approved_quantity,
+            :estimated_unit_price,
+            :notes
+        )
+        RETURNING id
+    ");
+
+    $stmt->execute([
+        'demand_list_id' => $newDemandId,
+        'procurement_item_id' => $item['procurement_item_id'],
+        'quantity' => $item['quantity'],
+        'approved_quantity' => $item['approved_quantity'] ?? null,
+        'estimated_unit_price' => $item['estimated_unit_price'] ?? null,
+        'notes' => $item['notes'] ?? null,
+    ]);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function clone_project_demands_and_items(int $projectId, int $newProjectId): array
+{
+    $demandIdMap = [];
+    $demandItemIdMap = [];
+
+    foreach (get_project_demands($projectId) as $demand) {
+        $oldDemandId = (int) $demand['id'];
+        $newDemandId = insert_cloned_demand_list($demand, $newProjectId);
+        $demandIdMap[$oldDemandId] = $newDemandId;
+
+        foreach (get_demand_items($oldDemandId) as $item) {
+            $demandItemIdMap[(int) $item['id']] = insert_cloned_demand_item($item, $newDemandId);
+        }
+    }
+
+    return [$demandIdMap, $demandItemIdMap];
+}
+
+function clone_project_licitation_numbers(int $projectId, int $newProjectId): void
+{
+    if (!database_table_exists('project_licitation_items')) {
+        return;
+    }
+
+    $stmt = db()->prepare("
+        INSERT INTO project_licitation_items (
+            project_id,
+            procurement_item_id,
+            licitation_number
+        )
+        SELECT
+            :new_project_id,
+            procurement_item_id,
+            licitation_number
+        FROM project_licitation_items
+        WHERE project_id = :project_id
+        ON CONFLICT DO NOTHING
+    ");
+
+    $stmt->execute([
+        'project_id' => $projectId,
+        'new_project_id' => $newProjectId,
+    ]);
+}
+
+function clone_project_lot_denominations(int $projectId, int $newProjectId): void
+{
+    if (
+        !database_table_exists('project_lot_denominations')
+        || !database_table_exists('project_lot_assignments')
+    ) {
+        return;
+    }
+
+    $lotMap = [];
+    $selectLots = db()->prepare("
+        SELECT *
+        FROM project_lot_denominations
+        WHERE project_id = :project_id
+        ORDER BY lot_number, id
+    ");
+    $selectLots->execute(['project_id' => $projectId]);
+
+    $insertLot = db()->prepare("
+        INSERT INTO project_lot_denominations (
+            project_id,
+            lot_number,
+            name,
+            justification
+        ) VALUES (
+            :project_id,
+            :lot_number,
+            :name,
+            :justification
+        )
+        RETURNING id
+    ");
+
+    foreach ($selectLots->fetchAll() as $lot) {
+        $insertLot->execute([
+            'project_id' => $newProjectId,
+            'lot_number' => (int) $lot['lot_number'],
+            'name' => $lot['name'],
+            'justification' => $lot['justification'],
+        ]);
+
+        $lotMap[(int) $lot['id']] = (int) $insertLot->fetchColumn();
+    }
+
+    if (!$lotMap) {
+        return;
+    }
+
+    $selectAssignments = db()->prepare("
+        SELECT pla.*
+        FROM project_lot_assignments pla
+        INNER JOIN project_lot_denominations l ON l.id = pla.project_lot_id
+        WHERE l.project_id = :project_id
+        ORDER BY l.lot_number, pla.id
+    ");
+    $selectAssignments->execute(['project_id' => $projectId]);
+
+    $insertAssignment = db()->prepare("
+        INSERT INTO project_lot_assignments (
+            project_lot_id,
+            assignment_type,
+            procurement_item_id,
+            category_id
+        ) VALUES (
+            :project_lot_id,
+            :assignment_type,
+            :procurement_item_id,
+            :category_id
+        )
+        ON CONFLICT DO NOTHING
+    ");
+
+    foreach ($selectAssignments->fetchAll() as $assignment) {
+        $oldLotId = (int) $assignment['project_lot_id'];
+
+        if (!isset($lotMap[$oldLotId])) {
+            continue;
+        }
+
+        $insertAssignment->execute([
+            'project_lot_id' => $lotMap[$oldLotId],
+            'assignment_type' => $assignment['assignment_type'],
+            'procurement_item_id' => $assignment['procurement_item_id'] ?? null,
+            'category_id' => $assignment['category_id'] ?? null,
+        ]);
+    }
+}
+
+function clone_project_supplier_quotes(array $demandIdMap, array $demandItemIdMap): array
+{
+    if (
+        !$demandIdMap
+        || !database_table_exists('demand_supplier_quotes')
+        || !database_table_exists('demand_supplier_quote_items')
+    ) {
+        return [];
+    }
+
+    $quoteItemIdMap = [];
+    $pendingQuoteItemReuse = [];
+
+    $selectQuotes = db()->prepare("
+        SELECT *
+        FROM demand_supplier_quotes
+        WHERE demand_list_id = :demand_list_id
+        ORDER BY id
+    ");
+
+    $insertQuote = db()->prepare("
+        INSERT INTO demand_supplier_quotes (
+            demand_list_id,
+            supplier_id,
+            quote_number,
+            quote_date,
+            validity_date,
+            attachment_path,
+            notes,
+            status
+        ) VALUES (
+            :demand_list_id,
+            :supplier_id,
+            :quote_number,
+            :quote_date,
+            :validity_date,
+            :attachment_path,
+            :notes,
+            :status
+        )
+        RETURNING id
+    ");
+
+    $selectQuoteItems = db()->prepare("
+        SELECT *
+        FROM demand_supplier_quote_items
+        WHERE demand_supplier_quote_id = :quote_id
+        ORDER BY id
+    ");
+
+    $insertQuoteItem = db()->prepare("
+        INSERT INTO demand_supplier_quote_items (
+            demand_supplier_quote_id,
+            demand_item_id,
+            unit_price,
+            notes,
+            reused_from_quote_item_id
+        ) VALUES (
+            :quote_id,
+            :demand_item_id,
+            :unit_price,
+            :notes,
+            NULL
+        )
+        RETURNING id
+    ");
+
+    foreach ($demandIdMap as $oldDemandId => $newDemandId) {
+        $selectQuotes->execute(['demand_list_id' => $oldDemandId]);
+
+        foreach ($selectQuotes->fetchAll() as $quote) {
+            $insertQuote->execute([
+                'demand_list_id' => $newDemandId,
+                'supplier_id' => $quote['supplier_id'],
+                'quote_number' => $quote['quote_number'] ?? null,
+                'quote_date' => $quote['quote_date'] ?? null,
+                'validity_date' => $quote['validity_date'] ?? null,
+                'attachment_path' => $quote['attachment_path'] ?? null,
+                'notes' => $quote['notes'] ?? null,
+                'status' => $quote['status'] ?? 'received',
+            ]);
+
+            $newQuoteId = (int) $insertQuote->fetchColumn();
+            $selectQuoteItems->execute(['quote_id' => (int) $quote['id']]);
+
+            foreach ($selectQuoteItems->fetchAll() as $quoteItem) {
+                $oldDemandItemId = (int) $quoteItem['demand_item_id'];
+
+                if (!isset($demandItemIdMap[$oldDemandItemId])) {
+                    continue;
+                }
+
+                $insertQuoteItem->execute([
+                    'quote_id' => $newQuoteId,
+                    'demand_item_id' => $demandItemIdMap[$oldDemandItemId],
+                    'unit_price' => $quoteItem['unit_price'] ?? null,
+                    'notes' => $quoteItem['notes'] ?? null,
+                ]);
+
+                $newQuoteItemId = (int) $insertQuoteItem->fetchColumn();
+                $quoteItemIdMap[(int) $quoteItem['id']] = $newQuoteItemId;
+
+                if (!empty($quoteItem['reused_from_quote_item_id'])) {
+                    $pendingQuoteItemReuse[$newQuoteItemId] = (int) $quoteItem['reused_from_quote_item_id'];
+                }
+            }
+        }
+    }
+
+    if ($pendingQuoteItemReuse) {
+        $updateReuse = db()->prepare("
+            UPDATE demand_supplier_quote_items
+            SET reused_from_quote_item_id = :reused_from_quote_item_id
+            WHERE id = :id
+        ");
+
+        foreach ($pendingQuoteItemReuse as $newQuoteItemId => $oldSourceQuoteItemId) {
+            $updateReuse->execute([
+                'id' => $newQuoteItemId,
+                'reused_from_quote_item_id' => $quoteItemIdMap[$oldSourceQuoteItemId] ?? $oldSourceQuoteItemId,
+            ]);
+        }
+    }
+
+    return $quoteItemIdMap;
+}
+
+function clone_project_price_references(array $demandItemIdMap, array $quoteItemIdMap): void
+{
+    if (!$demandItemIdMap || !database_table_exists('demand_price_references')) {
+        return;
+    }
+
+    $selectReferences = db()->prepare("
+        SELECT *
+        FROM demand_price_references
+        WHERE demand_item_id = :demand_item_id
+        ORDER BY id
+    ");
+
+    $insertReference = db()->prepare("
+        INSERT INTO demand_price_references (
+            demand_item_id,
+            source_quote_item_id,
+            notes
+        ) VALUES (
+            :demand_item_id,
+            :source_quote_item_id,
+            :notes
+        )
+        ON CONFLICT DO NOTHING
+    ");
+
+    foreach ($demandItemIdMap as $oldDemandItemId => $newDemandItemId) {
+        $selectReferences->execute(['demand_item_id' => $oldDemandItemId]);
+
+        foreach ($selectReferences->fetchAll() as $reference) {
+            $oldSourceQuoteItemId = (int) $reference['source_quote_item_id'];
+
+            $insertReference->execute([
+                'demand_item_id' => $newDemandItemId,
+                'source_quote_item_id' => $quoteItemIdMap[$oldSourceQuoteItemId] ?? $oldSourceQuoteItemId,
+                'notes' => $reference['notes'] ?? null,
+            ]);
+        }
+    }
+}
+
 function duplicate_project(int $projectId): int
 {
     $project = find_project($projectId);
 
     if (!$project) {
-        throw new RuntimeException('Projeto não encontrado.');
+        throw new RuntimeException('Projeto nao encontrado.');
     }
 
-    db()->beginTransaction();
+    $pdo = db();
+    $pdo->beginTransaction();
 
     try {
         $newProjectId = create_project([
-            'name' => $project['name'] . ' - Cópia',
+            'name' => $project['name'] . ' - Copia',
             'description' => $project['description'],
             'status' => 'draft',
         ]);
 
-        $demands = get_project_demands($projectId);
+        [$demandIdMap, $demandItemIdMap] = clone_project_demands_and_items($projectId, $newProjectId);
+        clone_project_licitation_numbers($projectId, $newProjectId);
+        clone_project_lot_denominations($projectId, $newProjectId);
+        $quoteItemIdMap = clone_project_supplier_quotes($demandIdMap, $demandItemIdMap);
+        clone_project_price_references($demandItemIdMap, $quoteItemIdMap);
 
-        foreach ($demands as $demand) {
-            $newDemandId = create_demand_list([
-                'project_id' => $newProjectId,
-                'name' => $demand['name'],
-                'requester_unit_id' => $demand['requester_unit_id'] ?? null,
-                'secretariat_id' => $demand['secretariat_id'] ?? null,
-                'requester_department' => $demand['requester_department'],
-                'responsible_name' => $demand['responsible_name'],
-                'notes' => $demand['notes'],
-            ]);
-
-            $items = get_demand_items((int) $demand['id']);
-
-            foreach ($items as $item) {
-                add_demand_item([
-                    'demand_list_id' => $newDemandId,
-                    'procurement_item_id' => $item['procurement_item_id'],
-                    'quantity' => $item['quantity'],
-                    'approved_quantity' => $item['approved_quantity'] ?? $item['quantity'],
-                    'estimated_unit_price' => $item['estimated_unit_price'] ?? null,
-                    'notes' => $item['notes'] ?? null,
-                ]);
-            }
-        }
-
-        db()->commit();
+        $pdo->commit();
 
         return $newProjectId;
     } catch (Throwable $exception) {
-        db()->rollBack();
+        $pdo->rollBack();
         throw $exception;
     }
 }

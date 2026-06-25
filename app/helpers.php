@@ -933,6 +933,7 @@ function ascii_filename_fallback(string $filename): string
 function send_download_headers(string $contentType, string $filename): void
 {
     $fallback = ascii_filename_fallback($filename);
+    $normalizedContentType = strtolower($contentType);
 
     header('Content-Type: ' . $contentType);
     header(
@@ -942,6 +943,13 @@ function send_download_headers(string $contentType, string $filename): void
         . rawurlencode($filename)
     );
     header('Cache-Control: max-age=0');
+
+    if (
+        str_contains($normalizedContentType, 'application/msword')
+        || str_contains($normalizedContentType, 'application/vnd.ms-excel')
+    ) {
+        echo "\xEF\xBB\xBF";
+    }
 }
 
 function annex_issue_date_value(): string

@@ -15,7 +15,7 @@ if (!$demand) {
 }
 
 $project = find_project((int) $demand['project_id']);
-$projectLocked = project_is_closed($project);
+$projectLocked = project_is_locked($project);
 $items = get_demand_items($id);
 $months = (int) ($_GET['months'] ?? $_POST['months'] ?? 0);
 $selectedReferences = get_selected_demand_price_references($id);
@@ -25,7 +25,7 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($projectLocked) {
-            throw new RuntimeException(project_closed_edit_message());
+            throw new RuntimeException(project_locked_edit_message($project));
         }
 
         save_demand_price_references($id, is_array($_POST['references'] ?? null) ? $_POST['references'] : []);
@@ -75,7 +75,7 @@ require __DIR__ . '/../app/views/header.php';
 
 <?php if ($projectLocked): ?>
     <div class="alert alert-warning">
-        <?= e(project_closed_edit_message()) ?>
+        <?= e(project_locked_edit_message($project)) ?>
     </div>
 <?php endif; ?>
 

@@ -459,7 +459,7 @@ function get_projects(): array
     return $stmt->fetchAll();
 }
 
-function find_project(int $id): ?array
+function fetch_project_row(int $id): ?array
 {
     $stmt = db()->prepare("
         SELECT *
@@ -474,6 +474,17 @@ function find_project(int $id): ?array
     return $project ?: null;
 }
 
+function find_project(int $id): ?array
+{
+    $project = fetch_project_row($id);
+
+    if (!$project) {
+        return null;
+    }
+
+    return enforce_project_reopen_deadline($project);
+}
+
 function assert_project_editable(?int $projectId): void
 {
     if (!$projectId) {
@@ -482,8 +493,8 @@ function assert_project_editable(?int $projectId): void
 
     $project = find_project($projectId);
 
-    if ($project && project_is_closed($project)) {
-        throw new RuntimeException(project_closed_edit_message());
+    if ($project && project_is_locked($project)) {
+        throw new RuntimeException(project_locked_edit_message($project));
     }
 }
 
@@ -496,11 +507,18 @@ function project_closure_payload(int $projectId): array
     }
 
     return [
-        'type' => 'project_closure',
+        'type' => 'project_status_hash',
         'project' => [
             'id' => (int) $project['id'],
             'name' => (string) ($project['name'] ?? ''),
             'description' => (string) ($project['description'] ?? ''),
+            'status' => (string) ($project['status'] ?? ''),
+            'cancellation_reason' => (string) ($project['cancellation_reason'] ?? ''),
+            'canceled_at' => (string) ($project['canceled_at'] ?? ''),
+            'reopen_reason' => (string) ($project['reopen_reason'] ?? ''),
+            'reopen_mode' => (string) ($project['reopen_mode'] ?? ''),
+            'reopen_correction_deadline' => (string) ($project['reopen_correction_deadline'] ?? ''),
+            'reopened_at' => (string) ($project['reopened_at'] ?? ''),
         ],
         'demands' => array_map(static fn (array $demand): array => [
             'id' => (int) ($demand['id'] ?? 0),
@@ -609,6 +627,34 @@ function find_document_hash_records(string $hash): array
         }
     }
 
+    if (database_table_exists('project_status_events')) {
+        $stmt = db()->prepare("
+            SELECT
+                'project_status_event' AS record_type,
+                pse.project_id,
+                p.name AS project_name,
+                p.status AS project_status,
+                pse.event_hash AS content_hash,
+                pse.created_at AS generated_at,
+                pse.from_status,
+                pse.to_status,
+                pse.reason,
+                pse.reopen_mode,
+                pse.correction_deadline
+            FROM project_status_events pse
+            INNER JOIN procurement_projects p ON p.id = pse.project_id
+            WHERE lower(pse.event_hash) {$operator} :hash
+            ORDER BY pse.created_at DESC
+            LIMIT 20
+        ");
+        $stmt->execute(['hash' => $needle]);
+
+        foreach ($stmt->fetchAll() as $record) {
+            $record['annex_label'] = project_status_event_label($record['to_status'] ?? null);
+            $record['status'] = 'valid';
+            $records[] = $record;
+        }
+    }
     try {
         $stmt = db()->prepare("
             SELECT
@@ -627,8 +673,8 @@ function find_document_hash_records(string $hash): array
         $stmt->execute(['hash' => $needle]);
 
         foreach ($stmt->fetchAll() as $record) {
-            $record['annex_label'] = 'Fechamento do projeto';
-            $record['status'] = $record['project_status'] === 'closed' ? 'valid' : 'rectification';
+            $record['annex_label'] = project_status_hash_label($record['project_status'] ?? null);
+            $record['status'] = in_array($record['project_status'] ?? '', ['closed', 'canceled', 'reopened'], true) ? 'valid' : 'rectification';
             $records[] = $record;
         }
     } catch (Throwable $exception) {
@@ -788,23 +834,219 @@ function get_project_demand_report_options(int $projectId, string $groupBy = 'un
     return array_values($options);
 }
 
+function project_status_hash_label(?string $status): string
+{
+    return match ($status) {
+        'closed' => 'Fechamento do projeto',
+        'canceled' => 'Cancelamento do projeto',
+        'reopened' => 'Reabertura do projeto',
+        default => 'Hash do projeto',
+    };
+}
+
+function project_status_event_label(?string $status): string
+{
+    return match ($status) {
+        'closed' => 'Fechamento automatico do projeto',
+        'canceled' => 'Cancelamento do projeto',
+        'reopened' => 'Reabertura do projeto',
+        default => 'Evento de status do projeto',
+    };
+}
+
+function project_status_snapshot(int $projectId, ?array $project = null): array
+{
+    $project ??= fetch_project_row($projectId) ?? [];
+
+    return [
+        'captured_at' => date(DATE_ATOM),
+        'project' => $project,
+        'financial_summary' => get_project_financial_summary($projectId),
+        'demands' => get_project_demands($projectId),
+        'consolidated_items' => get_project_consolidated_items($projectId),
+        'items_by_demand' => get_project_items_by_demand($projectId),
+        'lots' => get_project_lot_denominations($projectId),
+        'lot_assignments' => get_project_lot_assignments($projectId),
+        'annex_statuses' => get_project_annex_statuses($projectId),
+    ];
+}
+
+function record_project_status_event(
+    int $projectId,
+    ?string $fromStatus,
+    string $toStatus,
+    string $reason,
+    ?string $reopenMode = null,
+    ?string $correctionDeadline = null,
+    ?array $projectSnapshotSource = null
+): ?string {
+    if (!database_table_exists('project_status_events')) {
+        return null;
+    }
+
+    $snapshot = project_status_snapshot($projectId, $projectSnapshotSource);
+    $payload = [
+        'type' => 'project_status_event',
+        'project_id' => $projectId,
+        'from_status' => $fromStatus,
+        'to_status' => $toStatus,
+        'reason' => $reason,
+        'reopen_mode' => $reopenMode,
+        'correction_deadline' => $correctionDeadline,
+        'snapshot' => $snapshot,
+    ];
+    $eventHash = project_annex_hash($payload);
+
+    $stmt = db()->prepare("
+        INSERT INTO project_status_events (
+            project_id,
+            from_status,
+            to_status,
+            reason,
+            reopen_mode,
+            correction_deadline,
+            snapshot,
+            event_hash
+        ) VALUES (
+            :project_id,
+            :from_status,
+            :to_status,
+            :reason,
+            :reopen_mode,
+            :correction_deadline,
+            CAST(:snapshot AS jsonb),
+            :event_hash
+        )
+    ");
+
+    $stmt->execute([
+        'project_id' => $projectId,
+        'from_status' => $fromStatus,
+        'to_status' => $toStatus,
+        'reason' => $reason,
+        'reopen_mode' => $reopenMode,
+        'correction_deadline' => $correctionDeadline,
+        'snapshot' => json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'event_hash' => $eventHash,
+    ]);
+
+    return $eventHash;
+}
+
+function get_project_status_events(int $projectId): array
+{
+    if (!database_table_exists('project_status_events')) {
+        return [];
+    }
+
+    $stmt = db()->prepare("
+        SELECT *
+        FROM project_status_events
+        WHERE project_id = :project_id
+        ORDER BY created_at DESC, id DESC
+    ");
+    $stmt->execute(['project_id' => $projectId]);
+
+    return $stmt->fetchAll();
+}
+
+function project_reopen_deadline_expired(array $project): bool
+{
+    if (($project['status'] ?? '') !== 'reopened') {
+        return false;
+    }
+
+    if (($project['reopen_mode'] ?? '') !== 'correction') {
+        return false;
+    }
+
+    $deadline = trim((string) ($project['reopen_correction_deadline'] ?? ''));
+
+    return $deadline !== '' && $deadline < date('Y-m-d');
+}
+
+function enforce_project_reopen_deadline(array $project): array
+{
+    if (!project_reopen_deadline_expired($project)) {
+        return $project;
+    }
+
+    $projectId = (int) $project['id'];
+    $reason = 'Fechamento automatico por prazo de correcao expirado.';
+
+    db()->beginTransaction();
+
+    try {
+        record_project_status_event(
+            $projectId,
+            (string) ($project['status'] ?? ''),
+            'closed',
+            $reason,
+            (string) ($project['reopen_mode'] ?? ''),
+            (string) ($project['reopen_correction_deadline'] ?? ''),
+            $project
+        );
+
+        $stmt = db()->prepare("
+            UPDATE procurement_projects
+            SET status = 'closed'
+            WHERE id = :id
+        ");
+        $stmt->execute(['id' => $projectId]);
+
+        refresh_project_closure_hash($projectId);
+        db()->commit();
+    } catch (Throwable $exception) {
+        db()->rollBack();
+        throw $exception;
+    }
+
+    return fetch_project_row($projectId) ?? $project;
+}
+
+function normalize_project_reopen_deadline(mixed $value): ?string
+{
+    $date = normalize_optional_date($value);
+
+    if ($date === null) {
+        return null;
+    }
+
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+    if (!$parsed || $parsed->format('Y-m-d') !== $date) {
+        throw new InvalidArgumentException('Informe o prazo de correcao no formato AAAA-MM-DD.');
+    }
+
+    return $date;
+}
 function create_project(array $data): int
 {
     $status = (string) ($data['status'] ?? 'draft');
 
-    if ($status === 'rectification') {
-        throw new InvalidArgumentException('Retificacao deve ser usada apenas apos o fechamento do projeto.');
+    if (in_array($status, ['rectification', 'reopened'], true)) {
+        throw new InvalidArgumentException('Este status deve ser usado apenas em projetos existentes.');
+    }
+
+    $cancellationReason = trim((string) ($data['cancellation_reason'] ?? ''));
+
+    if ($status === 'canceled' && $cancellationReason === '') {
+        throw new InvalidArgumentException('Informe a justificativa do cancelamento.');
     }
 
     $stmt = db()->prepare("
         INSERT INTO procurement_projects (
             name,
             description,
-            status
+            status,
+            cancellation_reason,
+            canceled_at
         ) VALUES (
             :name,
             :description,
-            :status
+            :status,
+            :cancellation_reason,
+            CASE WHEN :status = 'canceled' THEN CURRENT_TIMESTAMP ELSE NULL END
         )
         RETURNING id
     ");
@@ -813,11 +1055,17 @@ function create_project(array $data): int
         'name' => $data['name'],
         'description' => $data['description'] ?? null,
         'status' => $status,
+        'cancellation_reason' => $status === 'canceled' ? $cancellationReason : null,
     ]);
 
     $projectId = (int) $stmt->fetchColumn();
 
-    if ($status === 'closed') {
+    if (in_array($status, ['closed', 'canceled'], true)) {
+        if ($status === 'canceled') {
+            record_project_status_event($projectId, null, 'canceled', $cancellationReason);
+            invalidate_project_annex_versions($projectId);
+        }
+
         refresh_project_closure_hash($projectId);
     }
 
@@ -834,41 +1082,130 @@ function update_project(int $id, array $data): void
 
     $currentStatus = (string) ($project['status'] ?? 'draft');
     $nextStatus = (string) ($data['status'] ?? 'draft');
+    $allowedStatuses = array_keys(project_status_options_for_form($project));
 
-    if ($currentStatus === 'closed') {
-        if (!in_array($nextStatus, ['closed', 'rectification'], true)) {
-            throw new InvalidArgumentException('Projeto fechado aceita apenas os status Fechado ou Retificacao.');
-        }
+    if (!in_array($nextStatus, $allowedStatuses, true)) {
+        throw new InvalidArgumentException('Transicao de status invalida para este projeto.');
+    }
 
+    if ($currentStatus === 'closed' && $nextStatus === 'rectification') {
         $data['name'] = $project['name'];
         $data['description'] = $project['description'];
     }
 
-    if ($currentStatus === 'rectification' && !in_array($nextStatus, ['closed', 'rectification'], true)) {
-        throw new InvalidArgumentException('Projeto em retificacao pode permanecer em Retificacao ou voltar para Fechado.');
+    if ($currentStatus === 'closed' && $nextStatus === 'canceled') {
+        $data['name'] = $project['name'];
+        $data['description'] = $project['description'];
     }
 
-    if ($currentStatus !== 'closed' && $currentStatus !== 'rectification' && $nextStatus === 'rectification') {
-        throw new InvalidArgumentException('Retificacao deve ser usada apenas apos o fechamento do projeto.');
+    if ($currentStatus === 'canceled') {
+        $data['name'] = $project['name'];
+        $data['description'] = $project['description'];
     }
 
-    $stmt = db()->prepare("
-        UPDATE procurement_projects SET
-            name = :name,
-            description = :description,
-            status = :status
-        WHERE id = :id
-    ");
+    $cancellationReason = trim((string) ($data['cancellation_reason'] ?? ''));
+    $reopenReason = trim((string) ($data['reopen_reason'] ?? ''));
+    $reopenMode = (string) ($data['reopen_mode'] ?? 'continuity');
+    $reopenDeadline = null;
 
-    $stmt->execute([
-        'id' => $id,
-        'name' => $data['name'],
-        'description' => $data['description'] ?? null,
-        'status' => $nextStatus,
-    ]);
+    if ($nextStatus === 'canceled' && $currentStatus !== 'canceled') {
+        if ($cancellationReason === '') {
+            throw new InvalidArgumentException('Informe a justificativa do cancelamento.');
+        }
+    } else {
+        $cancellationReason = (string) ($project['cancellation_reason'] ?? '');
+    }
 
-    if ($nextStatus === 'closed') {
-        refresh_project_closure_hash($id);
+    if ($nextStatus === 'reopened' && $currentStatus !== 'canceled') {
+        throw new InvalidArgumentException('Apenas projetos cancelados podem ser reabertos.');
+    }
+
+    if ($nextStatus === 'reopened' && $currentStatus === 'canceled') {
+        if ($reopenReason === '') {
+            throw new InvalidArgumentException('Informe a justificativa da reabertura.');
+        }
+
+        if (!array_key_exists($reopenMode, project_reopen_mode_options())) {
+            throw new InvalidArgumentException('Selecione um tipo de reabertura valido.');
+        }
+
+        $reopenDeadline = normalize_project_reopen_deadline($data['reopen_correction_deadline'] ?? null);
+
+        if ($reopenMode === 'correction') {
+            if ($reopenDeadline === null) {
+                throw new InvalidArgumentException('Informe o prazo de correcao para a reabertura.');
+            }
+
+            if ($reopenDeadline < date('Y-m-d')) {
+                throw new InvalidArgumentException('O prazo de correcao nao pode estar no passado.');
+            }
+        } else {
+            $reopenDeadline = null;
+        }
+    } else {
+        $reopenReason = (string) ($project['reopen_reason'] ?? '');
+        $reopenMode = $project['reopen_mode'] ?: null;
+        $reopenDeadline = $project['reopen_correction_deadline'] ?: null;
+    }
+
+    db()->beginTransaction();
+
+    try {
+        if ($nextStatus === 'canceled' && $currentStatus !== 'canceled') {
+            record_project_status_event($id, $currentStatus, 'canceled', $cancellationReason, null, null, $project);
+        }
+
+        if ($nextStatus === 'reopened' && $currentStatus === 'canceled') {
+            record_project_status_event($id, $currentStatus, 'reopened', $reopenReason, $reopenMode, $reopenDeadline, $project);
+        }
+
+        $stmt = db()->prepare("
+            UPDATE procurement_projects SET
+                name = :name,
+                description = :description,
+                status = :status,
+                cancellation_reason = :cancellation_reason,
+                canceled_at = CASE
+                    WHEN :status = 'canceled' AND status <> 'canceled' THEN CURRENT_TIMESTAMP
+                    ELSE canceled_at
+                END,
+                reopen_reason = :reopen_reason,
+                reopened_at = CASE
+                    WHEN :status = 'reopened' AND status <> 'reopened' THEN CURRENT_TIMESTAMP
+                    ELSE reopened_at
+                END,
+                reopen_mode = :reopen_mode,
+                reopen_correction_deadline = :reopen_correction_deadline
+            WHERE id = :id
+        ");
+
+        $stmt->execute([
+            'id' => $id,
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'status' => $nextStatus,
+            'cancellation_reason' => $cancellationReason !== '' ? $cancellationReason : null,
+            'reopen_reason' => $reopenReason !== '' ? $reopenReason : null,
+            'reopen_mode' => $reopenMode,
+            'reopen_correction_deadline' => $reopenDeadline,
+        ]);
+
+        if ($nextStatus === 'canceled' && $currentStatus !== 'canceled') {
+            invalidate_project_annex_versions($id);
+        }
+
+        if ($nextStatus === 'reopened' && $currentStatus === 'canceled') {
+            invalidate_project_annex_versions($id);
+        }
+
+        if (in_array($nextStatus, ['closed', 'canceled', 'reopened'], true)) {
+            refresh_project_closure_hash($id);
+        }
+
+        db()->commit();
+    } catch (Throwable $exception) {
+        db()->rollBack();
+        throw $exception;
     }
 }
 
@@ -4379,6 +4716,80 @@ function clone_project_lot_denominations(int $projectId, int $newProjectId): voi
     }
 }
 
+function get_projects_with_lot_denominations(?int $excludeProjectId = null): array
+{
+    if (!database_table_exists('project_lot_denominations')) {
+        return [];
+    }
+
+    $sql = "
+        SELECT
+            p.id,
+            p.name,
+            p.status,
+            COUNT(l.id) AS lot_count
+        FROM procurement_projects p
+        INNER JOIN project_lot_denominations l ON l.project_id = p.id
+    ";
+    $params = [];
+
+    if ($excludeProjectId !== null) {
+        $sql .= " WHERE p.id <> :exclude_project_id";
+        $params['exclude_project_id'] = $excludeProjectId;
+    }
+
+    $sql .= "
+        GROUP BY p.id, p.name, p.status
+        ORDER BY p.name
+    ";
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    return $stmt->fetchAll();
+}
+
+function copy_project_lot_denominations_from_project(int $sourceProjectId, int $targetProjectId, bool $replaceExisting = false): int
+{
+    if ($sourceProjectId === $targetProjectId) {
+        throw new InvalidArgumentException('Selecione um projeto de origem diferente.');
+    }
+
+    assert_project_editable($targetProjectId);
+
+    $sourceLots = get_project_lot_denominations($sourceProjectId);
+
+    if (!$sourceLots) {
+        throw new RuntimeException('O projeto de origem nao possui denominacoes.');
+    }
+
+    $targetLots = get_project_lot_denominations($targetProjectId);
+
+    if ($targetLots && !$replaceExisting) {
+        throw new RuntimeException('Este projeto ja possui denominacoes. Marque a opcao de substituir para copiar.');
+    }
+
+    db()->beginTransaction();
+
+    try {
+        if ($replaceExisting) {
+            $delete = db()->prepare("
+                DELETE FROM project_lot_denominations
+                WHERE project_id = :project_id
+            ");
+            $delete->execute(['project_id' => $targetProjectId]);
+        }
+
+        clone_project_lot_denominations($sourceProjectId, $targetProjectId);
+        invalidate_project_annex_versions($targetProjectId);
+        db()->commit();
+    } catch (Throwable $exception) {
+        db()->rollBack();
+        throw $exception;
+    }
+
+    return count($sourceLots);
+}
 function clone_project_supplier_quotes(array $demandIdMap, array $demandItemIdMap): array
 {
     if (
@@ -5732,7 +6143,7 @@ function catalog_json_table_definitions(): array
         ],
         'procurement_projects' => [
             'label' => 'Projetos',
-            'columns' => ['id', 'name', 'description', 'status', 'created_at', 'updated_at'],
+            'columns' => ['id', 'name', 'description', 'status', 'closure_hash', 'closed_at', 'cancellation_reason', 'canceled_at', 'reopen_reason', 'reopened_at', 'reopen_mode', 'reopen_correction_deadline', 'created_at', 'updated_at'],
             'json' => [],
         ],
         'secretariats' => [
@@ -5884,6 +6295,22 @@ function catalog_json_table_definitions(): array
             ],
             'json' => [],
         ],
+        'project_status_events' => [
+            'label' => 'Eventos de status dos projetos',
+            'columns' => [
+                'id',
+                'project_id',
+                'from_status',
+                'to_status',
+                'reason',
+                'reopen_mode',
+                'correction_deadline',
+                'snapshot',
+                'event_hash',
+                'created_at',
+            ],
+            'json' => ['snapshot'],
+        ],
         'project_lot_denominations' => [
             'label' => 'Denominacoes de lotes',
             'columns' => [
@@ -5952,6 +6379,7 @@ function catalog_json_scope_tables(string $scope): array
             'demand_price_references',
             'project_licitation_items',
             'project_annex_versions',
+            'project_status_events',
             'project_lot_denominations',
             'project_lot_assignments',
             'justification_templates',
@@ -5978,6 +6406,7 @@ function catalog_json_scope_tables(string $scope): array
             'demand_price_references',
             'project_licitation_items',
             'project_annex_versions',
+            'project_status_events',
             'project_lot_denominations',
             'project_lot_assignments',
         ],

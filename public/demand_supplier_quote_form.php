@@ -26,7 +26,7 @@ if (!$demand) {
 }
 
 $project = find_project((int) $demand['project_id']);
-$projectLocked = project_is_closed($project);
+$projectLocked = project_is_locked($project);
 $items = get_demand_items($demandId);
 $suppliers = get_suppliers(!$isEditing);
 $quoteItems = $isEditing ? get_demand_supplier_quote_items($id) : [];
@@ -38,7 +38,7 @@ $postedSourceQuoteItemIds = $_POST['source_quote_item_ids'] ?? [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($projectLocked) {
-        $errors[] = project_closed_edit_message();
+        $errors[] = project_locked_edit_message($project);
     }
 
     $attachmentPath = $quote['attachment_path'] ?? null;
@@ -146,7 +146,7 @@ require __DIR__ . '/../app/views/header.php';
 
 <?php if ($projectLocked): ?>
     <div class="alert alert-warning">
-        <?= e(project_closed_edit_message()) ?>
+        <?= e(project_locked_edit_message($project)) ?>
     </div>
 <?php else: ?>
 <form method="post" enctype="multipart/form-data" class="card card-body shadow-sm">

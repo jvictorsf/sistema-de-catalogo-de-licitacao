@@ -22,8 +22,11 @@ $financialSummary = get_project_financial_summary($id);
 $annexStatuses = get_project_annex_statuses($id);
 $quoteSuccess = trim($_GET['quote_success'] ?? '');
 $projectError = trim($_GET['project_error'] ?? '');
-$projectLocked = project_is_closed($project);
+$projectLocked = project_is_locked($project);
 $projectInRectification = project_is_rectification($project);
+$projectCanceled = project_is_canceled($project);
+$projectReopened = project_is_reopened($project);
+$statusEvents = get_project_status_events($id);
 $closureHash = trim((string) ($project['closure_hash'] ?? ''));
 $closureShortHash = $closureHash !== '' ? substr($closureHash, 0, 12) : '';
 
@@ -285,6 +288,13 @@ require __DIR__ . '/../app/views/header.php';
                 </li>
 
                 <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Orcamentos</h6></li>
+                <li>
+                    <a href="/project_budgets.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                        Orçamentos do projeto
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Solicitação ao fornecedor</h6></li>
                 <li>
                     <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>" target="_blank" class="dropdown-item">
@@ -339,18 +349,21 @@ require __DIR__ . '/../app/views/header.php';
 
 <?php if ($projectLocked): ?>
     <div class="alert alert-warning d-flex gap-3 align-items-start">
-        <i class="bi bi-lock-fill fs-5"></i>
+        <i class="bi <?= $projectCanceled ? 'bi-x-octagon-fill' : 'bi-lock-fill' ?> fs-5"></i>
         <div>
-            <div class="fw-semibold">Projeto fechado para alteracoes</div>
+            <div class="fw-semibold"><?= $projectCanceled ? 'Projeto cancelado para alteracoes' : 'Projeto fechado para alteracoes' ?></div>
             <div>
-                <?= e(project_closed_edit_message()) ?>
+                <?= e(project_locked_edit_message($project)) ?>
                 <?php if ($closureShortHash): ?>
-                    Hash de fechamento:
+                    Hash do projeto:
                     <a href="/document_hash_validate.php?hash=<?= e($closureHash) ?>" class="alert-link font-monospace">
                         <?= e($closureShortHash) ?>
                     </a>.
                 <?php endif; ?>
             </div>
+            <?php if ($projectCanceled && !empty($project['cancellation_reason'])): ?>
+                <div class="small mt-2">Justificativa: <?= e($project['cancellation_reason']) ?></div>
+            <?php endif; ?>
         </div>
     </div>
 <?php elseif ($projectInRectification): ?>
@@ -359,6 +372,67 @@ require __DIR__ . '/../app/views/header.php';
         <div>
             <div class="fw-semibold">Projeto em retificacao</div>
             <div>As alteracoes estao liberadas para correcao. Ao concluir, altere o status para Fechado para gerar novo hash.</div>
+        </div>
+    </div>
+<?php elseif ($projectReopened): ?>
+    <div class="alert alert-primary d-flex gap-3 align-items-start">
+        <i class="bi bi-arrow-clockwise fs-5"></i>
+        <div>
+            <div class="fw-semibold">Projeto reaberto</div>
+            <div>
+                <?= e($project['reopen_reason'] ?: 'Reabertura registrada.') ?>
+                <?php if (($project['reopen_mode'] ?? '') === 'correction' && !empty($project['reopen_correction_deadline'])): ?>
+                    Prazo de correcao: <?= date('d/m/Y', strtotime((string) $project['reopen_correction_deadline'])) ?>.
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
+
+<?php if ($statusEvents): ?>
+    <div class="card card-body mb-4">
+        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+            <div>
+                <div class="fw-semibold">Historico de status</div>
+                <div class="text-muted small">Eventos com snapshot e hash proprio para auditoria.</div>
+            </div>
+            <span class="badge text-bg-light border"><?= count($statusEvents) ?> evento(s)</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Data</th>
+                        <th>Transicao</th>
+                        <th>Justificativa</th>
+                        <th>Hash</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach (array_slice($statusEvents, 0, 5) as $event): ?>
+                        <tr>
+                            <td><?= !empty($event['created_at']) ? date('d/m/Y H:i', strtotime((string) $event['created_at'])) : '-' ?></td>
+                            <td>
+                                <?= e(project_status_label($event['from_status'] ?? null) ?: '-') ?>
+                                <i class="bi bi-arrow-right-short"></i>
+                                <span class="badge <?= e(project_status_badge_class($event['to_status'] ?? null)) ?>">
+                                    <?= e(project_status_label($event['to_status'] ?? null)) ?>
+                                </span>
+                                <?php if (!empty($event['correction_deadline'])): ?>
+                                    <div class="small text-muted">Prazo: <?= date('d/m/Y', strtotime((string) $event['correction_deadline'])) ?></div>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= e(mb_strimwidth((string) ($event['reason'] ?? ''), 0, 140, '...')) ?></td>
+                            <td>
+                                <a href="/document_hash_validate.php?hash=<?= e((string) $event['event_hash']) ?>" class="font-monospace small">
+                                    <?= e(substr((string) $event['event_hash'], 0, 12)) ?>
+                                </a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
 <?php endif; ?>

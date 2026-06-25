@@ -86,7 +86,7 @@ require __DIR__ . '/../app/views/header.php';
                         <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
                             <div>
                                 <div class="text-muted small">
-                                    <?= $recordType === 'project_closure' ? 'Fechamento de projeto' : 'Anexo de licitacao' ?>
+                                    <?= match ($recordType) { 'project_closure' => 'Hash atual do projeto', 'project_status_event' => 'Evento de status do projeto', default => 'Anexo de licitacao' } ?>
                                 </div>
                                 <h2 class="h5 mb-0"><?= e($record['annex_label'] ?? '-') ?></h2>
                             </div>
@@ -107,6 +107,24 @@ require __DIR__ . '/../app/views/header.php';
                                 </span>
                             </dd>
 
+                            <?php if ($recordType === 'project_status_event'): ?>
+                                <dt class="col-sm-4">Transicao</dt>
+                                <dd class="col-sm-8">
+                                    <?= e(project_status_label($record['from_status'] ?? null) ?: '-') ?>
+                                    <i class="bi bi-arrow-right-short"></i>
+                                    <?= e(project_status_label($record['to_status'] ?? null)) ?>
+                                </dd>
+
+                                <?php if (!empty($record['reason'])): ?>
+                                    <dt class="col-sm-4">Justificativa</dt>
+                                    <dd class="col-sm-8"><?= e($record['reason']) ?></dd>
+                                <?php endif; ?>
+
+                                <?php if (!empty($record['correction_deadline'])): ?>
+                                    <dt class="col-sm-4">Prazo</dt>
+                                    <dd class="col-sm-8"><?= date('d/m/Y', strtotime((string) $record['correction_deadline'])) ?></dd>
+                                <?php endif; ?>
+                            <?php endif; ?>
                             <?php if ($recordType === 'annex'): ?>
                                 <dt class="col-sm-4">Versao</dt>
                                 <dd class="col-sm-8">

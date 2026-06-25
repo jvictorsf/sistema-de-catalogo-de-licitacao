@@ -14,7 +14,7 @@ if (!$project) {
     exit('Projeto não encontrado.');
 }
 
-$projectLocked = project_is_closed($project);
+$projectLocked = project_is_locked($project);
 $demands = get_project_demands($projectId);
 $suppliers = get_suppliers(true);
 $selectedSupplierId = (int) ($_POST['supplier_id'] ?? $_GET['supplier_id'] ?? 0);
@@ -33,7 +33,7 @@ $quoteDefaults = [
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($projectLocked) {
-        $errors[] = project_closed_edit_message();
+        $errors[] = project_locked_edit_message($project);
     }
 
     if ($selectedSupplierId <= 0) {
@@ -246,7 +246,7 @@ require __DIR__ . '/../app/views/header.php';
 
 <?php if ($projectLocked): ?>
     <div class="alert alert-warning">
-        <?= e(project_closed_edit_message()) ?>
+        <?= e(project_locked_edit_message($project)) ?>
     </div>
 <?php else: ?>
 <form method="post" enctype="multipart/form-data" class="card card-body shadow-sm project-quote-form">

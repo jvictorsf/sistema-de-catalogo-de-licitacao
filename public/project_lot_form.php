@@ -27,7 +27,7 @@ if (!$project) {
 }
 
 $errors = [];
-$projectLocked = project_is_closed($project);
+$projectLocked = project_is_locked($project);
 $isEditing = $lot !== null;
 $formData = [
     'lot_number' => (string) ($lot['lot_number'] ?? get_next_project_lot_number($projectId)),
@@ -98,7 +98,7 @@ require __DIR__ . '/../app/views/header.php';
 <?php endif; ?>
 
 <?php if ($projectLocked): ?>
-    <div class="alert alert-warning"><?= e(project_closed_edit_message()) ?></div>
+    <div class="alert alert-warning"><?= e(project_locked_edit_message($project)) ?></div>
 <?php else: ?>
 
 <div class="row g-4">

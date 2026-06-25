@@ -24,7 +24,7 @@ if (!$project) {
 
 $errors = [];
 $success = trim((string) ($_GET['success'] ?? ''));
-$projectLocked = project_is_closed($project);
+$projectLocked = project_is_locked($project);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
@@ -107,7 +107,7 @@ require __DIR__ . '/../app/views/header.php';
 <?php endif; ?>
 
 <?php if ($projectLocked): ?>
-    <div class="alert alert-warning"><?= e(project_closed_edit_message()) ?></div>
+    <div class="alert alert-warning"><?= e(project_locked_edit_message($project)) ?></div>
 <?php endif; ?>
 
 <div class="row g-4">

@@ -30,7 +30,7 @@ if (!$project) {
 }
 
 $errors = [];
-$projectLocked = project_is_closed($project);
+$projectLocked = project_is_locked($project);
 $requesterUnits = get_requester_units(!$isEditing);
 $cancelUrl = $isEditing
     ? '/demand_show.php?id=' . (int) $id
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($projectLocked) {
-        $errors[] = project_closed_edit_message();
+        $errors[] = project_locked_edit_message($project);
     }
 
     if (!$errors) {
@@ -103,7 +103,7 @@ require __DIR__ . '/../app/views/header.php';
 
 <?php if ($projectLocked): ?>
     <div class="alert alert-warning">
-        <?= e(project_closed_edit_message()) ?>
+        <?= e(project_locked_edit_message($project)) ?>
     </div>
 <?php else: ?>
 <form method="post" class="card card-body shadow-sm">

@@ -2,6 +2,19 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.24] - 2026-06-25
+
+### Adicionado
+- Status Cancelado para projetos, com justificativa obrigatoria, bloqueio de alteracoes, invalidacao dos anexos e novo hash do projeto.
+- Status Reaberto para projetos cancelados, com justificativa, tipo de reabertura, prazo de correcao e fechamento automatico quando o prazo expira.
+- Historico auditavel de eventos de status, com snapshot JSON e hash proprio para cancelamentos, reaberturas e fechamentos automaticos.
+- Pagina consultiva de orcamentos do projeto no menu Licitacao.
+- Opcao para copiar denominacoes e vinculos de lotes a partir de outro projeto.
+
+### Alterado
+- Bloqueios de edicao passam a considerar projetos fechados e cancelados.
+- Validacao de hash passa a reconhecer eventos de status do projeto.
+
 ## [1.5.23] - 2026-06-25
 
 ### Corrigido

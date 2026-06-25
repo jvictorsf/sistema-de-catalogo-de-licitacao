@@ -380,6 +380,8 @@ function project_status_options(): array
         'review' => 'Em revisao',
         'closed' => 'Fechado',
         'rectification' => 'Retificacao',
+        'canceled' => 'Cancelado',
+        'reopened' => 'Reaberto',
     ];
 }
 
@@ -387,10 +389,34 @@ function project_status_options_for_form(?array $project = null): array
 {
     $status = (string) ($project['status'] ?? 'draft');
 
-    if (in_array($status, ['closed', 'rectification'], true)) {
+    if ($status === 'closed') {
         return [
             'closed' => 'Fechado',
             'rectification' => 'Retificacao',
+            'canceled' => 'Cancelado',
+        ];
+    }
+
+    if ($status === 'canceled') {
+        return [
+            'canceled' => 'Cancelado',
+            'reopened' => 'Reaberto',
+        ];
+    }
+
+    if ($status === 'rectification') {
+        return [
+            'rectification' => 'Retificacao',
+            'closed' => 'Fechado',
+            'canceled' => 'Cancelado',
+        ];
+    }
+
+    if ($status === 'reopened') {
+        return [
+            'reopened' => 'Reaberto',
+            'closed' => 'Fechado',
+            'canceled' => 'Cancelado',
         ];
     }
 
@@ -399,6 +425,7 @@ function project_status_options_for_form(?array $project = null): array
         'collecting' => 'Coletando demandas',
         'review' => 'Em revisao',
         'closed' => 'Fechado',
+        'canceled' => 'Cancelado',
     ];
 }
 
@@ -417,9 +444,16 @@ function project_status_badge_class(?string $status): string
         'review' => 'text-bg-warning',
         'closed' => 'text-bg-success',
         'rectification' => 'text-bg-danger',
+        'canceled' => 'text-bg-dark',
+        'reopened' => 'text-bg-primary',
     ];
 
     return $classes[$status ?? ''] ?? 'text-bg-secondary';
+}
+
+function project_status_is_locked(?string $status): bool
+{
+    return in_array($status, ['closed', 'canceled'], true);
 }
 
 function project_is_closed(mixed $project): bool
@@ -427,6 +461,27 @@ function project_is_closed(mixed $project): bool
     $status = is_array($project) ? ($project['status'] ?? null) : $project;
 
     return $status === 'closed';
+}
+
+function project_is_canceled(mixed $project): bool
+{
+    $status = is_array($project) ? ($project['status'] ?? null) : $project;
+
+    return $status === 'canceled';
+}
+
+function project_is_reopened(mixed $project): bool
+{
+    $status = is_array($project) ? ($project['status'] ?? null) : $project;
+
+    return $status === 'reopened';
+}
+
+function project_is_locked(mixed $project): bool
+{
+    $status = is_array($project) ? ($project['status'] ?? null) : $project;
+
+    return project_status_is_locked($status);
 }
 
 function project_is_rectification(mixed $project): bool
@@ -439,6 +494,33 @@ function project_is_rectification(mixed $project): bool
 function project_closed_edit_message(): string
 {
     return 'Projeto fechado. Para corrigir ou alterar dados, mude o status do projeto para Retificacao.';
+}
+
+function project_canceled_edit_message(): string
+{
+    return 'Projeto cancelado. Ele fica disponivel apenas para consulta ou copia; para continuar, altere o status para Reaberto.';
+}
+
+function project_locked_edit_message(mixed $project): string
+{
+    return project_is_canceled($project)
+        ? project_canceled_edit_message()
+        : project_closed_edit_message();
+}
+
+function project_reopen_mode_options(): array
+{
+    return [
+        'continuity' => 'Continuidade',
+        'correction' => 'Correcao com prazo',
+    ];
+}
+
+function project_reopen_mode_label(?string $mode): string
+{
+    $labels = project_reopen_mode_options();
+
+    return $labels[$mode ?? ''] ?? (string) $mode;
 }
 
 function format_decimal_quantity(mixed $value): string

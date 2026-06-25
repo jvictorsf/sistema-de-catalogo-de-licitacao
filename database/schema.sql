@@ -182,8 +182,27 @@ CREATE TABLE IF NOT EXISTS procurement_projects (
     status VARCHAR(50) NOT NULL DEFAULT 'draft',
     closure_hash CHAR(64),
     closed_at TIMESTAMP NULL,
+    cancellation_reason TEXT,
+    canceled_at TIMESTAMP NULL,
+    reopen_reason TEXT,
+    reopened_at TIMESTAMP NULL,
+    reopen_mode VARCHAR(30),
+    reopen_correction_deadline DATE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS project_status_events (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES procurement_projects(id) ON DELETE CASCADE,
+    from_status VARCHAR(50),
+    to_status VARCHAR(50) NOT NULL,
+    reason TEXT NOT NULL,
+    reopen_mode VARCHAR(30),
+    correction_deadline DATE,
+    snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+    event_hash CHAR(64) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS secretariats (
@@ -444,6 +463,24 @@ ADD COLUMN IF NOT EXISTS closure_hash CHAR(64);
 
 ALTER TABLE procurement_projects
 ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL;
+
+ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
+
+ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS canceled_at TIMESTAMP NULL;
+
+ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS reopen_reason TEXT;
+
+ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMP NULL;
+
+ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS reopen_mode VARCHAR(30);
+
+ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS reopen_correction_deadline DATE;
 
 ALTER TABLE secretariats
 ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
@@ -1027,6 +1064,12 @@ ON project_licitation_items (procurement_item_id);
 CREATE INDEX IF NOT EXISTS idx_procurement_projects_closure_hash
 ON procurement_projects (closure_hash);
 
+CREATE INDEX IF NOT EXISTS idx_project_status_events_project
+ON project_status_events (project_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_project_status_events_hash
+ON project_status_events (event_hash);
+
 CREATE UNIQUE INDEX IF NOT EXISTS ux_project_annex_versions_hash
 ON project_annex_versions (project_id, annex_type, content_hash);
 
@@ -1062,6 +1105,7 @@ SELECT setval(pg_get_serial_sequence('demand_supplier_quotes', 'id'), GREATEST(C
 SELECT setval(pg_get_serial_sequence('demand_supplier_quote_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_price_references', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_price_references), 0), 1), COALESCE((SELECT MAX(id) FROM demand_price_references), 0) > 0);
 SELECT setval(pg_get_serial_sequence('project_licitation_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_licitation_items), 0), 1), COALESCE((SELECT MAX(id) FROM project_licitation_items), 0) > 0);
+SELECT setval(pg_get_serial_sequence('project_status_events', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_status_events), 0), 1), COALESCE((SELECT MAX(id) FROM project_status_events), 0) > 0);
 SELECT setval(pg_get_serial_sequence('project_annex_versions', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_annex_versions), 0), 1), COALESCE((SELECT MAX(id) FROM project_annex_versions), 0) > 0);
 SELECT setval(pg_get_serial_sequence('project_lot_denominations', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_lot_denominations), 0), 1), COALESCE((SELECT MAX(id) FROM project_lot_denominations), 0) > 0);
 SELECT setval(pg_get_serial_sequence('project_lot_assignments', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_lot_assignments), 0), 1), COALESCE((SELECT MAX(id) FROM project_lot_assignments), 0) > 0);

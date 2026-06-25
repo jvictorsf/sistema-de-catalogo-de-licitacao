@@ -16,7 +16,7 @@ if (!$project) {
 
 $errors = [];
 $success = trim((string) ($_GET['success'] ?? ''));
-$projectLocked = project_is_closed($project);
+$projectLocked = project_is_locked($project);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
@@ -33,12 +33,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             delete_project_lot_denomination($lotId);
             redirect('/project_lots.php?id=' . $projectId . '&success=' . rawurlencode('Denominacao removida.'));
         }
+
+        if ($action === 'copy_lots') {
+            $sourceProjectId = (int) ($_POST['source_project_id'] ?? 0);
+            $replaceExisting = !empty($_POST['replace_existing']);
+            $copied = copy_project_lot_denominations_from_project($sourceProjectId, $projectId, $replaceExisting);
+            redirect('/project_lots.php?id=' . $projectId . '&success=' . rawurlencode($copied . ' denominacao(oes) copiada(s).'));
+        }
     } catch (Throwable $exception) {
         $errors[] = $exception->getMessage();
     }
 }
 
 $lots = get_project_lot_denominations($projectId);
+$sourceProjects = get_projects_with_lot_denominations($projectId);
 
 require __DIR__ . '/../app/views/header.php';
 
@@ -71,7 +79,7 @@ require __DIR__ . '/../app/views/header.php';
 <?php endif; ?>
 
 <?php if ($projectLocked): ?>
-    <div class="alert alert-warning"><?= e(project_closed_edit_message()) ?></div>
+    <div class="alert alert-warning"><?= e(project_locked_edit_message($project)) ?></div>
 <?php endif; ?>
 
 <div class="alert alert-info d-flex gap-3 align-items-start">
@@ -81,6 +89,40 @@ require __DIR__ . '/../app/views/header.php';
         <div>Use esta tela para consultar os lotes. Cadastro, edicao e vinculos ficam em telas proprias para evitar formularios longos e confusos.</div>
     </div>
 </div>
+
+<?php if (!$projectLocked && $sourceProjects): ?>
+    <div class="card card-body mb-4">
+        <form method="post" class="row g-3 align-items-end">
+            <input type="hidden" name="project_id" value="<?= (int) $project['id'] ?>">
+            <input type="hidden" name="action" value="copy_lots">
+
+            <div class="col-lg-6">
+                <label class="form-label">Copiar denominacoes de outro projeto</label>
+                <select name="source_project_id" class="form-select" required>
+                    <option value="">Selecione o projeto de origem</option>
+                    <?php foreach ($sourceProjects as $sourceProject): ?>
+                        <option value="<?= (int) $sourceProject['id'] ?>">
+                            <?= e($sourceProject['name']) ?> (<?= (int) $sourceProject['lot_count'] ?> lote(s))
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="col-lg-3">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="replace_existing" value="1" id="replaceExistingLots">
+                    <label class="form-check-label" for="replaceExistingLots">Substituir atuais</label>
+                </div>
+            </div>
+
+            <div class="col-lg-3 d-grid">
+                <button class="btn btn-outline-primary" onclick="return confirm('Copiar denominacoes e vinculos do projeto selecionado?')">
+                    <i class="bi bi-copy"></i>Copiar denominacoes
+                </button>
+            </div>
+        </form>
+    </div>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center gap-3 flex-wrap">

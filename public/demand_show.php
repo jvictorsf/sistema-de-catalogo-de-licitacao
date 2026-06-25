@@ -17,7 +17,7 @@ if (!$demand) {
 }
 
 $project = find_project((int) $demand['project_id']);
-$projectLocked = project_is_closed($project);
+$projectLocked = project_is_locked($project);
 $items = get_demand_items($id);
 $catalogItems = search_items();
 $supplierQuotes = get_demand_supplier_quotes($id);
@@ -86,7 +86,7 @@ require __DIR__ . '/../app/views/header.php';
 
 <?php if ($projectLocked): ?>
     <div class="alert alert-warning">
-        <?= e(project_closed_edit_message()) ?>
+        <?= e(project_locked_edit_message($project)) ?>
     </div>
 <?php endif; ?>
 

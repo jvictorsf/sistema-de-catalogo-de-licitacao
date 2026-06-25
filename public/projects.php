@@ -87,13 +87,14 @@ require __DIR__ . '/../app/views/header.php';
                                     Duplicar
                                 </button>
                             </form>
-
-                            <form action="/project_delete.php" method="post" class="d-inline" onsubmit="return confirm('Deseja excluir este projeto?')">
-                                <input type="hidden" name="id" value="<?= (int) $project['id'] ?>">
-                                <button class="btn btn-sm btn-outline-danger">
-                                    Excluir
-                                </button>
-                            </form>
+                            <?php if (!project_is_locked($project)): ?>
+                                <form action="/project_delete.php" method="post" class="d-inline" onsubmit="return confirm('Deseja excluir este projeto?')">
+                                    <input type="hidden" name="id" value="<?= (int) $project['id'] ?>">
+                                    <button class="btn btn-sm btn-outline-danger">
+                                        Excluir
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

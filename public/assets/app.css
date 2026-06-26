@@ -179,6 +179,34 @@ body {
     white-space: nowrap;
 }
 
+.project-show-toolbar {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: .5rem;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+    padding: .75rem;
+}
+
+.project-show-toolbar .page-actions {
+    flex: 1 1 auto;
+    justify-content: flex-start !important;
+    width: 100%;
+}
+
+.project-show-toolbar .btn,
+.project-show-toolbar .btn-group > .btn {
+    min-height: 2.35rem;
+}
+
+.project-show-header {
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: .75rem;
+}
+
+.project-show-title {
+    max-width: 72rem;
+}
+
 .project-demands-card .card-body {
     background: #f8fafc;
 }
@@ -457,6 +485,14 @@ pre {
     .project-licitation-menu {
         max-height: 70vh;
         min-width: 100%;
+    }
+
+    .project-show-toolbar {
+        padding: .65rem;
+    }
+
+    .project-show-toolbar .dropdown-menu {
+        width: 100%;
     }
 
     .app-shell > .d-flex.justify-content-between form,

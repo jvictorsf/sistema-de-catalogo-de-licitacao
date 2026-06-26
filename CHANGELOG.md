@@ -2,6 +2,12 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.29] - 2026-06-26
+
+### Corrigido
+- Tela de visualizacao do projeto passa a separar a barra de acoes do titulo, evitando que os menus ocupem a mesma linha do nome do projeto.
+- Barra de acoes do projeto recebeu layout proprio e comportamento responsivo mais previsivel.
+
 ## [1.5.28] - 2026-06-26
 
 ### Adicionado

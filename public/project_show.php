@@ -38,21 +38,8 @@ require __DIR__ . '/../app/views/header.php';
 
 ?>
 
-<div class="page-header d-flex justify-content-between align-items-start mb-4">
-    <div class="page-title">
-        <h1 class="h3 mb-1"><?= e($project['name']) ?></h1>
-
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="badge <?= e(project_status_badge_class($project['status'] ?? null)) ?>">
-                <?= e(project_status_label($project['status'] ?? null)) ?>
-            </span>
-            <p class="text-muted mb-0">
-                <?= e($project['description']) ?>
-            </p>
-        </div>
-    </div>
-
-    <div class="page-actions project-actions d-flex gap-2 flex-wrap justify-content-end">
+<div class="project-show-toolbar mb-3">
+    <div class="page-actions project-actions d-flex gap-2 flex-wrap justify-content-start">
         <?php if (!$projectLocked): ?>
         <a href="/demand_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i>Nova demanda
@@ -387,6 +374,24 @@ require __DIR__ . '/../app/views/header.php';
         <a href="/projects.php" class="btn btn-outline-secondary">
             Voltar
         </a>
+    </div>
+</div>
+
+<div class="page-header project-show-header d-flex align-items-start mb-4">
+    <div class="page-title project-show-title">
+        <h1 class="h3 mb-2"><?= e($project['name']) ?></h1>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+            <span class="badge <?= e(project_status_badge_class($project['status'] ?? null)) ?>">
+                <?= e(project_status_label($project['status'] ?? null)) ?>
+            </span>
+        </div>
+
+        <?php if (trim((string) ($project['description'] ?? '')) !== ''): ?>
+            <p class="text-muted mb-0">
+                <?= e($project['description']) ?>
+            </p>
+        <?php endif; ?>
     </div>
 </div>
 

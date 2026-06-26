@@ -1452,6 +1452,76 @@ function get_suppliers(bool $activeOnly = false): array
     return array_map('normalize_supplier_row', db()->query($sql)->fetchAll());
 }
 
+function get_suppliers_filtered(array $filters = []): array
+{
+    $sql = "
+        SELECT *
+        FROM suppliers
+        WHERE 1 = 1
+    ";
+    $params = [];
+
+    $query = trim((string) ($filters['q'] ?? ''));
+
+    if ($query !== '') {
+        $queryDigits = only_digits($query);
+        $params['q'] = '%' . mb_strtolower($query) . '%';
+        $params['q_digits'] = $queryDigits !== '' ? '%' . $queryDigits . '%' : '__sem_digitos__';
+        $sql .= "
+            AND (
+                LOWER(COALESCE(name, '')) LIKE :q
+                OR LOWER(COALESCE(trade_name, '')) LIKE :q
+                OR LOWER(COALESCE(contact_name, '')) LIKE :q
+                OR LOWER(COALESCE(email, '')) LIKE :q
+                OR LOWER(COALESCE(city, '')) LIKE :q
+                OR LOWER(COALESCE(company_size, '')) LIKE :q
+                OR LOWER(COALESCE(state_registration, '')) LIKE :q
+                OR LOWER(COALESCE(municipal_registration, '')) LIKE :q
+                OR LOWER(COALESCE(website_url, '')) LIKE :q
+                OR COALESCE(document, '') LIKE :q_digits
+                OR COALESCE(phone, '') LIKE :q_digits
+            )
+        ";
+    }
+
+    $status = (string) ($filters['status'] ?? '');
+
+    if ($status === 'active') {
+        $sql .= " AND is_active = TRUE";
+    } elseif ($status === 'inactive') {
+        $sql .= " AND is_active = FALSE";
+    }
+
+    $bidding = (string) ($filters['bidding'] ?? '');
+
+    if ($bidding === 'yes') {
+        $sql .= " AND participates_bidding = TRUE";
+    } elseif ($bidding === 'no') {
+        $sql .= " AND participates_bidding = FALSE";
+    }
+
+    $state = normalize_supplier_state($filters['state'] ?? null);
+
+    if ($state !== null) {
+        $params['state'] = $state;
+        $sql .= " AND state = :state";
+    }
+
+    $companySize = trim((string) ($filters['company_size'] ?? ''));
+
+    if ($companySize !== '') {
+        $params['company_size'] = $companySize;
+        $sql .= " AND company_size = :company_size";
+    }
+
+    $sql .= " ORDER BY name";
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    return array_map('normalize_supplier_row', $stmt->fetchAll());
+}
+
 function find_supplier(int $id): ?array
 {
     $stmt = db()->prepare("
@@ -3920,7 +3990,193 @@ function save_demand_supplier_quote_items(int $quoteId, array $prices, array $no
     }
 }
 
-function save_project_supplier_quote(array $data, array $prices, array $notes = [], array $preserveBlankPriceKeys = []): array
+function project_global_price_bank_candidate_key(array $row): string
+{
+    return sha1(implode('|', [
+        (string) (int) ($row['source_project_id'] ?? 0),
+        (string) (int) ($row['supplier_id'] ?? 0),
+        (string) ($row['quote_number'] ?? ''),
+        (string) ($row['quote_date'] ?? ''),
+        (string) ($row['validity_date'] ?? ''),
+        (string) ($row['quoted_by'] ?? ''),
+        (string) ($row['collected_by'] ?? ''),
+    ]));
+}
+
+function get_project_global_price_bank_candidates(int $projectId, int $months = 0): array
+{
+    try {
+        $targetItems = get_project_consolidated_items($projectId);
+        $targetQuantities = [];
+
+        foreach ($targetItems as $item) {
+            $targetQuantities[(int) $item['procurement_item_id']] = (float) ($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0);
+        }
+
+        if (!$targetQuantities) {
+            return [];
+        }
+
+        $sql = "
+            SELECT
+                source_p.id AS source_project_id,
+                source_p.name AS source_project_name,
+                s.id AS supplier_id,
+                s.name AS supplier_name,
+                s.document AS supplier_document,
+                q.id AS source_quote_id,
+                q.quote_number,
+                q.quote_date,
+                q.validity_date,
+                q.quoted_by,
+                q.collected_by,
+                q.attachment_path,
+                q.notes,
+                q.status,
+                source_di.procurement_item_id,
+                qi.id AS source_quote_item_id,
+                qi.unit_price,
+                qi.notes AS item_notes
+            FROM demand_supplier_quote_items qi
+            INNER JOIN demand_supplier_quotes q
+                ON q.id = qi.demand_supplier_quote_id
+               AND COALESCE(q.status, 'received') <> 'discarded'
+            INNER JOIN suppliers s
+                ON s.id = q.supplier_id
+               AND s.is_active = TRUE
+            INNER JOIN demand_items source_di ON source_di.id = qi.demand_item_id
+            INNER JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
+            INNER JOIN procurement_projects source_p ON source_p.id = source_dl.project_id
+            WHERE source_p.id <> :project_id
+              AND source_di.procurement_item_id = ANY((:procurement_item_ids)::int[])
+              AND qi.unit_price IS NOT NULL
+        ";
+
+        $params = [
+            'project_id' => $projectId,
+            'procurement_item_ids' => '{' . implode(',', array_map('intval', array_keys($targetQuantities))) . '}',
+        ];
+
+        if ($months > 0) {
+            $sql .= " AND q.quote_date >= (CURRENT_DATE - (:months || ' months')::interval)";
+            $params['months'] = $months;
+        }
+
+        $sql .= "
+            ORDER BY
+                source_p.name,
+                s.name,
+                q.quote_date DESC NULLS LAST,
+                qi.created_at DESC
+        ";
+
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+
+        $candidates = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $key = project_global_price_bank_candidate_key($row);
+            $procurementItemId = (int) $row['procurement_item_id'];
+
+            if (!isset($targetQuantities[$procurementItemId])) {
+                continue;
+            }
+
+            if (!isset($candidates[$key])) {
+                $candidates[$key] = [
+                    'key' => $key,
+                    'source_project_id' => (int) $row['source_project_id'],
+                    'source_project_name' => $row['source_project_name'],
+                    'supplier_id' => (int) $row['supplier_id'],
+                    'supplier_name' => $row['supplier_name'],
+                    'supplier_document' => $row['supplier_document'],
+                    'quote_number' => $row['quote_number'],
+                    'quote_date' => $row['quote_date'],
+                    'validity_date' => $row['validity_date'],
+                    'quoted_by' => $row['quoted_by'],
+                    'collected_by' => $row['collected_by'],
+                    'notes' => $row['notes'],
+                    'status' => $row['status'] ?: 'received',
+                    'attachment_paths' => [],
+                    'matched_item_ids' => [],
+                    'price_values' => [],
+                    'prices' => [],
+                    'item_notes' => [],
+                    'source_quote_item_ids' => [],
+                    'estimated_total' => 0.0,
+                    'target_item_count' => count($targetQuantities),
+                    'matched_item_count' => 0,
+                ];
+            }
+
+            $attachmentPath = trim((string) ($row['attachment_path'] ?? ''));
+
+            if ($attachmentPath !== '') {
+                $candidates[$key]['attachment_paths'][$attachmentPath] = $attachmentPath;
+            }
+
+            $candidates[$key]['matched_item_ids'][$procurementItemId] = true;
+            $candidates[$key]['price_values'][$procurementItemId][] = (float) $row['unit_price'];
+
+            if (empty($candidates[$key]['source_quote_item_ids'][$procurementItemId])) {
+                $candidates[$key]['source_quote_item_ids'][$procurementItemId] = (int) $row['source_quote_item_id'];
+            }
+
+            $itemNote = trim((string) ($row['item_notes'] ?? ''));
+
+            if ($itemNote !== '' && empty($candidates[$key]['item_notes'][$procurementItemId])) {
+                $candidates[$key]['item_notes'][$procurementItemId] = $itemNote;
+            }
+        }
+
+        foreach ($candidates as $key => $candidate) {
+            $estimatedTotal = 0.0;
+            $prices = [];
+
+            foreach ($candidate['price_values'] as $procurementItemId => $values) {
+                $unitPrice = array_sum($values) / max(1, count($values));
+                $prices[$procurementItemId] = number_format($unitPrice, 2, '.', '');
+                $estimatedTotal += $unitPrice * ($targetQuantities[$procurementItemId] ?? 0.0);
+            }
+
+            $candidates[$key]['prices'] = $prices;
+            $candidates[$key]['estimated_total'] = round($estimatedTotal, 2);
+            $candidates[$key]['matched_item_count'] = count($candidate['matched_item_ids']);
+            $candidates[$key]['attachment_paths'] = array_values($candidate['attachment_paths']);
+            unset($candidates[$key]['matched_item_ids'], $candidates[$key]['price_values']);
+        }
+
+        usort($candidates, static function (array $left, array $right): int {
+            return ((int) $right['matched_item_count'] <=> (int) $left['matched_item_count'])
+                ?: strcasecmp((string) $left['source_project_name'], (string) $right['source_project_name'])
+                ?: strcasecmp((string) $left['supplier_name'], (string) $right['supplier_name'])
+                ?: strcmp((string) ($right['quote_date'] ?? ''), (string) ($left['quote_date'] ?? ''));
+        });
+
+        return $candidates;
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('banco de precos de orcamentos gerais', $exception);
+        return [];
+    }
+}
+
+function find_project_global_price_bank_candidate(int $projectId, string $key, int $months = 0): ?array
+{
+    foreach (get_project_global_price_bank_candidates($projectId, $months) as $candidate) {
+        if (hash_equals((string) $candidate['key'], $key)) {
+            return $candidate;
+        }
+    }
+
+    return null;
+}
+
+function save_project_supplier_quote(array $data, array $prices, array $notes = [], array $preserveBlankPriceKeys = [], array $sourceQuoteItemIds = []): array
 {
     $projectId = (int) ($data['project_id'] ?? 0);
     $supplierId = (int) ($data['supplier_id'] ?? 0);
@@ -3955,13 +4211,13 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
                 :demand_item_id,
                 :unit_price,
                 :notes,
-                NULL
+                :reused_from_quote_item_id
             )
             ON CONFLICT (demand_supplier_quote_id, demand_item_id)
             DO UPDATE SET
                 unit_price = EXCLUDED.unit_price,
                 notes = EXCLUDED.notes,
-                reused_from_quote_item_id = NULL
+                reused_from_quote_item_id = EXCLUDED.reused_from_quote_item_id
         ");
 
         $delete = db()->prepare("
@@ -4000,6 +4256,7 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
                 $unitPrice = normalize_money_value($rawPrice);
                 $preserveBlankPrice = !empty($preserveBlankPriceKeys[$inputKey])
                     || !empty($preserveBlankPriceKeys[(string) $inputKey]);
+                $sourceQuoteItemId = (int) ($sourceQuoteItemIds[$inputKey] ?? $sourceQuoteItemIds[(string) $inputKey] ?? 0);
 
                 if ($preserveBlankPrice && $unitPrice === null) {
                     continue;
@@ -4017,6 +4274,7 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
                     'demand_item_id' => $demandItemId,
                     'unit_price' => $unitPrice,
                     'notes' => $note ?: null,
+                    'reused_from_quote_item_id' => $sourceQuoteItemId > 0 ? $sourceQuoteItemId : null,
                 ];
             }
 
@@ -4057,6 +4315,7 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
                     'demand_item_id' => $itemUpsert['demand_item_id'],
                     'unit_price' => $itemUpsert['unit_price'],
                     'notes' => $itemUpsert['notes'],
+                    'reused_from_quote_item_id' => $itemUpsert['reused_from_quote_item_id'],
                 ]);
 
                 if ($itemUpsert['unit_price'] !== null) {

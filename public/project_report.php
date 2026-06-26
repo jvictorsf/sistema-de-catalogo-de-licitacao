@@ -16,6 +16,7 @@ if (!$project) {
 }
 
 $consolidatedItems = get_project_consolidated_items($id);
+$lotGroups = get_project_lot_groups($id, $consolidatedItems);
 $itemsByDemand = get_project_items_by_demand($id);
 $financialSummary = get_project_financial_summary($id);
 $secretariatSummary = get_project_secretariat_summary($id);
@@ -100,6 +101,17 @@ require __DIR__ . '/../app/views/header.php';
         </button>
     </li>
 
+    <li class="nav-item" role="presentation">
+        <button
+            class="nav-link"
+            id="denominations-tab"
+            data-bs-toggle="tab"
+            data-bs-target="#denominations-tab-pane"
+            type="button"
+            role="tab">
+            Consolidado por denominacao
+        </button>
+    </li>
     <li class="nav-item" role="presentation">
         <button
             class="nav-link"
@@ -301,6 +313,89 @@ require __DIR__ . '/../app/views/header.php';
         </div>
     </div>
 
+    <div
+        class="tab-pane fade"
+        id="denominations-tab-pane"
+        role="tabpanel"
+        tabindex="0">
+
+        <?php if (!$lotGroups): ?>
+            <div class="alert alert-warning">
+                Nenhuma denominacao com itens foi encontrada para este projeto.
+            </div>
+        <?php endif; ?>
+
+        <?php foreach ($lotGroups as $group): ?>
+            <?php
+                $groupTotalQuantity = array_reduce(
+                    $group['items'] ?? [],
+                    static fn (float $total, array $item): float => $total + (float) ($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0),
+                    0.0
+                );
+                $groupSubtotal = (float) ($group['subtotal'] ?? 0);
+                $groupLabel = !empty($group['is_unassigned'])
+                    ? 'Itens sem denominacao'
+                    : 'Lote ' . (int) ($group['lot_number'] ?? 0) . ' - ' . (string) ($group['name'] ?? 'Denominacao');
+            ?>
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <div class="fw-semibold"><?= e($groupLabel) ?></div>
+                        <?php if (!empty($group['justification'])): ?>
+                            <div class="text-muted small"><?= e($group['justification']) ?></div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="text-end small">
+                        <div><strong><?= count($group['items'] ?? []) ?></strong> item(ns)</div>
+                        <div>Quantidade: <strong><?= e(format_decimal_quantity($groupTotalQuantity)) ?></strong></div>
+                        <div>Total estimado: <strong>R$ <?= number_format($groupSubtotal, 2, ',', '.') ?></strong></div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Numero</th>
+                                <th>Codigo</th>
+                                <th>Item</th>
+                                <th>Un.</th>
+                                <th>Qtd. aprovada</th>
+                                <th>Valor medio unit.</th>
+                                <th>Total estimado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($group['items'] ?? [] as $item): ?>
+                                <tr>
+                                    <td><?= e((string) ($item['licitation_number'] ?? '-')) ?></td>
+                                    <td><?= e($item['tracking_code'] ?? '-') ?></td>
+                                    <td><?= e($item['item_name'] ?? '-') ?></td>
+                                    <td>
+                                        <?= e($item['unit_type_abbreviation'] ?: ($item['unit_type_name'] ?? '-')) ?>
+                                        <?php if (format_package_content($item) !== '-'): ?>
+                                            <div class="small text-muted">
+                                                <?= e(format_package_content($item)) ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="fw-semibold"><?= e(format_decimal_quantity($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0)) ?></td>
+                                    <td>R$ <?= number_format((float) ($item['average_unit_price'] ?? 0), 2, ',', '.') ?></td>
+                                    <td class="fw-semibold">
+                                        R$ <?= number_format((float) ($item['estimated_total'] ?? 0), 2, ',', '.') ?>
+                                        <?php if (!empty($item['uses_supplier_average'])): ?>
+                                            <div class="small text-muted">media de orcamento</div>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
     <div
         class="tab-pane fade"
         id="demands-tab-pane"

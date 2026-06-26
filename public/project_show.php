@@ -17,7 +17,11 @@ if (!$project) {
 
 $demands = get_project_demands($id);
 $consolidatedItems = get_project_consolidated_items($id);
-$quoteRequestGroups = supplier_quote_request_groups_from_items($consolidatedItems);
+$quoteRequestLotGroups = get_project_lot_groups($id, $consolidatedItems);
+$hasQuoteRequestLotGroups = array_filter(
+    $quoteRequestLotGroups,
+    static fn (array $group): bool => empty($group['is_unassigned']) && (int) ($group['lot_id'] ?? 0) > 0
+) !== [];
 $financialSummary = get_project_financial_summary($id);
 $annexStatuses = get_project_annex_statuses($id);
 $quoteSuccess = trim($_GET['quote_success'] ?? '');
@@ -154,11 +158,10 @@ require __DIR__ . '/../app/views/header.php';
                 class="btn btn-outline-success dropdown-toggle"
                 data-bs-toggle="dropdown"
                 aria-expanded="false">
-                <i class="bi bi-file-earmark-check"></i>Licitação
+                <i class="bi bi-list-check"></i>Anexos por item
             </button>
 
             <ul class="dropdown-menu dropdown-menu-end project-licitation-menu">
-                <li><h6 class="dropdown-header">Licitacao por item</h6></li>
                 <li><h6 class="dropdown-header">Anexo I - Itens, especificacoes, quantitativos e memoria</h6></li>
                 <li>
                     <a href="/project_licitation_annex_i.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
@@ -211,14 +214,27 @@ require __DIR__ . '/../app/views/header.php';
                         Exportar Excel
                     </a>
                 </li>
+            </ul>
+        </div>
 
-                <li><hr class="dropdown-divider"></li>
-                <li><h6 class="dropdown-header">Licitacao por lote</h6></li>
+        <div class="btn-group">
+            <button
+                type="button"
+                class="btn btn-outline-success dropdown-toggle"
+                data-bs-toggle="dropdown"
+                aria-expanded="false">
+                <i class="bi bi-boxes"></i>Anexos por lote
+            </button>
+
+            <ul class="dropdown-menu dropdown-menu-end project-licitation-menu">
+                <li><h6 class="dropdown-header">Denominacoes e lotes</h6></li>
                 <li>
                     <a href="/project_lots.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
                         Gerenciar denominacoes e vinculos
                     </a>
                 </li>
+
+                <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Anexo I - Itens por lote e denominacao</h6></li>
                 <li>
                     <a href="/project_lot_annex_i.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
@@ -236,6 +252,7 @@ require __DIR__ . '/../app/views/header.php';
                     </a>
                 </li>
 
+                <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Anexo II - Pesquisa e estimativa por lote</h6></li>
                 <li>
                     <a href="/project_lot_annex_ii.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
@@ -253,7 +270,8 @@ require __DIR__ . '/../app/views/header.php';
                     </a>
                 </li>
 
-                <li><h6 class="dropdown-header">Anexo III - Quadro resumido por lote</h6></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Anexo III - Quadro de agrupamento dos lotes</h6></li>
                 <li>
                     <a href="/project_lot_annex_iii.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
                         PDF institucional
@@ -270,6 +288,7 @@ require __DIR__ . '/../app/views/header.php';
                     </a>
                 </li>
 
+                <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Anexo IV - Quadro resumido da estimativa por lote</h6></li>
                 <li>
                     <a href="/project_lot_annex_iv.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
@@ -286,49 +305,85 @@ require __DIR__ . '/../app/views/header.php';
                         Exportar Excel
                     </a>
                 </li>
+            </ul>
+        </div>
 
-                <li><hr class="dropdown-divider"></li>
+        <div class="btn-group">
+            <button
+                type="button"
+                class="btn btn-outline-success dropdown-toggle"
+                data-bs-toggle="dropdown"
+                aria-expanded="false">
+                <i class="bi bi-envelope-paper"></i>Fornecedor
+            </button>
+
+            <ul class="dropdown-menu dropdown-menu-end project-licitation-menu">
                 <li><h6 class="dropdown-header">Orcamentos</h6></li>
                 <li>
                     <a href="/project_budgets.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
-                        Orçamentos do projeto
+                        Orcamentos do projeto
                     </a>
                 </li>
+                <li>
+                    <a href="/project_global_price_bank.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                        Banco de precos de orcamentos gerais
+                    </a>
+                </li>
+
                 <li><hr class="dropdown-divider"></li>
-                <li><h6 class="dropdown-header">Solicitação ao fornecedor</h6></li>
+                <li><h6 class="dropdown-header">Solicitacao geral</h6></li>
                 <li>
                     <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>" target="_blank" class="dropdown-item">
                         PDF institucional
                     </a>
                 </li>
                 <li>
-                    <a href="/project_quote_request_excel.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
-                        Excel geral
+                    <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>&format=word" class="dropdown-item">
+                        Exportar Word
                     </a>
                 </li>
                 <li>
-                    <a href="/project_quote_request_excel_grouped.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
-                        Excel geral por grupo
+                    <a href="/project_quote_request_excel.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                        Exportar Excel
                     </a>
                 </li>
 
-                <?php if ($quoteRequestGroups): ?>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><h6 class="dropdown-header">Excel por grupo</h6></li>
-
-                    <?php foreach ($quoteRequestGroups as $group): ?>
-                        <li>
-                            <a
-                                href="/project_quote_request_excel.php?id=<?= (int) $project['id'] ?>&group_id=<?= (int) $group['id'] ?>"
-                                class="dropdown-item">
-                                <?= e($group['name']) ?>
-                            </a>
-                        </li>
-                    <?php endforeach; ?>
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Por denominacao</h6></li>
+                <?php if ($hasQuoteRequestLotGroups): ?>
+                    <li>
+                        <a href="/project_quote_request_denominations.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                            Escolher denominacao
+                        </a>
+                    </li>
+                <?php else: ?>
+                    <li><span class="dropdown-item-text text-muted">Nenhuma denominacao com itens</span></li>
                 <?php endif; ?>
+                <li>
+                    <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>&group_by=denomination" target="_blank" class="dropdown-item">
+                        PDF separado por denominacao
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_quote_request.php?id=<?= (int) $project['id'] ?>&group_by=denomination&format=word" class="dropdown-item">
+                        Word separado por denominacao
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_quote_request_excel_grouped.php?id=<?= (int) $project['id'] ?>&group_by=denomination" class="dropdown-item">
+                        Excel separado por denominacao
+                    </a>
+                </li>
+
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Por categoria</h6></li>
+                <li>
+                    <a href="/project_quote_request_excel_grouped.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                        Excel separado por categoria
+                    </a>
+                </li>
             </ul>
         </div>
-
         <a href="/projects.php" class="btn btn-outline-secondary">
             Voltar
         </a>

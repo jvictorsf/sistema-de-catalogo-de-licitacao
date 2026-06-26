@@ -6,7 +6,39 @@ require_once __DIR__ . '/../app/config.php';
 require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';
 
+function project_quote_request_excel_group_label(array $group, bool $byDenomination): string
+{
+    if (!$byDenomination) {
+        return 'Grupo: ' . (string) ($group['name'] ?? 'Sem grupo');
+    }
+
+    if (!empty($group['is_unassigned'])) {
+        return 'Sem denominacao';
+    }
+
+    return 'Lote ' . (int) ($group['lot_number'] ?? 0) . ' - ' . (string) ($group['name'] ?? 'Denominacao');
+}
+
+function project_quote_request_excel_group_quantity(array $group): float
+{
+    if (array_key_exists('total_quantity', $group)) {
+        return (float) $group['total_quantity'];
+    }
+
+    return array_reduce(
+        $group['items'] ?? [],
+        static fn (float $total, array $item): float => $total + (float) ($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0),
+        0.0
+    );
+}
+
+function project_quote_request_excel_group_items_count(array $group): int
+{
+    return (int) ($group['items_count'] ?? count($group['items'] ?? []));
+}
+
 $id = (int) ($_GET['id'] ?? 0);
+$groupByDenomination = ($_GET['group_by'] ?? '') === 'denomination';
 
 $project = find_project($id);
 
@@ -16,14 +48,16 @@ if (!$project) {
 }
 
 $items = get_project_consolidated_items($id);
-$groups = supplier_quote_request_items_by_group($items);
+$groups = $groupByDenomination
+    ? get_project_lot_groups($id, $items)
+    : supplier_quote_request_items_by_group($items);
 $totalQuantity = array_reduce(
     $items,
     static fn (float $total, array $item): float => $total + (float) ($item['total_approved_quantity'] ?? 0),
     0.0
 );
 
-$filename = 'solicitacao-orcamento-projeto-' . $id . '-por-grupo.xls';
+$filename = 'solicitacao-orcamento-projeto-' . $id . ($groupByDenomination ? '-por-denominacao' : '-por-grupo') . '.xls';
 
 send_download_headers('application/vnd.ms-excel; charset=utf-8', $filename);
 
@@ -111,7 +145,7 @@ send_download_headers('application/vnd.ms-excel; charset=utf-8', $filename);
 <table>
     <tr>
         <td colspan="16" class="title">
-            Solicitacao formal de orcamento - Projeto separado por grupo
+            Solicitacao formal de orcamento - Projeto separado por <?= $groupByDenomination ? 'denominacao' : 'grupo' ?>
         </td>
     </tr>
 
@@ -138,9 +172,9 @@ send_download_headers('application/vnd.ms-excel; charset=utf-8', $filename);
         <?php $excelRow++; ?>
         <tr>
             <td colspan="16" class="group">
-                Grupo: <?= e((string) $group['name']) ?>
-                - <?= e((string) $group['items_count']) ?> item(ns)
-                - Quantidade: <?= e(format_decimal_quantity($group['total_quantity'])) ?>
+                <?= e(project_quote_request_excel_group_label($group, $groupByDenomination)) ?>
+                - <?= e((string) project_quote_request_excel_group_items_count($group)) ?> item(ns)
+                - Quantidade: <?= e(format_decimal_quantity(project_quote_request_excel_group_quantity($group))) ?>
             </td>
         </tr>
 

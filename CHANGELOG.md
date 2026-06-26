@@ -2,6 +2,26 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.27] - 2026-06-26
+
+### Adicionado
+- Relatorio do projeto passa a ter a aba Consolidado por denominacao, agrupando itens por lote/denominacao com quantidade e total estimado.
+- Orcamento geral do projeto passa a contar com Banco de precos de orcamentos gerais, permitindo carregar orcamentos historicos compativeis de outros projetos.
+
+### Alterado
+- Formulario de orcamento geral passa a aceitar valores carregados do banco global e preserva a origem historica dos precos reaproveitados.
+- Menu Fornecedor do projeto passa a incluir acesso ao banco de precos de orcamentos gerais.
+## [1.5.26] - 2026-06-26
+
+### Adicionado
+- Listagem de fornecedores passa a ter barra de pesquisa e filtros por status, participacao em licitacao, UF e porte da empresa.
+- Solicitacao formal ao fornecedor passa a ter PDF, Word e Excel filtrados por denominacao de lote.
+- Solicitacao formal ao fornecedor passa a ter exportacoes separadas por denominacao do projeto.
+- Nova tela para escolher a denominacao e baixar os arquivos filtrados para fornecedor.
+
+### Alterado
+- Menu de licitacao do projeto foi dividido em Anexos por item, Anexos por lote e Fornecedor, reduzindo a poluicao visual.
+
 ## [1.5.25] - 2026-06-26
 
 ### Adicionado
@@ -14,6 +34,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 - Consulta por CNPJ passa a preencher porte, CNAE principal e CNAEs secundarios quando a API publica retornar esses dados.
 - Exportacao/importacao JSON passa a contemplar os novos campos cadastrais de fornecedores e responsaveis dos orcamentos.
 - Listagem de fornecedores e telas de orcamento passam a exibir os novos dados cadastrais e responsaveis da cotacao.
+
 ## [1.5.24] - 2026-06-25
 
 ### Adicionado

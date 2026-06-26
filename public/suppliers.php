@@ -6,7 +6,35 @@ require_once __DIR__ . '/../app/config.php';
 require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';
 
-$suppliers = get_suppliers();
+$filters = [
+    'q' => trim((string) ($_GET['q'] ?? '')),
+    'status' => in_array(($_GET['status'] ?? ''), ['active', 'inactive'], true) ? (string) $_GET['status'] : '',
+    'bidding' => in_array(($_GET['bidding'] ?? ''), ['yes', 'no'], true) ? (string) $_GET['bidding'] : '',
+    'state' => strtoupper(trim((string) ($_GET['state'] ?? ''))),
+    'company_size' => trim((string) ($_GET['company_size'] ?? '')),
+];
+
+$suppliers = get_suppliers_filtered($filters);
+$allSuppliersForFilters = get_suppliers();
+$stateOptions = [];
+$companySizeOptions = [];
+
+foreach ($allSuppliersForFilters as $supplierOption) {
+    $state = trim((string) ($supplierOption['state'] ?? ''));
+    $companySize = trim((string) ($supplierOption['company_size'] ?? ''));
+
+    if ($state !== '') {
+        $stateOptions[$state] = $state;
+    }
+
+    if ($companySize !== '') {
+        $companySizeOptions[$companySize] = $companySize;
+    }
+}
+
+ksort($stateOptions);
+ksort($companySizeOptions);
+$hasActiveSupplierFilters = array_filter($filters, static fn (string $value): bool => $value !== '') !== [];
 
 require __DIR__ . '/../app/views/header.php';
 ?>
@@ -23,6 +51,79 @@ require __DIR__ . '/../app/views/header.php';
         <i class="bi bi-plus-lg"></i>Novo fornecedor
     </a>
 </div>
+
+<form method="get" class="card card-body shadow-sm mb-3 supplier-filter-form">
+    <div class="row g-3 align-items-end">
+        <div class="col-lg-4">
+            <label class="form-label">Pesquisar fornecedor</label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input
+                    type="search"
+                    name="q"
+                    class="form-control"
+                    placeholder="Nome, CNPJ, contato, e-mail, cidade, IE ou IM"
+                    value="<?= e($filters['q']) ?>">
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label">Status</label>
+            <select name="status" class="form-select">
+                <option value="">Todos</option>
+                <option value="active" <?= $filters['status'] === 'active' ? 'selected' : '' ?>>Ativos</option>
+                <option value="inactive" <?= $filters['status'] === 'inactive' ? 'selected' : '' ?>>Inativos</option>
+            </select>
+        </div>
+
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label">Licitação</label>
+            <select name="bidding" class="form-select">
+                <option value="">Todos</option>
+                <option value="yes" <?= $filters['bidding'] === 'yes' ? 'selected' : '' ?>>Participa</option>
+                <option value="no" <?= $filters['bidding'] === 'no' ? 'selected' : '' ?>>Não participa</option>
+            </select>
+        </div>
+
+        <div class="col-sm-6 col-lg-1">
+            <label class="form-label">UF</label>
+            <select name="state" class="form-select">
+                <option value="">Todas</option>
+                <?php foreach ($stateOptions as $stateOption): ?>
+                    <option value="<?= e($stateOption) ?>" <?= $filters['state'] === $stateOption ? 'selected' : '' ?>><?= e($stateOption) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="col-sm-6 col-lg-2">
+            <label class="form-label">Porte</label>
+            <select name="company_size" class="form-select">
+                <option value="">Todos</option>
+                <?php foreach ($companySizeOptions as $companySizeOption): ?>
+                    <option value="<?= e($companySizeOption) ?>" <?= $filters['company_size'] === $companySizeOption ? 'selected' : '' ?>><?= e($companySizeOption) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="col-lg-1 d-grid">
+            <button class="btn btn-primary" title="Filtrar fornecedores" aria-label="Filtrar fornecedores">
+                <i class="bi bi-funnel"></i>
+            </button>
+        </div>
+
+        <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="text-muted small">
+                <?= count($suppliers) ?> fornecedor(es) encontrado(s)<?= $hasActiveSupplierFilters ? ' com os filtros aplicados' : '' ?>.
+            </div>
+
+            <?php if ($hasActiveSupplierFilters): ?>
+                <a href="/suppliers.php" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-x-lg"></i> Limpar filtros
+                </a>
+            <?php endif; ?>
+        </div>
+    </div>
+</form>
 
 <div class="card">
     <div class="table-responsive">

@@ -18,9 +18,13 @@ $projectLocked = project_is_locked($project);
 $demands = get_project_demands($projectId);
 $suppliers = get_suppliers(true);
 $selectedSupplierId = (int) ($_POST['supplier_id'] ?? $_GET['supplier_id'] ?? 0);
+$globalPriceKey = trim((string) ($_GET['global_price_key'] ?? ''));
+$globalPriceMonths = max(0, (int) ($_GET['months'] ?? 0));
+$globalPriceCandidate = null;
 $errors = [];
 $postedPrices = is_array($_POST['prices'] ?? null) ? $_POST['prices'] : [];
 $postedNotes = is_array($_POST['item_notes'] ?? null) ? $_POST['item_notes'] : [];
+$postedSourceQuoteItemIds = is_array($_POST['source_quote_item_ids'] ?? null) ? $_POST['source_quote_item_ids'] : [];
 $preserveBlankPriceKeys = is_array($_POST['preserve_blank_prices'] ?? null) ? $_POST['preserve_blank_prices'] : [];
 $removeAttachment = !empty($_POST['remove_attachment']);
 $quoteDefaults = [
@@ -32,6 +36,28 @@ $quoteDefaults = [
     'notes' => trim($_POST['notes'] ?? ''),
     'status' => trim($_POST['status'] ?? 'received'),
 ];
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $globalPriceKey !== '') {
+    $globalPriceCandidate = find_project_global_price_bank_candidate($projectId, $globalPriceKey, $globalPriceMonths);
+
+    if ($globalPriceCandidate) {
+        $selectedSupplierId = (int) $globalPriceCandidate['supplier_id'];
+        $postedPrices = $globalPriceCandidate['prices'] ?? [];
+        $postedNotes = $globalPriceCandidate['item_notes'] ?? [];
+        $postedSourceQuoteItemIds = $globalPriceCandidate['source_quote_item_ids'] ?? [];
+        $quoteDefaults = [
+            'quote_number' => (string) ($globalPriceCandidate['quote_number'] ?? ''),
+            'quote_date' => (string) ($globalPriceCandidate['quote_date'] ?? ''),
+            'validity_date' => (string) ($globalPriceCandidate['validity_date'] ?? ''),
+            'quoted_by' => (string) ($globalPriceCandidate['quoted_by'] ?? ''),
+            'collected_by' => (string) ($globalPriceCandidate['collected_by'] ?? ''),
+            'notes' => (string) ($globalPriceCandidate['notes'] ?? ''),
+            'status' => (string) ($globalPriceCandidate['status'] ?? 'received'),
+        ];
+    } else {
+        $errors[] = 'Orcamento geral historico nao encontrado ou sem itens compativeis para este projeto.';
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($projectLocked) {
@@ -71,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'remove_attachment' => $removeAttachment,
             'notes' => $quoteDefaults['notes'],
             'status' => $quoteDefaults['status'],
-        ], $postedPrices, $postedNotes, $preserveBlankPriceKeys);
+        ], $postedPrices, $postedNotes, $preserveBlankPriceKeys, $postedSourceQuoteItemIds);
 
         $message = sprintf(
             'Orçamento geral salvo em %d demanda(s), com %d item(ns) precificado(s).',
@@ -127,7 +153,7 @@ foreach ($demands as $demand) {
         }
     }
 
-    if ($quote && !$quoteDefaultsLoaded && $_SERVER['REQUEST_METHOD'] !== 'POST' && $quoteDefaults['quote_number'] === '') {
+    if ($quote && !$quoteDefaultsLoaded && !$globalPriceCandidate && $_SERVER['REQUEST_METHOD'] !== 'POST' && $quoteDefaults['quote_number'] === '') {
         $quoteDefaults = [
             'quote_number' => (string) ($quote['quote_number'] ?? ''),
             'quote_date' => (string) ($quote['quote_date'] ?? ''),
@@ -221,6 +247,12 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 
     <div class="page-actions d-flex gap-2 flex-wrap justify-content-end">
+        <?php if (!$projectLocked): ?>
+            <a href="/project_global_price_bank.php?id=<?= (int) $projectId ?>" class="btn btn-outline-success">
+                <i class="bi bi-archive"></i>Banco de precos
+            </a>
+        <?php endif; ?>
+
         <a href="/project_show.php?id=<?= (int) $projectId ?>" class="btn btn-outline-secondary">
             Voltar
         </a>
@@ -234,6 +266,14 @@ require __DIR__ . '/../app/views/header.php';
                 <li><?= e($error) ?></li>
             <?php endforeach; ?>
         </ul>
+    </div>
+<?php endif; ?>
+
+<?php if ($globalPriceCandidate): ?>
+    <div class="alert alert-success">
+        Orcamento historico carregado de <strong><?= e($globalPriceCandidate['source_project_name']) ?></strong>
+        para o fornecedor <strong><?= e($globalPriceCandidate['supplier_name']) ?></strong>.
+        Foram preenchidos <?= (int) $globalPriceCandidate['matched_item_count'] ?> de <?= (int) $globalPriceCandidate['target_item_count'] ?> item(ns) compativeis.
     </div>
 <?php endif; ?>
 
@@ -433,6 +473,7 @@ require __DIR__ . '/../app/views/header.php';
                     <?php foreach ($projectItems as $item): ?>
                         <?php
                         $procurementItemId = (int) $item['procurement_item_id'];
+                        $sourceQuoteItemId = (int) ($postedSourceQuoteItemIds[$procurementItemId] ?? $postedSourceQuoteItemIds[(string) $procurementItemId] ?? 0);
                         $demandNames = array_slice($item['demand_names'], 0, 3);
                         $remainingDemandCount = max(0, (int) $item['demand_count'] - count($demandNames));
                         ?>
@@ -467,6 +508,10 @@ require __DIR__ . '/../app/views/header.php';
                                     data-quote-price-input
                                     data-quantity="<?= e((string) (float) $item['total_reference_quantity']) ?>"
                                     value="<?= e($item['price_value'] !== '' && $item['price_value'] !== null ? number_format((float) $item['price_value'], 2, '.', '') : '') ?>">
+                                <?php if ($sourceQuoteItemId > 0): ?>
+                                    <input type="hidden" name="source_quote_item_ids[<?= $procurementItemId ?>]" value="<?= $sourceQuoteItemId ?>">
+                                    <div class="form-text">Valor carregado do banco de precos geral.</div>
+                                <?php endif; ?>
                                 <?php if ($item['has_mixed_prices']): ?>
                                     <div class="form-text">Valores diferentes cadastrados; preencha para unificar.</div>
                                 <?php endif; ?>
@@ -568,6 +613,7 @@ require __DIR__ . '/../app/views/header.php';
                 const url = new URL(window.location.href);
                 url.searchParams.set('project_id', '<?= (int) $projectId ?>');
                 url.searchParams.set('supplier_id', supplierSelect.value);
+                url.searchParams.delete('global_price_key');
                 window.location.href = url.toString();
             });
         }

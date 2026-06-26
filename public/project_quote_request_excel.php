@@ -6,6 +6,15 @@ require_once __DIR__ . '/../app/config.php';
 require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';
 
+function project_quote_request_excel_lot_label(array $group): string
+{
+    if (!empty($group['is_unassigned'])) {
+        return 'Sem denominacao';
+    }
+
+    return 'Lote ' . (int) ($group['lot_number'] ?? 0) . ' - ' . (string) ($group['name'] ?? 'Denominacao');
+}
+
 $id = (int) ($_GET['id'] ?? 0);
 
 $project = find_project($id);
@@ -17,10 +26,31 @@ if (!$project) {
 
 $allItems = get_project_consolidated_items($id);
 $groups = supplier_quote_request_groups_from_items($allItems);
+$lotGroups = get_project_lot_groups($id, $allItems);
 $groupFilterApplied = array_key_exists('group_id', $_GET);
+$lotFilterApplied = array_key_exists('lot_id', $_GET);
 $selectedGroup = null;
+$selectedLot = null;
+$selectedContextName = null;
 
-if ($groupFilterApplied) {
+if ($lotFilterApplied) {
+    $lotId = max(0, (int) ($_GET['lot_id'] ?? 0));
+
+    foreach ($lotGroups as $lotGroup) {
+        if ((int) ($lotGroup['lot_id'] ?? 0) === $lotId) {
+            $selectedLot = $lotGroup;
+            break;
+        }
+    }
+
+    if (!$selectedLot) {
+        http_response_code(404);
+        exit('Denominacao nao encontrada no projeto.');
+    }
+
+    $items = $selectedLot['items'] ?? [];
+    $selectedContextName = project_quote_request_excel_lot_label($selectedLot);
+} elseif ($groupFilterApplied) {
     $groupId = max(0, (int) ($_GET['group_id'] ?? 0));
     $groupKey = (string) $groupId;
 
@@ -31,10 +61,10 @@ if ($groupFilterApplied) {
 
     $selectedGroup = $groups[$groupKey];
     $items = supplier_quote_request_filter_items_by_group($allItems, $groupId);
+    $selectedContextName = (string) $selectedGroup['name'];
 } else {
     $items = $allItems;
 }
-
 $totalQuantity = array_reduce(
     $items,
     static fn (float $total, array $item): float => $total + (float) ($item['total_approved_quantity'] ?? 0),
@@ -42,6 +72,7 @@ $totalQuantity = array_reduce(
 );
 
 $filename = 'solicitacao-orcamento-projeto-' . $id
+    . ($selectedLot ? '-denominacao-' . (int) $selectedLot['lot_id'] : '')
     . ($selectedGroup ? '-grupo-' . (int) $selectedGroup['id'] : '')
     . '.xls';
 
@@ -125,7 +156,7 @@ send_download_headers('application/vnd.ms-excel; charset=utf-8', $filename);
 <table>
     <tr>
         <td colspan="16" class="title">
-            Solicitacao formal de orcamento - <?= $selectedGroup ? 'Grupo' : 'Projeto' ?>
+            Solicitacao formal de orcamento - <?= $selectedContextName ? 'Filtro' : 'Projeto' ?>
         </td>
     </tr>
 
@@ -135,9 +166,9 @@ send_download_headers('application/vnd.ms-excel; charset=utf-8', $filename);
         <td colspan="4" class="meta">Quantidade total: <?= e(format_decimal_quantity($totalQuantity)) ?></td>
     </tr>
 
-    <?php if ($selectedGroup): ?>
+    <?php if ($selectedContextName): ?>
         <tr>
-            <td colspan="16" class="meta">Grupo: <?= e((string) $selectedGroup['name']) ?></td>
+            <td colspan="16" class="meta">Escopo: <?= e($selectedContextName) ?></td>
         </tr>
     <?php endif; ?>
 
@@ -172,7 +203,7 @@ send_download_headers('application/vnd.ms-excel; charset=utf-8', $filename);
         </tr>
     <?php endif; ?>
 
-    <?php $excelRow = $selectedGroup ? 6 : 5; ?>
+    <?php $excelRow = $selectedContextName ? 6 : 5; ?>
     <?php foreach ($items as $item): ?>
         <?php
             $specification = item_specification_array_from_value($item['specification'] ?? []);

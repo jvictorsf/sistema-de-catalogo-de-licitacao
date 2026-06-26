@@ -63,6 +63,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'quote_number' => trim($_POST['quote_number'] ?? ''),
         'quote_date' => trim($_POST['quote_date'] ?? ''),
         'validity_date' => trim($_POST['validity_date'] ?? ''),
+        'quoted_by' => trim($_POST['quoted_by'] ?? ''),
+        'collected_by' => trim($_POST['collected_by'] ?? ''),
         'attachment_path' => $attachmentPath,
         'notes' => trim($_POST['notes'] ?? ''),
         'status' => trim($_POST['status'] ?? 'received'),
@@ -193,6 +195,16 @@ require __DIR__ . '/../app/views/header.php';
         <div class="col-md-3">
             <label class="form-label">Validade</label>
             <input type="date" name="validity_date" class="form-control" value="<?= e($quote['validity_date'] ?? '') ?>">
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Quem realizou a cotacao</label>
+            <input type="text" name="quoted_by" class="form-control" value="<?= e($quote['quoted_by'] ?? '') ?>" placeholder="Contato do fornecedor, se vazio">
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Quem coletou a cotacao</label>
+            <input type="text" name="collected_by" class="form-control" value="<?= e($quote['collected_by'] ?? '') ?>">
         </div>
 
         <div class="col-md-6">

@@ -27,6 +27,8 @@ $quoteDefaults = [
     'quote_number' => trim($_POST['quote_number'] ?? ''),
     'quote_date' => trim($_POST['quote_date'] ?? ''),
     'validity_date' => trim($_POST['validity_date'] ?? ''),
+    'quoted_by' => trim($_POST['quoted_by'] ?? ''),
+    'collected_by' => trim($_POST['collected_by'] ?? ''),
     'notes' => trim($_POST['notes'] ?? ''),
     'status' => trim($_POST['status'] ?? 'received'),
 ];
@@ -63,6 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'quote_number' => $quoteDefaults['quote_number'],
             'quote_date' => $quoteDefaults['quote_date'],
             'validity_date' => $quoteDefaults['validity_date'],
+            'quoted_by' => $quoteDefaults['quoted_by'],
+            'collected_by' => $quoteDefaults['collected_by'],
             'attachment_path' => $attachmentPath,
             'remove_attachment' => $removeAttachment,
             'notes' => $quoteDefaults['notes'],
@@ -128,6 +132,8 @@ foreach ($demands as $demand) {
             'quote_number' => (string) ($quote['quote_number'] ?? ''),
             'quote_date' => (string) ($quote['quote_date'] ?? ''),
             'validity_date' => (string) ($quote['validity_date'] ?? ''),
+            'quoted_by' => (string) ($quote['quoted_by'] ?? ''),
+            'collected_by' => (string) ($quote['collected_by'] ?? ''),
             'notes' => (string) ($quote['notes'] ?? ''),
             'status' => (string) ($quote['status'] ?? 'received'),
         ];
@@ -340,6 +346,16 @@ require __DIR__ . '/../app/views/header.php';
         <div class="col-md-3 col-lg-2">
             <label class="form-label">Validade</label>
             <input type="date" name="validity_date" class="form-control" value="<?= e($quoteDefaults['validity_date']) ?>">
+        </div>
+
+        <div class="col-md-6 col-lg-3">
+            <label class="form-label">Quem realizou a cotacao</label>
+            <input type="text" name="quoted_by" class="form-control" value="<?= e($quoteDefaults['quoted_by']) ?>" placeholder="Contato do fornecedor, se vazio">
+        </div>
+
+        <div class="col-md-6 col-lg-3">
+            <label class="form-label">Quem coletou a cotacao</label>
+            <input type="text" name="collected_by" class="form-control" value="<?= e($quoteDefaults['collected_by']) ?>">
         </div>
 
         <div class="col-lg-5">

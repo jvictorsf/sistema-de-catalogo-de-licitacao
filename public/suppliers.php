@@ -33,6 +33,7 @@ require __DIR__ . '/../app/views/header.php';
                     <th>Documento</th>
                     <th>Endereço</th>
                     <th>Contato</th>
+                    <th>Licitacao</th>
                     <th>Status</th>
                     <th class="text-end">Ações</th>
                 </tr>
@@ -41,24 +42,39 @@ require __DIR__ . '/../app/views/header.php';
             <tbody>
                 <?php if (!$suppliers): ?>
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
+                        <td colspan="7" class="text-center text-muted py-4">
                             Nenhum fornecedor cadastrado.
                         </td>
                     </tr>
                 <?php endif; ?>
 
                 <?php foreach ($suppliers as $supplier): ?>
+                    <?php $mainCnae = is_array($supplier['main_cnae'] ?? null) ? $supplier['main_cnae'] : null; ?>
                     <tr>
                         <td>
                             <strong><?= e($supplier['name']) ?></strong>
                             <?php if (!empty($supplier['trade_name'])): ?>
                                 <div class="small text-muted"><?= e($supplier['trade_name']) ?></div>
                             <?php endif; ?>
+                            <?php if (!empty($supplier['company_size'])): ?>
+                                <div class="small text-muted">Porte: <?= e($supplier['company_size']) ?></div>
+                            <?php endif; ?>
+                            <?php if ($mainCnae): ?>
+                                <div class="small text-muted">CNAE: <?= e(trim(($mainCnae['code'] ?? '') . ' ' . ($mainCnae['name'] ?? ''))) ?></div>
+                            <?php endif; ?>
                             <?php if (!empty($supplier['notes'])): ?>
                                 <div class="small text-muted"><?= e($supplier['notes']) ?></div>
                             <?php endif; ?>
                         </td>
-                        <td><?= e($supplier['document'] ? format_brazil_document($supplier['document']) : '-') ?></td>
+                        <td>
+                            <?= e($supplier['document'] ? format_brazil_document($supplier['document']) : '-') ?>
+                            <?php if (!empty($supplier['state_registration'])): ?>
+                                <div class="small text-muted">IE: <?= e($supplier['state_registration']) ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($supplier['municipal_registration'])): ?>
+                                <div class="small text-muted">IM: <?= e($supplier['municipal_registration']) ?></div>
+                            <?php endif; ?>
+                        </td>
                         <td><?= e(supplier_address_text($supplier)) ?></td>
                         <td>
                             <?= e($supplier['contact_name'] ?: '-') ?>
@@ -67,6 +83,14 @@ require __DIR__ . '/../app/views/header.php';
                             <?php endif; ?>
                             <?php if (!empty($supplier['phone'])): ?>
                                 <div class="small text-muted"><?= e(format_brazil_phone($supplier['phone'])) ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <span class="badge <?= boolish($supplier['participates_bidding'] ?? true, true) ? 'text-bg-success' : 'text-bg-secondary' ?>">
+                                <?= boolish($supplier['participates_bidding'] ?? true, true) ? 'Sim' : 'Nao' ?>
+                            </span>
+                            <?php if (!empty($supplier['website_url'])): ?>
+                                <div class="small mt-1"><a href="<?= e($supplier['website_url']) ?>" target="_blank" rel="noopener">Site</a></div>
                             <?php endif; ?>
                         </td>
                         <td>

@@ -1344,6 +1344,62 @@ function lookup_response_field(array $data, array $keys): string
     return '';
 }
 
+function supplier_lookup_uppercase_text(string $value): string
+{
+    $value = trim($value);
+
+    if ($value === '') {
+        return '';
+    }
+
+    return function_exists('mb_strtoupper')
+        ? mb_strtoupper($value, 'UTF-8')
+        : strtoupper($value);
+}
+
+function supplier_lookup_cnae_from_values(mixed $code, mixed $description): ?array
+{
+    $code = trim((string) $code);
+    $description = trim((string) $description);
+
+    if ($code === '' && $description === '') {
+        return null;
+    }
+
+    return [
+        'code' => $code,
+        'name' => $description,
+        'description' => $description,
+    ];
+}
+
+function supplier_lookup_secondary_cnaes_from_data(array $data): array
+{
+    $rows = $data['cnaes_secundarios'] ?? $data['secondary_cnaes'] ?? [];
+
+    if (!is_array($rows)) {
+        return [];
+    }
+
+    $items = [];
+
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $cnae = supplier_lookup_cnae_from_values(
+            $row['codigo'] ?? $row['code'] ?? '',
+            $row['descricao'] ?? $row['description'] ?? $row['nome'] ?? $row['name'] ?? ''
+        );
+
+        if ($cnae !== null) {
+            $items[] = $cnae;
+        }
+    }
+
+    return $items;
+}
 function supplier_lookup_address_from_data(array $data): string
 {
     $streetType = lookup_response_field($data, [
@@ -1358,22 +1414,22 @@ function supplier_lookup_address_from_data(array $data): string
         $streetLine = lookup_response_field($data, ['address', 'endereco']);
     }
 
-    return implode(', ', array_values(array_filter([
+    return supplier_lookup_uppercase_text(implode(', ', array_values(array_filter([
         $streetLine,
         lookup_response_field($data, ['numero', 'number']),
         lookup_response_field($data, ['complemento', 'complement']),
         lookup_response_field($data, ['bairro', 'neighborhood']),
-    ])));
+    ]))));
 }
 
 function supplier_lookup_city_from_data(array $data): string
 {
-    return lookup_response_field($data, ['municipio', 'city', 'localidade']);
+    return supplier_lookup_uppercase_text(lookup_response_field($data, ['municipio', 'city', 'localidade']));
 }
 
 function supplier_lookup_state_from_data(array $data): string
 {
-    return lookup_response_field($data, ['uf', 'state']);
+    return supplier_lookup_uppercase_text(lookup_response_field($data, ['uf', 'state']));
 }
 
 function fetch_public_api_json(string $url, string $errorMessage, int $timeout = 8): array
@@ -1463,6 +1519,12 @@ function lookup_cnpj_brasilapi(string $cnpj): array
         'city' => supplier_lookup_city_from_data($data),
         'state' => supplier_lookup_state_from_data($data),
         'postal_code' => format_brazil_postal_code((string) ($data['cep'] ?? '')),
+        'state_registration' => lookup_response_field($data, ['inscricao_estadual', 'state_registration']),
+        'municipal_registration' => lookup_response_field($data, ['inscricao_municipal', 'municipal_registration']),
+        'company_size' => lookup_response_field($data, ['descricao_porte', 'porte', 'company_size']),
+        'main_cnae' => supplier_lookup_cnae_from_values($data['cnae_fiscal'] ?? $data['cnae_principal'] ?? '', $data['cnae_fiscal_descricao'] ?? $data['descricao_cnae_fiscal'] ?? ''),
+        'secondary_cnaes' => supplier_lookup_secondary_cnaes_from_data($data),
+        'website_url' => lookup_response_field($data, ['site', 'website', 'url']),
     ];
 }
 

@@ -237,6 +237,13 @@ CREATE TABLE IF NOT EXISTS suppliers (
     city VARCHAR(120),
     state VARCHAR(2),
     postal_code VARCHAR(20),
+    state_registration VARCHAR(60),
+    municipal_registration VARCHAR(60),
+    company_size VARCHAR(120),
+    main_cnae JSONB,
+    secondary_cnaes JSONB NOT NULL DEFAULT '[]'::jsonb,
+    participates_bidding BOOLEAN NOT NULL DEFAULT TRUE,
+    website_url VARCHAR(255),
     bank_name VARCHAR(120),
     bank_agency VARCHAR(50),
     bank_account VARCHAR(80),
@@ -281,6 +288,8 @@ CREATE TABLE IF NOT EXISTS demand_supplier_quotes (
     quote_number VARCHAR(100),
     quote_date DATE,
     validity_date DATE,
+    quoted_by VARCHAR(255),
+    collected_by VARCHAR(255),
     attachment_path VARCHAR(255),
     notes TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'received',
@@ -573,6 +582,26 @@ ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
 ALTER TABLE suppliers
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS state_registration VARCHAR(60);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS municipal_registration VARCHAR(60);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS company_size VARCHAR(120);
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS main_cnae JSONB;
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS secondary_cnaes JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS participates_bidding BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS website_url VARCHAR(255);
 
 ALTER TABLE demand_lists
 ADD COLUMN IF NOT EXISTS requester_unit_id INTEGER NULL;
@@ -617,6 +646,11 @@ ADD COLUMN IF NOT EXISTS quote_date DATE;
 
 ALTER TABLE demand_supplier_quotes
 ADD COLUMN IF NOT EXISTS validity_date DATE;
+ALTER TABLE demand_supplier_quotes
+ADD COLUMN IF NOT EXISTS quoted_by VARCHAR(255);
+
+ALTER TABLE demand_supplier_quotes
+ADD COLUMN IF NOT EXISTS collected_by VARCHAR(255);
 
 ALTER TABLE demand_supplier_quotes
 ADD COLUMN IF NOT EXISTS attachment_path VARCHAR(255);

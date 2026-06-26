@@ -1449,7 +1449,7 @@ function get_suppliers(bool $activeOnly = false): array
 
     $sql .= " ORDER BY name";
 
-    return db()->query($sql)->fetchAll();
+    return array_map('normalize_supplier_row', db()->query($sql)->fetchAll());
 }
 
 function find_supplier(int $id): ?array
@@ -1464,7 +1464,7 @@ function find_supplier(int $id): ?array
 
     $supplier = $stmt->fetch();
 
-    return $supplier ?: null;
+    return $supplier ? normalize_supplier_row($supplier) : null;
 }
 
 function create_supplier(array $data): int
@@ -1481,6 +1481,13 @@ function create_supplier(array $data): int
             city,
             state,
             postal_code,
+            state_registration,
+            municipal_registration,
+            company_size,
+            main_cnae,
+            secondary_cnaes,
+            participates_bidding,
+            website_url,
             bank_name,
             bank_agency,
             bank_account,
@@ -1499,6 +1506,13 @@ function create_supplier(array $data): int
             :city,
             :state,
             :postal_code,
+            :state_registration,
+            :municipal_registration,
+            :company_size,
+            CAST(:main_cnae AS jsonb),
+            CAST(:secondary_cnaes AS jsonb),
+            :participates_bidding,
+            :website_url,
             :bank_name,
             :bank_agency,
             :bank_account,
@@ -1517,10 +1531,17 @@ function create_supplier(array $data): int
         'contact_name' => $data['contact_name'] ?: null,
         'email' => $data['email'] ?: null,
         'phone' => normalize_supplier_phone($data['phone'] ?? null),
-        'address' => $data['address'] ?: null,
-        'city' => ($data['city'] ?? '') ?: null,
+        'address' => normalize_supplier_upper_text($data['address'] ?? null),
+        'city' => normalize_supplier_upper_text($data['city'] ?? null),
         'state' => normalize_supplier_state($data['state'] ?? null),
         'postal_code' => normalize_postal_code($data['postal_code'] ?? null),
+        'state_registration' => ($data['state_registration'] ?? '') ?: null,
+        'municipal_registration' => ($data['municipal_registration'] ?? '') ?: null,
+        'company_size' => ($data['company_size'] ?? '') ?: null,
+        'main_cnae' => supplier_cnae_to_json(normalize_supplier_cnae($data['main_cnae'] ?? [])),
+        'secondary_cnaes' => supplier_cnae_list_to_json($data['secondary_cnaes'] ?? []),
+        'participates_bidding' => pg_bool($data['participates_bidding'] ?? true),
+        'website_url' => normalize_supplier_url($data['website_url'] ?? null),
         'bank_name' => ($data['bank_name'] ?? '') ?: null,
         'bank_agency' => ($data['bank_agency'] ?? '') ?: null,
         'bank_account' => ($data['bank_account'] ?? '') ?: null,
@@ -1547,6 +1568,13 @@ function update_supplier(int $id, array $data): void
             city = :city,
             state = :state,
             postal_code = :postal_code,
+            state_registration = :state_registration,
+            municipal_registration = :municipal_registration,
+            company_size = :company_size,
+            main_cnae = CAST(:main_cnae AS jsonb),
+            secondary_cnaes = CAST(:secondary_cnaes AS jsonb),
+            participates_bidding = :participates_bidding,
+            website_url = :website_url,
             bank_name = :bank_name,
             bank_agency = :bank_agency,
             bank_account = :bank_account,
@@ -1565,10 +1593,17 @@ function update_supplier(int $id, array $data): void
         'contact_name' => $data['contact_name'] ?: null,
         'email' => $data['email'] ?: null,
         'phone' => normalize_supplier_phone($data['phone'] ?? null),
-        'address' => $data['address'] ?: null,
-        'city' => ($data['city'] ?? '') ?: null,
+        'address' => normalize_supplier_upper_text($data['address'] ?? null),
+        'city' => normalize_supplier_upper_text($data['city'] ?? null),
         'state' => normalize_supplier_state($data['state'] ?? null),
         'postal_code' => normalize_postal_code($data['postal_code'] ?? null),
+        'state_registration' => ($data['state_registration'] ?? '') ?: null,
+        'municipal_registration' => ($data['municipal_registration'] ?? '') ?: null,
+        'company_size' => ($data['company_size'] ?? '') ?: null,
+        'main_cnae' => supplier_cnae_to_json(normalize_supplier_cnae($data['main_cnae'] ?? [])),
+        'secondary_cnaes' => supplier_cnae_list_to_json($data['secondary_cnaes'] ?? []),
+        'participates_bidding' => pg_bool($data['participates_bidding'] ?? true),
+        'website_url' => normalize_supplier_url($data['website_url'] ?? null),
         'bank_name' => ($data['bank_name'] ?? '') ?: null,
         'bank_agency' => ($data['bank_agency'] ?? '') ?: null,
         'bank_account' => ($data['bank_account'] ?? '') ?: null,
@@ -1616,6 +1651,126 @@ function normalize_supplier_phone(?string $phone): ?string
     $digits = only_digits($phone);
 
     return $digits !== '' ? $digits : null;
+}
+
+function normalize_supplier_row(array $supplier): array
+{
+    if (array_key_exists('main_cnae', $supplier)) {
+        $supplier['main_cnae'] = supplier_cnae_from_json($supplier['main_cnae'] ?? null);
+    }
+
+    if (array_key_exists('secondary_cnaes', $supplier)) {
+        $supplier['secondary_cnaes'] = supplier_cnae_list_from_json($supplier['secondary_cnaes'] ?? []);
+    }
+
+    return $supplier;
+}
+
+function normalize_supplier_upper_text(?string $value): ?string
+{
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return null;
+    }
+
+    return function_exists('mb_strtoupper')
+        ? mb_strtoupper($value, 'UTF-8')
+        : strtoupper($value);
+}
+
+function normalize_supplier_url(?string $url): ?string
+{
+    $url = trim((string) $url);
+
+    if ($url === '') {
+        return null;
+    }
+
+    if (!preg_match('~^https?://~i', $url)) {
+        $url = 'https://' . $url;
+    }
+
+    return $url;
+}
+
+function normalize_supplier_cnae(mixed $value): ?array
+{
+    if (is_string($value)) {
+        $decoded = json_decode($value, true);
+        $value = json_last_error() === JSON_ERROR_NONE ? $decoded : ['code' => $value];
+    }
+
+    if (!is_array($value)) {
+        return null;
+    }
+
+    $code = trim((string) ($value['code'] ?? $value['codigo'] ?? $value['number'] ?? $value['numero'] ?? ''));
+    $name = trim((string) ($value['name'] ?? $value['nome'] ?? $value['label'] ?? ''));
+    $description = trim((string) ($value['description'] ?? $value['descricao'] ?? $value['descricao_cnae'] ?? ''));
+
+    if ($code === '' && $name === '' && $description === '') {
+        return null;
+    }
+
+    if ($name === '' && $description !== '') {
+        $name = $description;
+    }
+
+    return [
+        'code' => $code,
+        'name' => $name,
+        'description' => $description,
+    ];
+}
+
+function normalize_supplier_cnae_list(mixed $items): array
+{
+    if (is_string($items)) {
+        $decoded = json_decode($items, true);
+        $items = json_last_error() === JSON_ERROR_NONE ? $decoded : [];
+    }
+
+    if (!is_array($items)) {
+        return [];
+    }
+
+    $normalized = [];
+
+    foreach ($items as $item) {
+        $cnae = normalize_supplier_cnae($item);
+
+        if ($cnae !== null) {
+            $normalized[] = $cnae;
+        }
+    }
+
+    return $normalized;
+}
+
+function supplier_cnae_from_json(mixed $value): ?array
+{
+    return normalize_supplier_cnae($value);
+}
+
+function supplier_cnae_list_from_json(mixed $value): array
+{
+    return normalize_supplier_cnae_list($value);
+}
+
+function supplier_cnae_to_json(?array $cnae): ?string
+{
+    return $cnae === null
+        ? null
+        : json_encode($cnae, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+function supplier_cnae_list_to_json(mixed $items): string
+{
+    return json_encode(
+        normalize_supplier_cnae_list($items),
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    );
 }
 
 function normalize_demand_requester_data(array $data): array
@@ -3255,7 +3410,8 @@ function find_demand_supplier_quote(int $id): ?array
         SELECT
             q.*,
             s.name AS supplier_name,
-            s.document AS supplier_document
+            s.document AS supplier_document,
+            s.contact_name AS supplier_contact_name
         FROM demand_supplier_quotes q
         INNER JOIN suppliers s ON s.id = q.supplier_id
         WHERE q.id = :id
@@ -3287,6 +3443,35 @@ function find_demand_supplier_quote_by_supplier(int $demandListId, int $supplier
     return $quote ?: null;
 }
 
+function normalize_supplier_quote_collected_by(array $data): ?string
+{
+    $collectedBy = trim((string) ($data['collected_by'] ?? ''));
+
+    return $collectedBy !== '' ? $collectedBy : null;
+}
+
+function normalize_supplier_quote_quoted_by(array $data): ?string
+{
+    $quotedBy = trim((string) ($data['quoted_by'] ?? ''));
+
+    if ($quotedBy !== '') {
+        return $quotedBy;
+    }
+
+    $supplierId = (int) ($data['supplier_id'] ?? 0);
+
+    if ($supplierId <= 0) {
+        return null;
+    }
+
+    $stmt = db()->prepare('SELECT contact_name FROM suppliers WHERE id = :id');
+    $stmt->execute(['id' => $supplierId]);
+
+    $contactName = trim((string) $stmt->fetchColumn());
+
+    return $contactName !== '' ? $contactName : null;
+}
+
 function create_demand_supplier_quote(array $data): int
 {
     assert_project_editable(find_project_id_by_demand_list((int) $data['demand_list_id']));
@@ -3298,6 +3483,8 @@ function create_demand_supplier_quote(array $data): int
             quote_number,
             quote_date,
             validity_date,
+            quoted_by,
+            collected_by,
             attachment_path,
             notes,
             status
@@ -3307,6 +3494,8 @@ function create_demand_supplier_quote(array $data): int
             :quote_number,
             :quote_date,
             :validity_date,
+            :quoted_by,
+            :collected_by,
             :attachment_path,
             :notes,
             :status
@@ -3320,6 +3509,8 @@ function create_demand_supplier_quote(array $data): int
         'quote_number' => $data['quote_number'] ?: null,
         'quote_date' => normalize_optional_date($data['quote_date'] ?? null),
         'validity_date' => normalize_optional_date($data['validity_date'] ?? null),
+        'quoted_by' => normalize_supplier_quote_quoted_by($data),
+        'collected_by' => normalize_supplier_quote_collected_by($data),
         'attachment_path' => $data['attachment_path'] ?: null,
         'notes' => $data['notes'] ?: null,
         'status' => $data['status'] ?? 'received',
@@ -3342,6 +3533,8 @@ function update_demand_supplier_quote(int $id, array $data): void
             quote_number = :quote_number,
             quote_date = :quote_date,
             validity_date = :validity_date,
+            quoted_by = :quoted_by,
+            collected_by = :collected_by,
             attachment_path = :attachment_path,
             notes = :notes,
             status = :status
@@ -3354,6 +3547,8 @@ function update_demand_supplier_quote(int $id, array $data): void
         'quote_number' => $data['quote_number'] ?: null,
         'quote_date' => normalize_optional_date($data['quote_date'] ?? null),
         'validity_date' => normalize_optional_date($data['validity_date'] ?? null),
+        'quoted_by' => normalize_supplier_quote_quoted_by($data),
+        'collected_by' => normalize_supplier_quote_collected_by($data),
         'attachment_path' => $data['attachment_path'] ?: null,
         'notes' => $data['notes'] ?: null,
         'status' => $data['status'] ?? 'received',
@@ -3828,6 +4023,8 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
             $quoteHasMetadata = trim((string) ($quoteData['quote_number'] ?? '')) !== ''
                 || normalize_optional_date($quoteData['quote_date'] ?? null) !== null
                 || normalize_optional_date($quoteData['validity_date'] ?? null) !== null
+                || trim((string) ($quoteData['quoted_by'] ?? '')) !== ''
+                || trim((string) ($quoteData['collected_by'] ?? '')) !== ''
                 || trim((string) ($quoteData['notes'] ?? '')) !== ''
                 || trim((string) ($quoteData['attachment_path'] ?? '')) !== '';
 
@@ -4817,6 +5014,8 @@ function clone_project_supplier_quotes(array $demandIdMap, array $demandItemIdMa
             quote_number,
             quote_date,
             validity_date,
+            quoted_by,
+            collected_by,
             attachment_path,
             notes,
             status
@@ -4826,6 +5025,8 @@ function clone_project_supplier_quotes(array $demandIdMap, array $demandItemIdMa
             :quote_number,
             :quote_date,
             :validity_date,
+            :quoted_by,
+            :collected_by,
             :attachment_path,
             :notes,
             :status
@@ -4867,6 +5068,8 @@ function clone_project_supplier_quotes(array $demandIdMap, array $demandItemIdMa
                 'quote_number' => $quote['quote_number'] ?? null,
                 'quote_date' => $quote['quote_date'] ?? null,
                 'validity_date' => $quote['validity_date'] ?? null,
+                'quoted_by' => $quote['quoted_by'] ?? null,
+                'collected_by' => $quote['collected_by'] ?? null,
                 'attachment_path' => $quote['attachment_path'] ?? null,
                 'notes' => $quote['notes'] ?? null,
                 'status' => $quote['status'] ?? 'received',
@@ -6179,6 +6382,13 @@ function catalog_json_table_definitions(): array
                 'city',
                 'state',
                 'postal_code',
+                'state_registration',
+                'municipal_registration',
+                'company_size',
+                'main_cnae',
+                'secondary_cnaes',
+                'participates_bidding',
+                'website_url',
                 'bank_name',
                 'bank_agency',
                 'bank_account',
@@ -6189,7 +6399,7 @@ function catalog_json_table_definitions(): array
                 'created_at',
                 'updated_at',
             ],
-            'json' => [],
+            'json' => ['main_cnae', 'secondary_cnaes'],
         ],
         'demand_lists' => [
             'label' => 'Demandas',
@@ -6231,6 +6441,8 @@ function catalog_json_table_definitions(): array
                 'quote_number',
                 'quote_date',
                 'validity_date',
+                'quoted_by',
+                'collected_by',
                 'attachment_path',
                 'notes',
                 'status',
@@ -6571,7 +6783,21 @@ function catalog_json_sample_row(string $table, array $columns): array
             'contact_name' => 'Nome do contato',
             'email' => 'contato@fornecedor.com.br',
             'phone' => '(00) 0000-0000',
-            'address' => 'Endereco do fornecedor.',
+            'address' => 'RUA DO FORNECEDOR, 100, CENTRO',
+            'city' => 'CIDADE',
+            'state' => 'UF',
+            'postal_code' => '00000-000',
+            'state_registration' => 'ISENTO',
+            'municipal_registration' => null,
+            'company_size' => 'ME',
+            'main_cnae' => ['code' => '0000-0/00', 'name' => 'Atividade principal', 'description' => 'Descricao da atividade principal'],
+            'secondary_cnaes' => [[
+                'code' => '0000-0/01',
+                'name' => 'Atividade secundaria',
+                'description' => 'Descricao da atividade secundaria',
+            ]],
+            'participates_bidding' => true,
+            'website_url' => 'https://fornecedor.com.br',
             'notes' => null,
             'is_active' => true,
         ]);
@@ -6607,6 +6833,8 @@ function catalog_json_sample_row(string $table, array $columns): array
             'quote_number' => 'ORC-001',
             'quote_date' => date('Y-m-d'),
             'validity_date' => null,
+            'quoted_by' => 'Contato do fornecedor',
+            'collected_by' => 'Servidor responsavel pela coleta',
             'attachment_path' => '/uploads/supplier_quotes/orcamento.pdf',
             'notes' => null,
             'status' => 'received',

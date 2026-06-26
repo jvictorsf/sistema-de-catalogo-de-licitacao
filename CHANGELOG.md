@@ -2,6 +2,18 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.25] - 2026-06-26
+
+### Adicionado
+- Cadastro de fornecedores passa a incluir Inscricao Estadual, Inscricao Municipal, porte da empresa, participacao em licitacao, URL do site, CNAE principal e CNAEs secundarios.
+- Orcamentos individuais e gerais passam a registrar quem realizou a cotacao pelo fornecedor e quem coletou a cotacao na prefeitura.
+
+### Alterado
+- Cadastro de fornecedores foi reorganizado em secoes para separar identificacao fiscal, contato, endereco, CNAE, dados bancarios e observacoes.
+- Endereco, cidade e UF de fornecedores passam a ser padronizados em maiusculas no cadastro e no preenchimento por API.
+- Consulta por CNPJ passa a preencher porte, CNAE principal e CNAEs secundarios quando a API publica retornar esses dados.
+- Exportacao/importacao JSON passa a contemplar os novos campos cadastrais de fornecedores e responsaveis dos orcamentos.
+- Listagem de fornecedores e telas de orcamento passam a exibir os novos dados cadastrais e responsaveis da cotacao.
 ## [1.5.24] - 2026-06-25
 
 ### Adicionado

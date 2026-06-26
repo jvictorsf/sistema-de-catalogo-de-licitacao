@@ -153,6 +153,12 @@ require __DIR__ . '/../app/views/header.php';
                             <?php if (!empty($quote['validity_date'])): ?>
                                 <div class="small text-muted">Validade: <?= date('d/m/Y', strtotime($quote['validity_date'])) ?></div>
                             <?php endif; ?>
+                            <?php if (!empty($quote['quoted_by'])): ?>
+                                <div class="small text-muted">Fornecedor: <?= e($quote['quoted_by']) ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($quote['collected_by'])): ?>
+                                <div class="small text-muted">Prefeitura: <?= e($quote['collected_by']) ?></div>
+                            <?php endif; ?>
                         </td>
                         <td class="fw-semibold">R$ <?= number_format((float) ($supplierTotals[$quoteId] ?? 0), 2, ',', '.') ?></td>
                         <td class="print-hide">

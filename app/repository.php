@@ -6526,6 +6526,282 @@ function get_dashboard_annex_attention(int $limit = 8): array
     ];
 }
 
+function project_bi_project_rows(array $filters = []): array
+{
+    $sql = "
+        SELECT
+            p.id,
+            p.name,
+            p.status,
+            p.created_at,
+            COUNT(DISTINCT dl.id) AS demand_count,
+            COUNT(DISTINCT di.procurement_item_id) AS item_count,
+            COUNT(DISTINCT q.supplier_id) AS supplier_count,
+            COUNT(DISTINCT q.id) AS quote_count
+        FROM procurement_projects p
+        LEFT JOIN demand_lists dl ON dl.project_id = p.id
+        LEFT JOIN demand_items di ON di.demand_list_id = dl.id
+        LEFT JOIN demand_supplier_quotes q
+            ON q.demand_list_id = dl.id
+           AND COALESCE(q.status, 'received') <> 'discarded'
+        WHERE 1 = 1
+    ";
+    $params = [];
+
+    $query = trim((string) ($filters['q'] ?? ''));
+
+    if ($query !== '') {
+        $sql .= " AND LOWER(COALESCE(p.name, '') || ' ' || COALESCE(p.description, '')) LIKE :q";
+        $params['q'] = '%' . mb_strtolower($query) . '%';
+    }
+
+    $status = trim((string) ($filters['status'] ?? ''));
+
+    if ($status !== '') {
+        $sql .= " AND p.status = :status";
+        $params['status'] = $status;
+    }
+
+    $sql .= "
+        GROUP BY p.id, p.name, p.status, p.created_at
+        ORDER BY p.created_at DESC NULLS LAST, p.id DESC
+    ";
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+
+    foreach ($rows as $index => $row) {
+        $summary = get_project_financial_summary((int) $row['id']);
+        $rows[$index]['total_estimated_value'] = (float) ($summary['total_estimated_value'] ?? 0);
+        $rows[$index]['uses_supplier_average'] = !empty($summary['uses_supplier_average']);
+    }
+
+    usort($rows, static function (array $left, array $right): int {
+        return ((float) $right['total_estimated_value'] <=> (float) $left['total_estimated_value'])
+            ?: strcasecmp((string) $left['name'], (string) $right['name']);
+    });
+
+    return $rows;
+}
+
+function project_bi_status_summary(array $projectRows): array
+{
+    $summary = [];
+
+    foreach ($projectRows as $row) {
+        $status = (string) ($row['status'] ?? 'draft');
+
+        if (!isset($summary[$status])) {
+            $summary[$status] = [
+                'status' => $status,
+                'label' => project_status_label($status),
+                'total' => 0,
+                'estimated_total' => 0.0,
+            ];
+        }
+
+        $summary[$status]['total']++;
+        $summary[$status]['estimated_total'] += (float) ($row['total_estimated_value'] ?? 0);
+    }
+
+    uasort($summary, static fn (array $left, array $right): int => ((int) $right['total'] <=> (int) $left['total']));
+
+    return array_values($summary);
+}
+
+function project_bi_supplier_ranking(int $projectId = 0, int $limit = 10): array
+{
+    $sql = "
+        SELECT
+            s.id,
+            s.name,
+            s.document,
+            COUNT(DISTINCT q.id) AS quote_count,
+            COUNT(DISTINCT dl.project_id) AS project_count,
+            COUNT(DISTINCT qi.demand_item_id) AS priced_item_count,
+            AVG(qi.unit_price) AS average_unit_price,
+            MIN(qi.unit_price) AS min_unit_price,
+            MAX(qi.unit_price) AS max_unit_price
+        FROM suppliers s
+        INNER JOIN demand_supplier_quotes q
+            ON q.supplier_id = s.id
+           AND COALESCE(q.status, 'received') <> 'discarded'
+        INNER JOIN demand_lists dl ON dl.id = q.demand_list_id
+        LEFT JOIN demand_supplier_quote_items qi
+            ON qi.demand_supplier_quote_id = q.id
+           AND qi.unit_price IS NOT NULL
+        WHERE 1 = 1
+    ";
+    $params = [];
+
+    if ($projectId > 0) {
+        $sql .= " AND dl.project_id = :project_id";
+        $params['project_id'] = $projectId;
+    }
+
+    $sql .= "
+        GROUP BY s.id, s.name, s.document
+        ORDER BY quote_count DESC, priced_item_count DESC, s.name
+        LIMIT :limit
+    ";
+
+    $stmt = db()->prepare($sql);
+    $stmt->bindValue('limit', max(1, $limit), PDO::PARAM_INT);
+
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+
+    $stmt->execute();
+
+    return $stmt->fetchAll();
+}
+
+function project_bi_item_supplier_prices(int $projectId, int $procurementItemId): array
+{
+    if ($projectId <= 0 || $procurementItemId <= 0) {
+        return [];
+    }
+
+    $stmt = db()->prepare("
+        SELECT
+            s.id AS supplier_id,
+            s.name AS supplier_name,
+            s.document AS supplier_document,
+            COUNT(DISTINCT q.id) AS quote_count,
+            COUNT(qi.id) AS price_count,
+            AVG(qi.unit_price) AS average_unit_price,
+            MIN(qi.unit_price) AS min_unit_price,
+            MAX(qi.unit_price) AS max_unit_price,
+            STDDEV_POP(qi.unit_price) AS stddev_unit_price,
+            MAX(q.quote_date) AS latest_quote_date
+        FROM demand_supplier_quote_items qi
+        INNER JOIN demand_supplier_quotes q
+            ON q.id = qi.demand_supplier_quote_id
+           AND COALESCE(q.status, 'received') <> 'discarded'
+        INNER JOIN suppliers s ON s.id = q.supplier_id
+        INNER JOIN demand_items di ON di.id = qi.demand_item_id
+        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+        WHERE dl.project_id = :project_id
+          AND di.procurement_item_id = :procurement_item_id
+          AND qi.unit_price IS NOT NULL
+        GROUP BY s.id, s.name, s.document
+        ORDER BY average_unit_price, s.name
+    ");
+
+    $stmt->execute([
+        'project_id' => $projectId,
+        'procurement_item_id' => $procurementItemId,
+    ]);
+
+    return $stmt->fetchAll();
+}
+
+function project_bi_percentile(array $values, float $percentile): ?float
+{
+    $values = array_values(array_filter(array_map('floatval', $values), static fn (float $value): bool => $value >= 0));
+    sort($values, SORT_NUMERIC);
+    $count = count($values);
+
+    if ($count === 0) {
+        return null;
+    }
+
+    if ($count === 1) {
+        return $values[0];
+    }
+
+    $position = ($count - 1) * $percentile;
+    $lower = (int) floor($position);
+    $upper = (int) ceil($position);
+
+    if ($lower === $upper) {
+        return $values[$lower];
+    }
+
+    return $values[$lower] + (($values[$upper] - $values[$lower]) * ($position - $lower));
+}
+
+function project_bi_price_statistics(array $values): array
+{
+    $values = array_values(array_filter(array_map('floatval', $values), static fn (float $value): bool => $value >= 0));
+    sort($values, SORT_NUMERIC);
+    $count = count($values);
+
+    if ($count === 0) {
+        return [
+            'count' => 0,
+            'min' => null,
+            'max' => null,
+            'average' => null,
+            'median' => null,
+            'mode' => null,
+            'stddev' => null,
+            'q1' => null,
+            'q3' => null,
+            'iqr' => null,
+            'lower_bound' => null,
+            'upper_bound' => null,
+            'coefficient_variation' => null,
+        ];
+    }
+
+    $average = array_sum($values) / $count;
+    $variance = 0.0;
+
+    foreach ($values as $value) {
+        $variance += ($value - $average) ** 2;
+    }
+
+    $stddev = sqrt($variance / $count);
+    $frequencies = [];
+
+    foreach ($values as $value) {
+        $key = number_format($value, 2, '.', '');
+        $frequencies[$key] = ($frequencies[$key] ?? 0) + 1;
+    }
+
+    arsort($frequencies);
+    $topFrequency = (int) reset($frequencies);
+    $mode = $topFrequency > 1 ? (float) array_key_first($frequencies) : null;
+    $q1 = project_bi_percentile($values, 0.25);
+    $q3 = project_bi_percentile($values, 0.75);
+    $iqr = $q1 !== null && $q3 !== null ? $q3 - $q1 : null;
+
+    return [
+        'count' => $count,
+        'min' => $values[0],
+        'max' => $values[$count - 1],
+        'average' => $average,
+        'median' => project_bi_percentile($values, 0.5),
+        'mode' => $mode,
+        'stddev' => $stddev,
+        'q1' => $q1,
+        'q3' => $q3,
+        'iqr' => $iqr,
+        'lower_bound' => $iqr !== null ? $q1 - (1.5 * $iqr) : null,
+        'upper_bound' => $iqr !== null ? $q3 + (1.5 * $iqr) : null,
+        'coefficient_variation' => $average > 0 ? $stddev / $average : null,
+    ];
+}
+
+function project_bi_is_outlier(float $value, array $stats): bool
+{
+    if (($stats['count'] ?? 0) < 3) {
+        return false;
+    }
+
+    if (($stats['iqr'] ?? null) !== null && (float) $stats['iqr'] > 0) {
+        return $value < (float) $stats['lower_bound'] || $value > (float) $stats['upper_bound'];
+    }
+
+    if (($stats['stddev'] ?? null) !== null && (float) $stats['stddev'] > 0) {
+        return abs($value - (float) $stats['average']) > (2 * (float) $stats['stddev']);
+    }
+
+    return false;
+}
 function catalog_json_scopes(): array
 {
     return [

@@ -2,6 +2,15 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.28] - 2026-06-26
+
+### Adicionado
+- Nova area Gestao de projetos no menu principal, com visao de BI governamental para projetos, fornecedores, itens e valores.
+- Filtros por texto, status, projeto e item para analise administrativa dos projetos.
+- Graficos de valor estimado por projeto, projetos por status, fornecedores mais presentes e comparativo de precos por fornecedor do item.
+- Indicadores estatisticos por item com media, mediana, moda, menor valor, maior valor, desvio padrao e coeficiente de variacao.
+- Achados administrativos com alertas para ausencia de cotacoes, poucos fornecedores, alta dispersao e possiveis outliers.
+
 ## [1.5.27] - 2026-06-26
 
 ### Adicionado
@@ -11,6 +20,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 ### Alterado
 - Formulario de orcamento geral passa a aceitar valores carregados do banco global e preserva a origem historica dos precos reaproveitados.
 - Menu Fornecedor do projeto passa a incluir acesso ao banco de precos de orcamentos gerais.
+
 ## [1.5.26] - 2026-06-26
 
 ### Adicionado

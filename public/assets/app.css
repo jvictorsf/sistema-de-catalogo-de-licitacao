@@ -580,3 +580,94 @@ pre {
         box-shadow: none !important;
     }
 }
+
+.project-bi-filter .form-select,
+.project-bi-filter .form-control {
+    min-height: 2.5rem;
+}
+
+.project-bi-chart {
+    height: 280px;
+    min-height: 280px;
+    position: relative;
+}
+
+.project-bi-chart-wide {
+    height: 340px;
+}
+
+.project-bi-stat-grid {
+    display: grid;
+    gap: .75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.project-bi-stat-grid > div {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: .5rem;
+    padding: .85rem;
+}
+
+.project-bi-stat-grid span {
+    color: #6b7280;
+    display: block;
+    font-size: .78rem;
+    margin-bottom: .25rem;
+}
+
+.project-bi-stat-grid strong {
+    color: #111827;
+    display: block;
+    font-size: 1rem;
+}
+
+.project-bi-insight {
+    align-items: flex-start;
+    border: 1px solid #e5e7eb;
+    border-left-width: .35rem;
+    border-radius: .5rem;
+    display: flex;
+    gap: .75rem;
+    padding: .85rem;
+}
+
+.project-bi-insight + .project-bi-insight {
+    margin-top: .75rem;
+}
+
+.project-bi-insight i {
+    font-size: 1.15rem;
+    line-height: 1.2;
+}
+
+.project-bi-insight strong,
+.project-bi-insight span {
+    display: block;
+}
+
+.project-bi-insight span {
+    color: #6b7280;
+    font-size: .88rem;
+    margin-top: .15rem;
+}
+
+.project-bi-insight-success {
+    border-left-color: #198754;
+}
+
+.project-bi-insight-info {
+    border-left-color: #0dcaf0;
+}
+
+.project-bi-insight-warning {
+    border-left-color: #ffc107;
+}
+
+.project-bi-insight-danger {
+    border-left-color: #dc3545;
+}
+
+.project-bi-project-table {
+    min-width: 980px;
+}

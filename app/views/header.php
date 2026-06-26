@@ -13,6 +13,12 @@ $primaryNavItems = [
         'active' => ['dashboard.php'],
     ],
     [
+        'href' => '/project_bi.php',
+        'label' => 'Gestao de projetos',
+        'icon' => 'bi-graph-up-arrow',
+        'active' => ['project_bi.php'],
+    ],
+    [
         'href' => '/',
         'label' => 'Itens',
         'icon' => 'bi-box-seam',

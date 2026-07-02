@@ -62,7 +62,7 @@ require __DIR__ . '/../app/views/header.php';
                     type="search"
                     name="q"
                     class="form-control"
-                    placeholder="Nome, CNPJ, contato, e-mail, cidade, IE ou IM"
+                    placeholder="Nome, CNPJ, contato, e-mail, CNAE, cidade, IE, IM ou situacao"
                     value="<?= e($filters['q']) ?>">
             </div>
         </div>
@@ -160,6 +160,9 @@ require __DIR__ . '/../app/views/header.php';
                             <?php if (!empty($supplier['company_size'])): ?>
                                 <div class="small text-muted">Porte: <?= e($supplier['company_size']) ?></div>
                             <?php endif; ?>
+                            <?php if (($supplier['share_capital'] ?? null) !== null && (string) $supplier['share_capital'] !== ''): ?>
+                                <div class="small text-muted">Capital social: R$ <?= number_format((float) $supplier['share_capital'], 2, ',', '.') ?></div>
+                            <?php endif; ?>
                             <?php if ($mainCnae): ?>
                                 <div class="small text-muted">CNAE: <?= e(trim(($mainCnae['code'] ?? '') . ' ' . ($mainCnae['name'] ?? ''))) ?></div>
                             <?php endif; ?>
@@ -198,6 +201,12 @@ require __DIR__ . '/../app/views/header.php';
                             <span class="badge <?= $supplier['is_active'] ? 'text-bg-success' : 'text-bg-secondary' ?>">
                                 <?= $supplier['is_active'] ? 'Ativo' : 'Inativo' ?>
                             </span>
+                            <?php if (!empty($supplier['special_status'])): ?>
+                                <div class="small text-muted mt-1">Situacao especial: <?= e($supplier['special_status']) ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($supplier['special_status_date'])): ?>
+                                <div class="small text-muted">Data: <?= date('d/m/Y', strtotime((string) $supplier['special_status_date'])) ?></div>
+                            <?php endif; ?>
                         </td>
                         <td class="text-end">
                             <div class="table-actions">

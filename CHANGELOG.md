@@ -2,6 +2,18 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.30] - 2026-07-02
+
+### Adicionado
+- Cadastro de fornecedores passa a registrar capital social, situacao especial e data da situacao especial.
+- Schema passa a conter tabela de referencia `cnae_references`, alimentada com os CNAEs do arquivo `external/br_bd_diretorios_brasil_cnae_2.csv`.
+- Formulario de fornecedores passa a ter busca de CNAE principal e secundario usando a tabela de referencia.
+- Novo endpoint `/cnae_lookup.php` para consulta AJAX de CNAEs por codigo ou descricao.
+
+### Alterado
+- Consulta de CNPJ passa a tentar preencher e-mail, capital social, situacao especial, data da situacao especial e enriquecer CNAEs pela referencia local.
+- Listagem, pesquisa e exportacao/importacao JSON de fornecedores passam a contemplar os novos campos fiscais.
+
 ## [1.5.29] - 2026-06-26
 
 ### Corrigido

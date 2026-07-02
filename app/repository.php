@@ -1436,6 +1436,115 @@ function deactivate_requester_unit(int $id): void
     $stmt->execute(['id' => $id]);
 }
 
+function normalize_cnae_reference_code(mixed $code): string
+{
+    return substr(only_digits((string) $code), 0, 7);
+}
+
+function cnae_reference_to_supplier_cnae(array $reference): array
+{
+    return [
+        'code' => (string) ($reference['code'] ?? ''),
+        'name' => (string) ($reference['subclass_description'] ?? ''),
+        'description' => (string) ($reference['subclass_description'] ?? ''),
+    ];
+}
+
+function find_cnae_reference(string $code): ?array
+{
+    $code = normalize_cnae_reference_code($code);
+
+    if ($code === '') {
+        return null;
+    }
+
+    try {
+        $stmt = db()->prepare('
+            SELECT *
+            FROM cnae_references
+            WHERE code = :code
+        ');
+        $stmt->execute(['code' => $code]);
+        $reference = $stmt->fetch();
+    } catch (Throwable $exception) {
+        if (is_missing_database_relation($exception)) {
+            return null;
+        }
+
+        throw $exception;
+    }
+
+    return $reference ?: null;
+}
+
+function search_cnae_references(string $query, int $limit = 20): array
+{
+    $query = trim($query);
+
+    if ($query === '') {
+        return [];
+    }
+
+    $limit = max(1, min($limit, 50));
+    $digits = normalize_cnae_reference_code($query);
+    $params = [
+        'q' => '%' . mb_strtolower($query) . '%',
+        'code' => $digits !== '' ? $digits . '%' : '__sem_codigo__',
+        'exact_code' => $digits,
+    ];
+
+    try {
+        $stmt = db()->prepare("
+            SELECT *
+            FROM cnae_references
+            WHERE code LIKE :code
+               OR LOWER(COALESCE(subclass_description, '')) LIKE :q
+               OR LOWER(COALESCE(class_description, '')) LIKE :q
+               OR LOWER(COALESCE(group_description, '')) LIKE :q
+               OR LOWER(COALESCE(division_description, '')) LIKE :q
+            ORDER BY
+                CASE
+                    WHEN code = :exact_code THEN 0
+                    WHEN code LIKE :code THEN 1
+                    ELSE 2
+                END,
+                subclass_description
+            LIMIT {$limit}
+        ");
+        $stmt->execute($params);
+    } catch (Throwable $exception) {
+        if (is_missing_database_relation($exception)) {
+            return [];
+        }
+
+        throw $exception;
+    }
+
+    return $stmt->fetchAll();
+}
+
+function enrich_supplier_cnae_from_reference(?array $cnae): ?array
+{
+    if ($cnae === null) {
+        return null;
+    }
+
+    $code = normalize_cnae_reference_code($cnae['code'] ?? '');
+    $reference = $code !== '' ? find_cnae_reference($code) : null;
+
+    if (!$reference) {
+        return $cnae;
+    }
+
+    $referenceCnae = cnae_reference_to_supplier_cnae($reference);
+
+    return [
+        'code' => $referenceCnae['code'],
+        'name' => trim((string) ($cnae['name'] ?? '')) !== '' ? $cnae['name'] : $referenceCnae['name'],
+        'description' => trim((string) ($cnae['description'] ?? '')) !== '' ? $cnae['description'] : $referenceCnae['description'],
+    ];
+}
+
 function get_suppliers(bool $activeOnly = false): array
 {
     $sql = "
@@ -1475,6 +1584,9 @@ function get_suppliers_filtered(array $filters = []): array
                 OR LOWER(COALESCE(email, '')) LIKE :q
                 OR LOWER(COALESCE(city, '')) LIKE :q
                 OR LOWER(COALESCE(company_size, '')) LIKE :q
+                OR LOWER(COALESCE(special_status, '')) LIKE :q
+                OR LOWER(COALESCE(main_cnae::TEXT, '')) LIKE :q
+                OR LOWER(COALESCE(secondary_cnaes::TEXT, '')) LIKE :q
                 OR LOWER(COALESCE(state_registration, '')) LIKE :q
                 OR LOWER(COALESCE(municipal_registration, '')) LIKE :q
                 OR LOWER(COALESCE(website_url, '')) LIKE :q
@@ -1554,6 +1666,9 @@ function create_supplier(array $data): int
             state_registration,
             municipal_registration,
             company_size,
+            share_capital,
+            special_status,
+            special_status_date,
             main_cnae,
             secondary_cnaes,
             participates_bidding,
@@ -1579,6 +1694,9 @@ function create_supplier(array $data): int
             :state_registration,
             :municipal_registration,
             :company_size,
+            :share_capital,
+            :special_status,
+            :special_status_date,
             CAST(:main_cnae AS jsonb),
             CAST(:secondary_cnaes AS jsonb),
             :participates_bidding,
@@ -1608,6 +1726,9 @@ function create_supplier(array $data): int
         'state_registration' => ($data['state_registration'] ?? '') ?: null,
         'municipal_registration' => ($data['municipal_registration'] ?? '') ?: null,
         'company_size' => ($data['company_size'] ?? '') ?: null,
+        'share_capital' => normalize_supplier_share_capital($data['share_capital'] ?? null),
+        'special_status' => ($data['special_status'] ?? '') ?: null,
+        'special_status_date' => normalize_optional_date($data['special_status_date'] ?? null),
         'main_cnae' => supplier_cnae_to_json(normalize_supplier_cnae($data['main_cnae'] ?? [])),
         'secondary_cnaes' => supplier_cnae_list_to_json($data['secondary_cnaes'] ?? []),
         'participates_bidding' => pg_bool($data['participates_bidding'] ?? true),
@@ -1641,6 +1762,9 @@ function update_supplier(int $id, array $data): void
             state_registration = :state_registration,
             municipal_registration = :municipal_registration,
             company_size = :company_size,
+            share_capital = :share_capital,
+            special_status = :special_status,
+            special_status_date = :special_status_date,
             main_cnae = CAST(:main_cnae AS jsonb),
             secondary_cnaes = CAST(:secondary_cnaes AS jsonb),
             participates_bidding = :participates_bidding,
@@ -1670,6 +1794,9 @@ function update_supplier(int $id, array $data): void
         'state_registration' => ($data['state_registration'] ?? '') ?: null,
         'municipal_registration' => ($data['municipal_registration'] ?? '') ?: null,
         'company_size' => ($data['company_size'] ?? '') ?: null,
+        'share_capital' => normalize_supplier_share_capital($data['share_capital'] ?? null),
+        'special_status' => ($data['special_status'] ?? '') ?: null,
+        'special_status_date' => normalize_optional_date($data['special_status_date'] ?? null),
         'main_cnae' => supplier_cnae_to_json(normalize_supplier_cnae($data['main_cnae'] ?? [])),
         'secondary_cnaes' => supplier_cnae_list_to_json($data['secondary_cnaes'] ?? []),
         'participates_bidding' => pg_bool($data['participates_bidding'] ?? true),
@@ -1721,6 +1848,28 @@ function normalize_supplier_phone(?string $phone): ?string
     $digits = only_digits($phone);
 
     return $digits !== '' ? $digits : null;
+}
+
+function normalize_supplier_share_capital(mixed $value): ?string
+{
+    $normalized = trim((string) $value);
+
+    if ($normalized === '') {
+        return null;
+    }
+
+    $normalized = preg_replace('/[^0-9,.-]/', '', $normalized) ?? '';
+
+    if (str_contains($normalized, ',')) {
+        $normalized = str_replace('.', '', $normalized);
+        $normalized = str_replace(',', '.', $normalized);
+    }
+
+    if ($normalized === '' || !is_numeric($normalized)) {
+        return null;
+    }
+
+    return number_format((float) $normalized, 2, '.', '');
 }
 
 function normalize_supplier_row(array $supplier): array
@@ -1830,6 +1979,8 @@ function supplier_cnae_list_from_json(mixed $value): array
 
 function supplier_cnae_to_json(?array $cnae): ?string
 {
+    $cnae = enrich_supplier_cnae_from_reference($cnae);
+
     return $cnae === null
         ? null
         : json_encode($cnae, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -1837,8 +1988,13 @@ function supplier_cnae_to_json(?array $cnae): ?string
 
 function supplier_cnae_list_to_json(mixed $items): string
 {
+    $items = array_map(
+        static fn (array $cnae): array => enrich_supplier_cnae_from_reference($cnae) ?? $cnae,
+        normalize_supplier_cnae_list($items)
+    );
+
     return json_encode(
-        normalize_supplier_cnae_list($items),
+        $items,
         JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
     );
 }
@@ -6920,6 +7076,9 @@ function catalog_json_table_definitions(): array
                 'state_registration',
                 'municipal_registration',
                 'company_size',
+                'share_capital',
+                'special_status',
+                'special_status_date',
                 'main_cnae',
                 'secondary_cnaes',
                 'participates_bidding',
@@ -7325,6 +7484,9 @@ function catalog_json_sample_row(string $table, array $columns): array
             'state_registration' => 'ISENTO',
             'municipal_registration' => null,
             'company_size' => 'ME',
+            'share_capital' => '10000.00',
+            'special_status' => null,
+            'special_status_date' => null,
             'main_cnae' => ['code' => '0000-0/00', 'name' => 'Atividade principal', 'description' => 'Descricao da atividade principal'],
             'secondary_cnaes' => [[
                 'code' => '0000-0/01',
@@ -7569,6 +7731,16 @@ function import_catalog_table_rows(string $table, array $columns, array $jsonCol
 
             if ($table === 'suppliers' && $column === 'document') {
                 $values[$column] = normalize_supplier_document((string) $row[$column]);
+                continue;
+            }
+
+            if ($table === 'suppliers' && $column === 'share_capital') {
+                $values[$column] = normalize_supplier_share_capital($row[$column]);
+                continue;
+            }
+
+            if ($table === 'suppliers' && $column === 'special_status_date') {
+                $values[$column] = normalize_optional_date($row[$column]);
                 continue;
             }
 

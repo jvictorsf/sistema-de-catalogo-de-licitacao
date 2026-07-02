@@ -1432,6 +1432,50 @@ function supplier_lookup_state_from_data(array $data): string
     return supplier_lookup_uppercase_text(lookup_response_field($data, ['uf', 'state']));
 }
 
+function supplier_lookup_money_text(mixed $value): string
+{
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return '';
+    }
+
+    $normalized = preg_replace('/[^0-9,.-]/', '', $value) ?? '';
+
+    if (str_contains($normalized, ',')) {
+        $normalized = str_replace('.', '', $normalized);
+        $normalized = str_replace(',', '.', $normalized);
+    }
+
+    if ($normalized === '' || !is_numeric($normalized)) {
+        return '';
+    }
+
+    return number_format((float) $normalized, 2, ',', '.');
+}
+
+function supplier_lookup_date_value(mixed $value): string
+{
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return '';
+    }
+
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return $value;
+    }
+
+    if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $value, $matches)) {
+        return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+    }
+
+    if (preg_match('/^(\d{4})(\d{2})(\d{2})$/', only_digits($value), $matches)) {
+        return $matches[1] . '-' . $matches[2] . '-' . $matches[3];
+    }
+
+    return '';
+}
 function fetch_public_api_json(string $url, string $errorMessage, int $timeout = 8): array
 {
     $response = null;
@@ -1513,7 +1557,7 @@ function lookup_cnpj_brasilapi(string $cnpj): array
         'name' => trim((string) ($data['razao_social'] ?? $tradeName)),
         'trade_name' => $tradeName,
         'document' => format_brazil_document((string) ($data['cnpj'] ?? $digits)),
-        'email' => trim((string) ($data['email'] ?? '')),
+        'email' => lookup_response_field($data, ['email', 'correio_eletronico', 'email_principal']),
         'phone' => format_brazil_phone($phones[0] ?? ''),
         'address' => supplier_lookup_address_from_data($data),
         'city' => supplier_lookup_city_from_data($data),
@@ -1522,6 +1566,9 @@ function lookup_cnpj_brasilapi(string $cnpj): array
         'state_registration' => lookup_response_field($data, ['inscricao_estadual', 'state_registration']),
         'municipal_registration' => lookup_response_field($data, ['inscricao_municipal', 'municipal_registration']),
         'company_size' => lookup_response_field($data, ['descricao_porte', 'porte', 'company_size']),
+        'share_capital' => supplier_lookup_money_text(lookup_response_field($data, ['capital_social', 'share_capital'])),
+        'special_status' => lookup_response_field($data, ['situacao_especial', 'special_status']),
+        'special_status_date' => supplier_lookup_date_value(lookup_response_field($data, ['data_situacao_especial', 'special_status_date'])),
         'main_cnae' => supplier_lookup_cnae_from_values($data['cnae_fiscal'] ?? $data['cnae_principal'] ?? '', $data['cnae_fiscal_descricao'] ?? $data['descricao_cnae_fiscal'] ?? ''),
         'secondary_cnaes' => supplier_lookup_secondary_cnaes_from_data($data),
         'website_url' => lookup_response_field($data, ['site', 'website', 'url']),

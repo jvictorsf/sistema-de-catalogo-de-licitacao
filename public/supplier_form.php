@@ -31,6 +31,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'state_registration' => trim($_POST['state_registration'] ?? ''),
         'municipal_registration' => trim($_POST['municipal_registration'] ?? ''),
         'company_size' => trim($_POST['company_size'] ?? ''),
+        'share_capital' => trim($_POST['share_capital'] ?? ''),
+        'special_status' => trim($_POST['special_status'] ?? ''),
+        'special_status_date' => trim($_POST['special_status_date'] ?? ''),
         'main_cnae' => is_array($_POST['main_cnae'] ?? null) ? $_POST['main_cnae'] : [],
         'secondary_cnaes' => is_array($_POST['secondary_cnaes'] ?? null) ? $_POST['secondary_cnaes'] : [],
         'participates_bidding' => $_POST['participates_bidding'] ?? '1',
@@ -78,6 +81,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($data['special_status_date'] && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $data['special_status_date'])) {
+        $errors[] = 'Informe a data da situacao especial no formato valido.';
+    }
+
     if ($data['owner_cpf'] && strlen(only_digits($data['owner_cpf'])) !== 11) {
         $errors[] = 'Informe um CPF do proprietário válido com 11 dígitos.';
     }
@@ -115,6 +122,12 @@ if (!$secondaryCnaes) {
 }
 
 $participatesBiddingValue = boolish($supplier['participates_bidding'] ?? true, true) ? '1' : '0';
+$shareCapitalValue = '';
+
+if (($supplier['share_capital'] ?? null) !== null && (string) $supplier['share_capital'] !== '') {
+    $shareCapitalValue = number_format((float) $supplier['share_capital'], 2, ',', '.');
+}
+
 require __DIR__ . '/../app/views/header.php';
 ?>
 
@@ -181,6 +194,30 @@ require __DIR__ . '/../app/views/header.php';
                 <div class="col-md-6 col-lg-3">
                     <label class="form-label">Porte da empresa</label>
                     <input type="text" name="company_size" class="form-control" value="<?= e($supplier['company_size'] ?? '') ?>">
+                </div>
+
+                <div class="col-md-6 col-lg-3">
+                    <label class="form-label">Capital social</label>
+                    <div class="input-group">
+                        <span class="input-group-text">R$</span>
+                        <input
+                            type="text"
+                            name="share_capital"
+                            class="form-control"
+                            inputmode="decimal"
+                            data-mask="money"
+                            value="<?= e($shareCapitalValue) ?>">
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-lg-3">
+                    <label class="form-label">Situacao especial</label>
+                    <input type="text" name="special_status" class="form-control" value="<?= e($supplier['special_status'] ?? '') ?>">
+                </div>
+
+                <div class="col-md-6 col-lg-3">
+                    <label class="form-label">Data da situacao especial</label>
+                    <input type="date" name="special_status_date" class="form-control" value="<?= e($supplier['special_status_date'] ?? '') ?>">
                 </div>
 
                 <div class="col-md-6 col-lg-4">
@@ -315,6 +352,17 @@ require __DIR__ . '/../app/views/header.php';
         </div>
         <div class="card-body">
             <div class="row g-3 mb-3">
+                <div class="col-lg-6 position-relative">
+                    <label class="form-label">Pesquisar CNAE principal</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="search" id="mainCnaeSearch" class="form-control" placeholder="Codigo ou descricao">
+                    </div>
+                    <div id="mainCnaeResults" class="list-group cnae-search-results d-none"></div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
                 <div class="col-md-2">
                     <label class="form-label">CNAE principal</label>
                     <input type="text" name="main_cnae[code]" class="form-control" value="<?= e($mainCnae['code'] ?? '') ?>">
@@ -331,11 +379,24 @@ require __DIR__ . '/../app/views/header.php';
                 </div>
             </div>
 
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-lg-8 position-relative">
+                    <label class="form-label">Pesquisar CNAE secundario</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="search" id="secondaryCnaeSearch" class="form-control" placeholder="Codigo ou descricao">
+                    </div>
+                    <div id="secondaryCnaeResults" class="list-group cnae-search-results d-none"></div>
+                </div>
+                <div class="col-lg-4 d-grid d-lg-flex justify-content-lg-end">
+                    <button type="button" class="btn btn-outline-primary" id="addSecondaryCnae">
+                        <i class="bi bi-plus-lg"></i> Adicionar CNAE manual
+                    </button>
+                </div>
+            </div>
+
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <label class="form-label mb-0">CNAEs secundarios</label>
-                <button type="button" class="btn btn-sm btn-outline-primary" id="addSecondaryCnae">
-                    <i class="bi bi-plus-lg"></i> Adicionar CNAE
-                </button>
             </div>
 
             <div id="secondaryCnaeRows">
@@ -424,6 +485,10 @@ require __DIR__ . '/../app/views/header.php';
         const cepButton = document.getElementById('lookupCepButton');
         const addSecondaryCnaeButton = document.getElementById('addSecondaryCnae');
         const secondaryCnaeRows = document.getElementById('secondaryCnaeRows');
+        const mainCnaeSearch = document.getElementById('mainCnaeSearch');
+        const mainCnaeResults = document.getElementById('mainCnaeResults');
+        const secondaryCnaeSearch = document.getElementById('secondaryCnaeSearch');
+        const secondaryCnaeResults = document.getElementById('secondaryCnaeResults');
         const documentInput = document.getElementById('supplierDocument');
         const cnpjFeedback = document.getElementById('cnpjLookupFeedback');
         const cepFeedback = document.getElementById('cepLookupFeedback');
@@ -442,6 +507,9 @@ require __DIR__ . '/../app/views/header.php';
             state_registration: document.querySelector('[name="state_registration"]'),
             municipal_registration: document.querySelector('[name="municipal_registration"]'),
             company_size: document.querySelector('[name="company_size"]'),
+            share_capital: document.querySelector('[name="share_capital"]'),
+            special_status: document.querySelector('[name="special_status"]'),
+            special_status_date: document.querySelector('[name="special_status_date"]'),
             website_url: document.querySelector('[name="website_url"]'),
         };
 
@@ -490,6 +558,23 @@ require __DIR__ . '/../app/views/header.php';
             return onlyDigits(value).slice(0, 8).replace(/^(\d{5})(\d)/, '$1-$2');
         }
 
+        function formatMoney(value) {
+            const normalized = String(value || '').replace(/[^0-9,.-]/g, '');
+
+            if (!normalized) {
+                return '';
+            }
+
+            const decimal = normalized.includes(',')
+                ? normalized.replace(/\./g, '').replace(',', '.')
+                : normalized;
+            const number = Number(decimal);
+
+            return Number.isFinite(number)
+                ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number)
+                : '';
+        }
+
         function applyMask(input) {
             if (!input) {
                 return;
@@ -515,6 +600,10 @@ require __DIR__ . '/../app/views/header.php';
                 input.value = input.value.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase();
             }
 
+            if (input.dataset.mask === 'money') {
+                input.value = input.value.replace(/[^0-9,.-]/g, '');
+            }
+
             if (input.hasAttribute('data-uppercase')) {
                 input.value = input.value.toUpperCase();
             }
@@ -524,6 +613,13 @@ require __DIR__ . '/../app/views/header.php';
             input.addEventListener('input', function() {
                 applyMask(input);
             });
+
+            if (input.dataset.mask === 'money') {
+                input.addEventListener('blur', function() {
+                    input.value = formatMoney(input.value);
+                });
+            }
+
             applyMask(input);
         });
 
@@ -550,14 +646,14 @@ require __DIR__ . '/../app/views/header.php';
             applyMask(field);
         }
 
-        function setMainCnae(cnae) {
+        function setMainCnae(cnae, force = false) {
             if (!cnae || typeof cnae !== 'object') {
                 return;
             }
 
-            fillField(document.querySelector('[name="main_cnae[code]"]'), cnae.code || '', false);
-            fillField(document.querySelector('[name="main_cnae[name]"]'), cnae.name || '', false);
-            fillField(document.querySelector('[name="main_cnae[description]"]'), cnae.description || '', false);
+            fillField(document.querySelector('[name="main_cnae[code]"]'), cnae.code || '', force);
+            fillField(document.querySelector('[name="main_cnae[name]"]'), cnae.name || '', force);
+            fillField(document.querySelector('[name="main_cnae[description]"]'), cnae.description || '', force);
         }
 
         function bindRemoveCnaeButton(row) {
@@ -618,7 +714,110 @@ require __DIR__ . '/../app/views/header.php';
             cnaes.forEach(addSecondaryCnaeRow);
         }
 
+
+        function hideCnaeResults(results) {
+            if (!results) {
+                return;
+            }
+
+            results.innerHTML = '';
+            results.classList.add('d-none');
+        }
+
+        function renderCnaeResults(results, items, onSelect) {
+            if (!results) {
+                return;
+            }
+
+            results.innerHTML = '';
+
+            if (!Array.isArray(items) || items.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'list-group-item text-muted small';
+                empty.textContent = 'Nenhum CNAE encontrado';
+                results.appendChild(empty);
+                results.classList.remove('d-none');
+                return;
+            }
+
+            items.forEach(function(cnae) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'list-group-item list-group-item-action';
+
+                const title = document.createElement('div');
+                title.className = 'fw-semibold';
+                title.textContent = `${cnae.code || ''} - ${cnae.name || ''}`.trim();
+
+                const meta = document.createElement('div');
+                meta.className = 'small text-muted';
+                meta.textContent = [cnae.class_description, cnae.section_description].filter(Boolean).join(' | ');
+
+                button.appendChild(title);
+
+                if (meta.textContent) {
+                    button.appendChild(meta);
+                }
+
+                button.addEventListener('click', function() {
+                    onSelect(cnae);
+                    hideCnaeResults(results);
+                });
+
+                results.appendChild(button);
+            });
+
+            results.classList.remove('d-none');
+        }
+
+        function bindCnaeReferenceSearch(input, results, onSelect) {
+            if (!input || !results) {
+                return;
+            }
+
+            let timer = null;
+
+            input.addEventListener('input', function() {
+                const query = input.value.trim();
+                clearTimeout(timer);
+
+                if (query.length < 2) {
+                    hideCnaeResults(results);
+                    return;
+                }
+
+                timer = setTimeout(async function() {
+                    try {
+                        const response = await fetch('/cnae_lookup.php?q=' + encodeURIComponent(query));
+                        const payload = await response.json();
+
+                        if (!response.ok || !payload.success) {
+                            throw new Error(payload.message || 'Nao foi possivel consultar CNAEs.');
+                        }
+
+                        renderCnaeResults(results, payload.data || [], onSelect);
+                    } catch (error) {
+                        renderCnaeResults(results, [], onSelect);
+                    }
+                }, 250);
+            });
+
+            document.addEventListener('click', function(event) {
+                if (!results.contains(event.target) && event.target !== input) {
+                    hideCnaeResults(results);
+                }
+            });
+        }
         document.querySelectorAll('.cnae-row').forEach(bindRemoveCnaeButton);
+        bindCnaeReferenceSearch(mainCnaeSearch, mainCnaeResults, function(cnae) {
+            setMainCnae(cnae, true);
+            mainCnaeSearch.value = '';
+        });
+
+        bindCnaeReferenceSearch(secondaryCnaeSearch, secondaryCnaeResults, function(cnae) {
+            addSecondaryCnaeRow(cnae);
+            secondaryCnaeSearch.value = '';
+        });
 
         if (addSecondaryCnaeButton) {
             addSecondaryCnaeButton.addEventListener('click', function() {

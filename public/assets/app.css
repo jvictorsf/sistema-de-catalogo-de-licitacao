@@ -386,6 +386,19 @@ pre {
     min-width: 980px;
 }
 
+.cnae-search-results {
+    left: 0;
+    max-height: 18rem;
+    overflow-y: auto;
+    position: absolute;
+    right: 0;
+    top: calc(100% + .25rem);
+    z-index: 1050;
+}
+
+.cnae-search-results .list-group-item {
+    white-space: normal;
+}
 .supplier-form textarea {
     min-height: 5rem;
 }

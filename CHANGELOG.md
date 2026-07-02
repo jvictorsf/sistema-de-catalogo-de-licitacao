@@ -2,6 +2,15 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.31] - 2026-07-02
+
+### Adicionado
+- Orcamento geral do projeto passa a permitir varios documentos do mesmo fornecedor, cada um com numero, data, validade, arquivo e observacao proprios.
+- Tabela `demand_supplier_quote_attachments` passa a armazenar os documentos dos orcamentos com metadados individuais.
+
+### Alterado
+- Telas de demanda, orcamento da demanda e orcamentos do projeto passam a exibir todos os documentos vinculados ao orcamento do fornecedor.
+- Clonagem de projetos e exportacao/importacao JSON passam a contemplar documentos multiplos dos orcamentos.
 ## [1.5.30] - 2026-07-02
 
 ### Adicionado

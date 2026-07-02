@@ -3619,7 +3619,7 @@ function get_demand_supplier_quotes(int $demandListId): array
 
         $stmt->execute(['demand_list_id' => $demandListId]);
 
-        return $stmt->fetchAll();
+        return enrich_supplier_quotes_with_attachments($stmt->fetchAll());
     } catch (Throwable $exception) {
         if (!is_missing_database_relation($exception)) {
             throw $exception;
@@ -3647,7 +3647,7 @@ function find_demand_supplier_quote(int $id): ?array
 
     $quote = $stmt->fetch();
 
-    return $quote ?: null;
+    return $quote ? enrich_supplier_quotes_with_attachments([$quote])[0] : null;
 }
 
 function find_demand_supplier_quote_by_supplier(int $demandListId, int $supplierId): ?array
@@ -3666,7 +3666,293 @@ function find_demand_supplier_quote_by_supplier(int $demandListId, int $supplier
 
     $quote = $stmt->fetch();
 
-    return $quote ?: null;
+    return $quote ? enrich_supplier_quotes_with_attachments([$quote])[0] : null;
+}
+
+function supplier_quote_attachments_table_exists(): bool
+{
+    static $exists = null;
+
+    if ($exists === null) {
+        try {
+            $exists = database_table_exists('demand_supplier_quote_attachments');
+        } catch (Throwable) {
+            $exists = false;
+        }
+    }
+
+    return $exists;
+}
+
+function normalize_supplier_quote_attachment_paths(mixed $paths): array
+{
+    if (is_string($paths)) {
+        $paths = [$paths];
+    }
+
+    if (!is_array($paths)) {
+        return [];
+    }
+
+    $normalized = [];
+
+    foreach ($paths as $path) {
+        if (is_array($path)) {
+            $path = $path['attachment_path'] ?? '';
+        }
+
+        $path = trim((string) $path);
+
+        if ($path !== '') {
+            $normalized[$path] = $path;
+        }
+    }
+
+    return array_values($normalized);
+}
+
+function normalize_supplier_quote_documents(mixed $documents): array
+{
+    if (is_string($documents)) {
+        $documents = [['attachment_path' => $documents]];
+    }
+
+    if (!is_array($documents)) {
+        return [];
+    }
+
+    $normalized = [];
+
+    foreach ($documents as $document) {
+        if (is_string($document)) {
+            $document = ['attachment_path' => $document];
+        }
+
+        if (!is_array($document)) {
+            continue;
+        }
+
+        $attachmentPath = trim((string) ($document['attachment_path'] ?? $document['path'] ?? ''));
+
+        if ($attachmentPath === '') {
+            continue;
+        }
+
+        $quoteNumber = trim((string) ($document['quote_number'] ?? ''));
+        $notes = trim((string) ($document['notes'] ?? ''));
+        $quoteDate = normalize_optional_date($document['quote_date'] ?? null);
+        $validityDate = normalize_optional_date($document['validity_date'] ?? null);
+
+        $normalized[$attachmentPath] = [
+            'quote_number' => $quoteNumber !== '' ? $quoteNumber : null,
+            'quote_date' => $quoteDate,
+            'validity_date' => $validityDate,
+            'attachment_path' => $attachmentPath,
+            'notes' => $notes !== '' ? $notes : null,
+        ];
+    }
+
+    return array_values($normalized);
+}
+
+function ensure_supplier_quote_legacy_attachment(int $quoteId): void
+{
+    if (!supplier_quote_attachments_table_exists()) {
+        return;
+    }
+
+    $stmt = db()->prepare('
+        SELECT quote_number, quote_date, validity_date, attachment_path, notes
+        FROM demand_supplier_quotes
+        WHERE id = :id
+    ');
+    $stmt->execute(['id' => $quoteId]);
+    $quote = $stmt->fetch();
+
+    if (!$quote || trim((string) ($quote['attachment_path'] ?? '')) === '') {
+        return;
+    }
+
+    $insert = db()->prepare('
+        INSERT INTO demand_supplier_quote_attachments (
+            demand_supplier_quote_id,
+            quote_number,
+            quote_date,
+            validity_date,
+            attachment_path,
+            notes
+        ) VALUES (
+            :quote_id,
+            :quote_number,
+            :quote_date,
+            :validity_date,
+            :attachment_path,
+            :notes
+        )
+        ON CONFLICT (demand_supplier_quote_id, attachment_path) DO NOTHING
+    ');
+    $insert->execute([
+        'quote_id' => $quoteId,
+        'quote_number' => $quote['quote_number'] ?: null,
+        'quote_date' => normalize_optional_date($quote['quote_date'] ?? null),
+        'validity_date' => normalize_optional_date($quote['validity_date'] ?? null),
+        'attachment_path' => $quote['attachment_path'],
+        'notes' => $quote['notes'] ?: null,
+    ]);
+}
+
+function get_demand_supplier_quote_attachments(int $quoteId): array
+{
+    if ($quoteId <= 0) {
+        return [];
+    }
+
+    if (!supplier_quote_attachments_table_exists()) {
+        $stmt = db()->prepare('
+            SELECT attachment_path
+            FROM demand_supplier_quotes
+            WHERE id = :id
+        ');
+        $stmt->execute(['id' => $quoteId]);
+        $attachmentPath = trim((string) $stmt->fetchColumn());
+
+        return $attachmentPath !== ''
+            ? [['attachment_path' => $attachmentPath]]
+            : [];
+    }
+
+    ensure_supplier_quote_legacy_attachment($quoteId);
+
+    $stmt = db()->prepare('
+        SELECT id, quote_number, quote_date, validity_date, attachment_path, notes, created_at
+        FROM demand_supplier_quote_attachments
+        WHERE demand_supplier_quote_id = :quote_id
+        ORDER BY id
+    ');
+    $stmt->execute(['quote_id' => $quoteId]);
+
+    return $stmt->fetchAll();
+}
+
+function get_demand_supplier_quote_attachment_paths(int $quoteId): array
+{
+    return array_values(array_filter(array_map(
+        static fn (array $attachment): string => trim((string) ($attachment['attachment_path'] ?? '')),
+        get_demand_supplier_quote_attachments($quoteId)
+    )));
+}
+
+function enrich_supplier_quotes_with_attachments(array $quotes): array
+{
+    foreach ($quotes as $index => $quote) {
+        $quoteId = (int) ($quote['id'] ?? 0);
+        $attachments = $quoteId > 0 ? get_demand_supplier_quote_attachments($quoteId) : [];
+        $paths = array_values(array_filter(array_map(
+            static fn (array $attachment): string => trim((string) ($attachment['attachment_path'] ?? '')),
+            $attachments
+        )));
+
+        $quotes[$index]['attachments'] = $attachments;
+        $quotes[$index]['attachment_paths'] = $paths;
+
+        if (($quotes[$index]['attachment_path'] ?? '') === '' && $paths) {
+            $quotes[$index]['attachment_path'] = $paths[0];
+        }
+    }
+
+    return $quotes;
+}
+
+function save_demand_supplier_quote_attachments(int $quoteId, array $documents, bool $replace = false): void
+{
+    if ($quoteId <= 0 || !supplier_quote_attachments_table_exists()) {
+        return;
+    }
+
+    $documents = normalize_supplier_quote_documents($documents);
+
+    if ($replace) {
+        $delete = db()->prepare('
+            DELETE FROM demand_supplier_quote_attachments
+            WHERE demand_supplier_quote_id = :quote_id
+        ');
+        $delete->execute(['quote_id' => $quoteId]);
+    } else {
+        ensure_supplier_quote_legacy_attachment($quoteId);
+    }
+
+    if ($documents) {
+        $insert = db()->prepare('
+            INSERT INTO demand_supplier_quote_attachments (
+                demand_supplier_quote_id,
+                quote_number,
+                quote_date,
+                validity_date,
+                attachment_path,
+                notes
+            ) VALUES (
+                :quote_id,
+                :quote_number,
+                :quote_date,
+                :validity_date,
+                :attachment_path,
+                :notes
+            )
+            ON CONFLICT (demand_supplier_quote_id, attachment_path) DO UPDATE SET
+                quote_number = EXCLUDED.quote_number,
+                quote_date = EXCLUDED.quote_date,
+                validity_date = EXCLUDED.validity_date,
+                notes = EXCLUDED.notes
+        ');
+
+        foreach ($documents as $document) {
+            $insert->execute([
+                'quote_id' => $quoteId,
+                'quote_number' => $document['quote_number'],
+                'quote_date' => $document['quote_date'],
+                'validity_date' => $document['validity_date'],
+                'attachment_path' => $document['attachment_path'],
+                'notes' => $document['notes'],
+            ]);
+        }
+    }
+
+    $stmt = db()->prepare('
+        SELECT quote_number, quote_date, validity_date, attachment_path
+        FROM demand_supplier_quote_attachments
+        WHERE demand_supplier_quote_id = :quote_id
+        ORDER BY id
+    ');
+    $stmt->execute(['quote_id' => $quoteId]);
+    $currentDocuments = $stmt->fetchAll();
+    $primaryDocument = $currentDocuments[0] ?? null;
+
+    if ($primaryDocument) {
+        $update = db()->prepare('
+            UPDATE demand_supplier_quotes
+            SET quote_number = :quote_number,
+                quote_date = :quote_date,
+                validity_date = :validity_date,
+                attachment_path = :attachment_path
+            WHERE id = :id
+        ');
+        $update->execute([
+            'id' => $quoteId,
+            'quote_number' => $primaryDocument['quote_number'] ?: null,
+            'quote_date' => normalize_optional_date($primaryDocument['quote_date'] ?? null),
+            'validity_date' => normalize_optional_date($primaryDocument['validity_date'] ?? null),
+            'attachment_path' => $primaryDocument['attachment_path'],
+        ]);
+
+        return;
+    }
+
+    $update = db()->prepare('
+        UPDATE demand_supplier_quotes
+        SET attachment_path = NULL
+        WHERE id = :id
+    ');
+    $update->execute(['id' => $quoteId]);
 }
 
 function normalize_supplier_quote_collected_by(array $data): ?string
@@ -3743,6 +4029,15 @@ function create_demand_supplier_quote(array $data): int
     ]);
 
     $id = (int) $stmt->fetchColumn();
+
+    if (array_key_exists('quote_documents', $data) || !empty($data['replace_quote_documents'])) {
+        save_demand_supplier_quote_attachments(
+            $id,
+            is_array($data['quote_documents'] ?? null) ? $data['quote_documents'] : [],
+            !empty($data['replace_quote_documents'])
+        );
+    }
+
     invalidate_project_annex_versions(find_project_id_by_demand_list((int) $data['demand_list_id']));
 
     return $id;
@@ -3779,6 +4074,14 @@ function update_demand_supplier_quote(int $id, array $data): void
         'notes' => $data['notes'] ?: null,
         'status' => $data['status'] ?? 'received',
     ]);
+
+    if (array_key_exists('quote_documents', $data) || !empty($data['replace_quote_documents'])) {
+        save_demand_supplier_quote_attachments(
+            $id,
+            is_array($data['quote_documents'] ?? null) ? $data['quote_documents'] : [],
+            !empty($data['replace_quote_documents'])
+        );
+    }
 
     invalidate_project_annex_versions($projectId);
 }
@@ -4341,6 +4644,21 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
         : 'demand_item_id';
     $uploadedAttachmentPath = trim((string) ($data['attachment_path'] ?? ''));
     $removeAttachment = !empty($data['remove_attachment']);
+    $quoteDocumentsSubmitted = array_key_exists('quote_documents', $data)
+        || $uploadedAttachmentPath !== ''
+        || $removeAttachment;
+    $quoteDocuments = normalize_supplier_quote_documents($data['quote_documents'] ?? []);
+
+    if ($uploadedAttachmentPath !== '') {
+        $quoteDocuments[] = [
+            'quote_number' => trim((string) ($data['quote_number'] ?? '')) ?: null,
+            'quote_date' => normalize_optional_date($data['quote_date'] ?? null),
+            'validity_date' => normalize_optional_date($data['validity_date'] ?? null),
+            'attachment_path' => $uploadedAttachmentPath,
+            'notes' => null,
+        ];
+        $quoteDocuments = normalize_supplier_quote_documents($quoteDocuments);
+    }
 
     if ($projectId <= 0 || $supplierId <= 0) {
         throw new InvalidArgumentException('Projeto e fornecedor sao obrigatorios.');
@@ -4391,13 +4709,24 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
             }
 
             $existingQuote = find_demand_supplier_quote_by_supplier($demandId, $supplierId);
-            $attachmentPath = $uploadedAttachmentPath !== ''
-                ? $uploadedAttachmentPath
-                : ($removeAttachment ? null : ($existingQuote['attachment_path'] ?? null));
+            $quoteDocumentsForQuote = $quoteDocuments;
+
+            if (!$quoteDocumentsSubmitted && !$removeAttachment && $existingQuote) {
+                $quoteDocumentsForQuote = normalize_supplier_quote_documents($existingQuote['attachments'] ?? []);
+            }
+
+            $primaryQuoteDocument = $quoteDocumentsForQuote[0] ?? null;
+            $attachmentPath = $primaryQuoteDocument['attachment_path']
+                ?? ($removeAttachment ? null : ($existingQuote['attachment_path'] ?? null));
             $quoteData = array_merge($data, [
                 'demand_list_id' => $demandId,
                 'supplier_id' => $supplierId,
+                'quote_number' => $primaryQuoteDocument['quote_number'] ?? ($data['quote_number'] ?? ''),
+                'quote_date' => $primaryQuoteDocument['quote_date'] ?? ($data['quote_date'] ?? ''),
+                'validity_date' => $primaryQuoteDocument['validity_date'] ?? ($data['validity_date'] ?? ''),
                 'attachment_path' => $attachmentPath,
+                'quote_documents' => $quoteDocumentsForQuote,
+                'replace_quote_documents' => $quoteDocumentsSubmitted || $removeAttachment,
             ]);
             $itemUpserts = [];
             $itemDeletes = [];
@@ -4440,7 +4769,8 @@ function save_project_supplier_quote(array $data, array $prices, array $notes = 
                 || trim((string) ($quoteData['quoted_by'] ?? '')) !== ''
                 || trim((string) ($quoteData['collected_by'] ?? '')) !== ''
                 || trim((string) ($quoteData['notes'] ?? '')) !== ''
-                || trim((string) ($quoteData['attachment_path'] ?? '')) !== '';
+                || trim((string) ($quoteData['attachment_path'] ?? '')) !== ''
+                || $quoteDocumentsForQuote !== [];
 
             if (!$existingQuote && !$itemUpserts && !$quoteHasMetadata) {
                 continue;
@@ -5491,6 +5821,15 @@ function clone_project_supplier_quotes(array $demandIdMap, array $demandItemIdMa
             ]);
 
             $newQuoteId = (int) $insertQuote->fetchColumn();
+
+            if (supplier_quote_attachments_table_exists()) {
+                $quoteDocuments = get_demand_supplier_quote_attachments((int) $quote['id']);
+
+                if ($quoteDocuments) {
+                    save_demand_supplier_quote_attachments($newQuoteId, $quoteDocuments, true);
+                }
+            }
+
             $selectQuoteItems->execute(['quote_id' => (int) $quote['id']]);
 
             foreach ($selectQuoteItems->fetchAll() as $quoteItem) {
@@ -7145,6 +7484,21 @@ function catalog_json_table_definitions(): array
             ],
             'json' => [],
         ],
+        'demand_supplier_quote_attachments' => [
+            'label' => 'Documentos dos orcamentos',
+            'columns' => [
+                'id',
+                'demand_supplier_quote_id',
+                'quote_number',
+                'quote_date',
+                'validity_date',
+                'attachment_path',
+                'notes',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
         'demand_supplier_quote_items' => [
             'label' => 'Valores dos orcamentos',
             'columns' => [
@@ -7281,6 +7635,7 @@ function catalog_json_scope_tables(string $scope): array
             'demand_lists',
             'demand_items',
             'demand_supplier_quotes',
+            'demand_supplier_quote_attachments',
             'demand_supplier_quote_items',
             'demand_price_references',
             'project_licitation_items',
@@ -7308,6 +7663,7 @@ function catalog_json_scope_tables(string $scope): array
             'demand_lists',
             'demand_items',
             'demand_supplier_quotes',
+            'demand_supplier_quote_attachments',
             'demand_supplier_quote_items',
             'demand_price_references',
             'project_licitation_items',

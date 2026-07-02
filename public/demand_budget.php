@@ -162,13 +162,7 @@ require __DIR__ . '/../app/views/header.php';
                         </td>
                         <td class="fw-semibold">R$ <?= number_format((float) ($supplierTotals[$quoteId] ?? 0), 2, ',', '.') ?></td>
                         <td class="print-hide">
-                            <?php if (!empty($quote['attachment_path'])): ?>
-                                <a href="<?= e($quote['attachment_path']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                    <i class="bi bi-paperclip"></i>Abrir
-                                </a>
-                            <?php else: ?>
-                                <span class="text-muted">-</span>
-                            <?php endif; ?>
+                            <?= render_supplier_quote_document_buttons($quote) ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

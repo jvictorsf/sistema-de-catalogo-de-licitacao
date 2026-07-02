@@ -25,6 +25,7 @@ $errors = [];
 $postedPrices = is_array($_POST['prices'] ?? null) ? $_POST['prices'] : [];
 $postedNotes = is_array($_POST['item_notes'] ?? null) ? $_POST['item_notes'] : [];
 $postedSourceQuoteItemIds = is_array($_POST['source_quote_item_ids'] ?? null) ? $_POST['source_quote_item_ids'] : [];
+$postedQuoteDocuments = is_array($_POST['quote_documents'] ?? null) ? $_POST['quote_documents'] : [];
 $preserveBlankPriceKeys = is_array($_POST['preserve_blank_prices'] ?? null) ? $_POST['preserve_blank_prices'] : [];
 $removeAttachment = !empty($_POST['remove_attachment']);
 $quoteDefaults = [
@@ -72,14 +73,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Cadastre ao menos uma demanda antes de lançar orçamento geral.';
     }
 
-    $attachmentPath = null;
+    $quoteDocuments = $postedQuoteDocuments;
+
+    if ($removeAttachment) {
+        foreach ($quoteDocuments as $documentIndex => $document) {
+            if (is_array($document)) {
+                unset($quoteDocuments[$documentIndex]['attachment_path']);
+            }
+        }
+    }
 
     if (!$errors) {
         try {
-            $attachmentPath = upload_supplier_quote_file($_FILES['attachment'] ?? []);
+            foreach (normalize_uploaded_file_list($_FILES['quote_document_files'] ?? []) as $documentIndex => $file) {
+                $documentPath = upload_supplier_quote_file($file);
+
+                if ($documentPath === null) {
+                    continue;
+                }
+
+                if (!isset($quoteDocuments[$documentIndex]) || !is_array($quoteDocuments[$documentIndex])) {
+                    $quoteDocuments[$documentIndex] = [];
+                }
+
+                $quoteDocuments[$documentIndex]['attachment_path'] = $documentPath;
+            }
         } catch (RuntimeException $exception) {
             $errors[] = $exception->getMessage();
         }
+    }
+
+    $quoteDocuments = normalize_supplier_quote_documents($quoteDocuments);
+
+    if ($quoteDocuments) {
+        if (($quoteDocuments[0]['quote_number'] ?? null) === null && $quoteDefaults['quote_number'] !== '') {
+            $quoteDocuments[0]['quote_number'] = $quoteDefaults['quote_number'];
+        }
+
+        if (($quoteDocuments[0]['quote_date'] ?? null) === null && $quoteDefaults['quote_date'] !== '') {
+            $quoteDocuments[0]['quote_date'] = $quoteDefaults['quote_date'];
+        }
+
+        if (($quoteDocuments[0]['validity_date'] ?? null) === null && $quoteDefaults['validity_date'] !== '') {
+            $quoteDocuments[0]['validity_date'] = $quoteDefaults['validity_date'];
+        }
+
+        $primaryQuoteDocument = $quoteDocuments[0];
+        $quoteDefaults['quote_number'] = (string) ($primaryQuoteDocument['quote_number'] ?? '');
+        $quoteDefaults['quote_date'] = (string) ($primaryQuoteDocument['quote_date'] ?? '');
+        $quoteDefaults['validity_date'] = (string) ($primaryQuoteDocument['validity_date'] ?? '');
     }
 
     if (!$errors) {
@@ -93,7 +135,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'validity_date' => $quoteDefaults['validity_date'],
             'quoted_by' => $quoteDefaults['quoted_by'],
             'collected_by' => $quoteDefaults['collected_by'],
-            'attachment_path' => $attachmentPath,
+            'attachment_path' => null,
+            'quote_documents' => $quoteDocuments,
             'remove_attachment' => $removeAttachment,
             'notes' => $quoteDefaults['notes'],
             'status' => $quoteDefaults['status'],
@@ -145,11 +188,37 @@ foreach ($demands as $demand) {
         $existingQuoteCount++;
         $existingQuoteDemandNames[] = (string) $demand['name'];
 
-        $attachmentPath = trim((string) ($quote['attachment_path'] ?? ''));
+        $quoteAttachments = is_array($quote['attachments'] ?? null) ? $quote['attachments'] : [];
 
-        if ($attachmentPath !== '') {
-            $existingAttachments[$attachmentPath]['path'] = $attachmentPath;
-            $existingAttachments[$attachmentPath]['demands'][] = (string) $demand['name'];
+        if (!$quoteAttachments && trim((string) ($quote['attachment_path'] ?? '')) !== '') {
+            $quoteAttachments[] = [
+                'quote_number' => $quote['quote_number'] ?? '',
+                'quote_date' => $quote['quote_date'] ?? '',
+                'validity_date' => $quote['validity_date'] ?? '',
+                'attachment_path' => $quote['attachment_path'],
+                'notes' => '',
+            ];
+        }
+
+        foreach ($quoteAttachments as $quoteAttachment) {
+            $attachmentPath = trim((string) ($quoteAttachment['attachment_path'] ?? ''));
+
+            if ($attachmentPath === '') {
+                continue;
+            }
+
+            $attachmentKey = implode('|', [
+                $attachmentPath,
+                (string) ($quoteAttachment['quote_number'] ?? ''),
+                (string) ($quoteAttachment['quote_date'] ?? ''),
+                (string) ($quoteAttachment['validity_date'] ?? ''),
+            ]);
+            $existingAttachments[$attachmentKey]['attachment_path'] = $attachmentPath;
+            $existingAttachments[$attachmentKey]['quote_number'] = (string) ($quoteAttachment['quote_number'] ?? '');
+            $existingAttachments[$attachmentKey]['quote_date'] = (string) ($quoteAttachment['quote_date'] ?? '');
+            $existingAttachments[$attachmentKey]['validity_date'] = (string) ($quoteAttachment['validity_date'] ?? '');
+            $existingAttachments[$attachmentKey]['notes'] = (string) ($quoteAttachment['notes'] ?? '');
+            $existingAttachments[$attachmentKey]['demands'][] = (string) $demand['name'];
         }
     }
 
@@ -200,6 +269,34 @@ foreach ($demands as $demand) {
 }
 
 $existingAttachments = array_values($existingAttachments);
+$quoteDocumentRows = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? array_values($postedQuoteDocuments)
+    : $existingAttachments;
+
+if (!$quoteDocumentRows) {
+    $quoteDocumentRows[] = [
+        'quote_number' => $quoteDefaults['quote_number'],
+        'quote_date' => $quoteDefaults['quote_date'],
+        'validity_date' => $quoteDefaults['validity_date'],
+        'attachment_path' => '',
+        'notes' => '',
+    ];
+}
+
+foreach ($quoteDocumentRows as $documentIndex => $documentRow) {
+    if (!is_array($documentRow)) {
+        $documentRow = [];
+    }
+
+    $quoteDocumentRows[$documentIndex] = [
+        'quote_number' => (string) ($documentRow['quote_number'] ?? ''),
+        'quote_date' => (string) ($documentRow['quote_date'] ?? ''),
+        'validity_date' => (string) ($documentRow['validity_date'] ?? ''),
+        'attachment_path' => (string) ($documentRow['attachment_path'] ?? ''),
+        'notes' => (string) ($documentRow['notes'] ?? ''),
+    ];
+}
+
 $quoteTotal = 0.0;
 $quotePricedItemsCount = 0;
 
@@ -338,11 +435,11 @@ require __DIR__ . '/../app/views/header.php';
                                 <div class="d-flex flex-column align-items-start align-items-lg-end gap-2">
                                     <?php foreach ($existingAttachments as $attachmentIndex => $attachment): ?>
                                         <a
-                                            href="<?= e($attachment['path']) ?>"
+                                            href="<?= e($attachment['attachment_path']) ?>"
                                             target="_blank"
                                             class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-paperclip"></i>
-                                            Visualizar anexo <?= count($existingAttachments) > 1 ? $attachmentIndex + 1 : 'atual' ?>
+                                            <?= trim((string) ($attachment['quote_number'] ?? '')) !== '' ? 'Orcamento ' . e((string) $attachment['quote_number']) : 'Documento ' . ($attachmentIndex + 1) ?>
                                         </a>
                                     <?php endforeach; ?>
                                 </div>
@@ -398,30 +495,100 @@ require __DIR__ . '/../app/views/header.php';
             <input type="text" name="collected_by" class="form-control" value="<?= e($quoteDefaults['collected_by']) ?>">
         </div>
 
-        <div class="col-lg-5">
-            <label class="form-label"><?= $existingAttachments ? 'Trocar anexo do orçamento' : 'Anexo do orçamento' ?></label>
-            <input type="file" name="attachment" class="form-control" accept="application/pdf,.pdf,.doc,.docx,image/jpeg,image/png,image/webp">
-            <div class="form-text">
-                <?php if ($existingAttachments): ?>
-                    Se enviado, o novo arquivo substituirá o anexo atual nas demandas deste fornecedor.
-                <?php else: ?>
-                    Se enviado, o mesmo anexo será associado às demandas do projeto.
-                <?php endif; ?>
-            </div>
-
-            <?php if ($existingAttachments): ?>
-                <div class="form-check mt-2">
-                    <input
-                        type="checkbox"
-                        name="remove_attachment"
-                        value="1"
-                        class="form-check-input"
-                        id="removeAttachment">
-                    <label class="form-check-label" for="removeAttachment">
-                        Remover anexo atual ao salvar
-                    </label>
+        <div class="col-12">
+            <div class="border rounded-3 bg-light p-3">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+                    <div>
+                        <h2 class="h6 mb-1">Documentos do orçamento</h2>
+                        <div class="small text-muted">Cada documento pode ter número, data, validade e arquivo próprios.</div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="addQuoteDocument">
+                        <i class="bi bi-plus-lg"></i> Adicionar mais um orçamento
+                    </button>
                 </div>
-            <?php endif; ?>
+
+                <?php if ($existingAttachments): ?>
+                    <div class="form-check mb-3">
+                        <input
+                            type="checkbox"
+                            name="remove_attachment"
+                            value="1"
+                            class="form-check-input"
+                            id="removeAttachment">
+                        <label class="form-check-label" for="removeAttachment">
+                            Remover documentos atuais ao salvar
+                        </label>
+                    </div>
+                <?php endif; ?>
+
+                <div class="vstack gap-3" id="quoteDocumentList" data-next-index="<?= count($quoteDocumentRows) ?>">
+                    <?php foreach ($quoteDocumentRows as $documentIndex => $document): ?>
+                        <div class="quote-document-row border rounded bg-white p-3" data-quote-document-row>
+                            <input
+                                type="hidden"
+                                name="quote_documents[<?= (int) $documentIndex ?>][attachment_path]"
+                                value="<?= e($document['attachment_path']) ?>">
+
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                <div>
+                                    <div class="fw-semibold">Documento <?= (int) $documentIndex + 1 ?></div>
+                                    <?php if (trim((string) $document['attachment_path']) !== ''): ?>
+                                        <a href="<?= e($document['attachment_path']) ?>" target="_blank" class="small">
+                                            <i class="bi bi-paperclip"></i> Arquivo atual
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-quote-document>
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">Nº do orçamento</label>
+                                    <input
+                                        type="text"
+                                        name="quote_documents[<?= (int) $documentIndex ?>][quote_number]"
+                                        class="form-control"
+                                        value="<?= e($document['quote_number']) ?>">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Data</label>
+                                    <input
+                                        type="date"
+                                        name="quote_documents[<?= (int) $documentIndex ?>][quote_date]"
+                                        class="form-control"
+                                        value="<?= e($document['quote_date']) ?>">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Validade</label>
+                                    <input
+                                        type="date"
+                                        name="quote_documents[<?= (int) $documentIndex ?>][validity_date]"
+                                        class="form-control"
+                                        value="<?= e($document['validity_date']) ?>">
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">Arquivo do orçamento</label>
+                                    <input
+                                        type="file"
+                                        name="quote_document_files[<?= (int) $documentIndex ?>]"
+                                        class="form-control"
+                                        accept="application/pdf,.pdf,.doc,.docx,image/jpeg,image/png,image/webp">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Observação do documento</label>
+                                    <input
+                                        type="text"
+                                        name="quote_documents[<?= (int) $documentIndex ?>][notes]"
+                                        class="form-control"
+                                        value="<?= e($document['notes']) ?>">
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
         </div>
 
         <div class="col-lg-7">
@@ -551,6 +718,93 @@ require __DIR__ . '/../app/views/header.php';
         const quoteTotalValue = document.getElementById('quoteTotalValue');
         const quoteTotalPricedCount = document.getElementById('quoteTotalPricedCount');
         const priceInputs = document.querySelectorAll('[data-quote-price-input]');
+        const quoteDocumentList = document.getElementById('quoteDocumentList');
+        const addQuoteDocumentButton = document.getElementById('addQuoteDocument');
+
+        function createQuoteDocumentRow(index) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'quote-document-row border rounded bg-white p-3';
+            wrapper.dataset.quoteDocumentRow = '';
+            wrapper.innerHTML = `
+                <input type="hidden" name="quote_documents[${index}][attachment_path]" value="">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                    <div class="fw-semibold" data-quote-document-title>Documento ${index + 1}</div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-remove-quote-document>
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Nº do orçamento</label>
+                        <input type="text" name="quote_documents[${index}][quote_number]" class="form-control">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Data</label>
+                        <input type="date" name="quote_documents[${index}][quote_date]" class="form-control">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Validade</label>
+                        <input type="date" name="quote_documents[${index}][validity_date]" class="form-control">
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label">Arquivo do orçamento</label>
+                        <input type="file" name="quote_document_files[${index}]" class="form-control" accept="application/pdf,.pdf,.doc,.docx,image/jpeg,image/png,image/webp">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Observação do documento</label>
+                        <input type="text" name="quote_documents[${index}][notes]" class="form-control">
+                    </div>
+                </div>`;
+
+            return wrapper;
+        }
+
+        function updateQuoteDocumentTitles() {
+            if (!quoteDocumentList) {
+                return;
+            }
+
+            quoteDocumentList.querySelectorAll('[data-quote-document-row]').forEach(function(row, index) {
+                const title = row.querySelector('[data-quote-document-title], .fw-semibold');
+
+                if (title) {
+                    title.textContent = 'Documento ' + (index + 1);
+                }
+            });
+        }
+
+        if (addQuoteDocumentButton && quoteDocumentList) {
+            addQuoteDocumentButton.addEventListener('click', function() {
+                const nextIndex = Number(quoteDocumentList.dataset.nextIndex || 0);
+                quoteDocumentList.appendChild(createQuoteDocumentRow(nextIndex));
+                quoteDocumentList.dataset.nextIndex = String(nextIndex + 1);
+                updateQuoteDocumentTitles();
+            });
+
+            quoteDocumentList.addEventListener('click', function(event) {
+                const removeButton = event.target.closest('[data-remove-quote-document]');
+
+                if (!removeButton) {
+                    return;
+                }
+
+                const row = removeButton.closest('[data-quote-document-row]');
+
+                if (!row) {
+                    return;
+                }
+
+                if (quoteDocumentList.querySelectorAll('[data-quote-document-row]').length <= 1) {
+                    row.querySelectorAll('input').forEach(function(input) {
+                        input.value = '';
+                    });
+                    return;
+                }
+
+                row.remove();
+                updateQuoteDocumentTitles();
+            });
+        }
 
         function parseMoney(value) {
             const normalized = String(value || '').trim();

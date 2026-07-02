@@ -42,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $attachmentPath = $quote['attachment_path'] ?? null;
+    $uploadedPath = null;
 
     try {
         $uploadedPath = upload_supplier_quote_file($_FILES['attachment'] ?? []);
@@ -69,6 +70,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'notes' => trim($_POST['notes'] ?? ''),
         'status' => trim($_POST['status'] ?? 'received'),
     ];
+
+    if ($uploadedPath || !empty($_POST['remove_attachment'])) {
+        $data['quote_documents'] = $attachmentPath ? [[
+            'quote_number' => $data['quote_number'],
+            'quote_date' => $data['quote_date'],
+            'validity_date' => $data['validity_date'],
+            'attachment_path' => $attachmentPath,
+            'notes' => null,
+        ]] : [];
+        $data['replace_quote_documents'] = true;
+    }
 
     if (!$data['supplier_id']) {
         $errors[] = 'Selecione o fornecedor.';

@@ -1626,6 +1626,64 @@ function ensure_writable_upload_dir(string $uploadDir, string $label): void
     }
 }
 
+function get_supplier_quote_document_links(array $quote): array
+{
+    $attachments = is_array($quote['attachments'] ?? null) ? $quote['attachments'] : [];
+
+    if (!$attachments && trim((string) ($quote['attachment_path'] ?? '')) !== '') {
+        $attachments[] = [
+            'quote_number' => $quote['quote_number'] ?? '',
+            'quote_date' => $quote['quote_date'] ?? '',
+            'validity_date' => $quote['validity_date'] ?? '',
+            'attachment_path' => $quote['attachment_path'],
+            'notes' => '',
+        ];
+    }
+
+    $links = [];
+
+    foreach ($attachments as $attachment) {
+        if (!is_array($attachment)) {
+            continue;
+        }
+
+        $path = trim((string) ($attachment['attachment_path'] ?? ''));
+
+        if ($path === '') {
+            continue;
+        }
+
+        $links[] = [
+            'path' => $path,
+            'quote_number' => trim((string) ($attachment['quote_number'] ?? '')),
+            'quote_date' => trim((string) ($attachment['quote_date'] ?? '')),
+            'validity_date' => trim((string) ($attachment['validity_date'] ?? '')),
+        ];
+    }
+
+    return $links;
+}
+
+function render_supplier_quote_document_buttons(array $quote): string
+{
+    $links = get_supplier_quote_document_links($quote);
+
+    if (!$links) {
+        return '<span class="text-muted">-</span>';
+    }
+
+    $html = '<div class="d-flex flex-wrap gap-1">';
+
+    foreach ($links as $index => $link) {
+        $label = $link['quote_number'] !== ''
+            ? 'Orcamento ' . e($link['quote_number'])
+            : 'Anexo ' . ($index + 1);
+        $html .= '<a href="' . e($link['path']) . '" target="_blank" class="btn btn-sm btn-outline-secondary">'
+            . '<i class="bi bi-paperclip"></i>' . $label . '</a>';
+    }
+
+    return $html . '</div>';
+}
 function upload_supplier_quote_file(array $file): ?string
 {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
@@ -1680,6 +1738,45 @@ function upload_supplier_quote_file(array $file): ?string
     return '/supplier_quote_file.php?file=' . rawurlencode($filename);
 }
 
+function normalize_uploaded_file_list(array $files): array
+{
+    if (!isset($files['name'])) {
+        return [];
+    }
+
+    if (!is_array($files['name'])) {
+        return [$files];
+    }
+
+    $normalized = [];
+
+    foreach (array_keys($files['name']) as $index) {
+        $normalized[$index] = [
+            'name' => $files['name'][$index] ?? '',
+            'type' => $files['type'][$index] ?? '',
+            'tmp_name' => $files['tmp_name'][$index] ?? '',
+            'error' => $files['error'][$index] ?? UPLOAD_ERR_NO_FILE,
+            'size' => $files['size'][$index] ?? 0,
+        ];
+    }
+
+    return $normalized;
+}
+
+function upload_supplier_quote_files(array $files): array
+{
+    $paths = [];
+
+    foreach (normalize_uploaded_file_list($files) as $file) {
+        $path = upload_supplier_quote_file($file);
+
+        if ($path !== null) {
+            $paths[] = $path;
+        }
+    }
+
+    return $paths;
+}
 function upload_item_image(array $file): ?string
 {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {

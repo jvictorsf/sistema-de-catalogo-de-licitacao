@@ -319,6 +319,18 @@ CREATE TABLE IF NOT EXISTS demand_supplier_quotes (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS demand_supplier_quote_attachments (
+    id SERIAL PRIMARY KEY,
+    demand_supplier_quote_id INTEGER NOT NULL REFERENCES demand_supplier_quotes(id) ON DELETE CASCADE,
+    quote_number VARCHAR(100),
+    quote_date DATE,
+    validity_date DATE,
+    attachment_path VARCHAR(255) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (demand_supplier_quote_id, attachment_path)
+);
 CREATE TABLE IF NOT EXISTS demand_supplier_quote_items (
     id SERIAL PRIMARY KEY,
     demand_supplier_quote_id INTEGER NOT NULL REFERENCES demand_supplier_quotes(id) ON DELETE CASCADE,
@@ -695,6 +707,20 @@ ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'received';
 ALTER TABLE demand_supplier_quotes
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
+ALTER TABLE demand_supplier_quote_attachments
+ADD COLUMN IF NOT EXISTS quote_number VARCHAR(100);
+
+ALTER TABLE demand_supplier_quote_attachments
+ADD COLUMN IF NOT EXISTS quote_date DATE;
+
+ALTER TABLE demand_supplier_quote_attachments
+ADD COLUMN IF NOT EXISTS validity_date DATE;
+
+ALTER TABLE demand_supplier_quote_attachments
+ADD COLUMN IF NOT EXISTS notes TEXT;
+
+ALTER TABLE demand_supplier_quote_attachments
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE demand_supplier_quote_items
 ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2);
 
@@ -845,6 +871,11 @@ BEFORE UPDATE ON demand_supplier_quotes
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 
+DROP TRIGGER IF EXISTS trg_touch_updated_at_supplier_quote_attachments ON demand_supplier_quote_attachments;
+CREATE TRIGGER trg_touch_updated_at_supplier_quote_attachments
+BEFORE UPDATE ON demand_supplier_quote_attachments
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
 DROP TRIGGER IF EXISTS trg_touch_updated_at_supplier_quote_items ON demand_supplier_quote_items;
 CREATE TRIGGER trg_touch_updated_at_supplier_quote_items
 BEFORE UPDATE ON demand_supplier_quote_items
@@ -1122,6 +1153,8 @@ ON demand_supplier_quotes (demand_list_id, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_demand_supplier_quotes_demand
 ON demand_supplier_quotes (demand_list_id);
 
+CREATE INDEX IF NOT EXISTS idx_demand_supplier_quote_attachments_quote
+ON demand_supplier_quote_attachments (demand_supplier_quote_id);
 CREATE INDEX IF NOT EXISTS idx_demand_supplier_quote_items_quote
 ON demand_supplier_quote_items (demand_supplier_quote_id);
 
@@ -2635,6 +2668,26 @@ ON CONFLICT (code) DO UPDATE SET
     cnae_2_3 = EXCLUDED.cnae_2_3,
     updated_at = CURRENT_TIMESTAMP;
 
+-- Backfill: anexos antigos dos orcamentos para a tabela de documentos multiplos.
+INSERT INTO demand_supplier_quote_attachments (
+    demand_supplier_quote_id,
+    quote_number,
+    quote_date,
+    validity_date,
+    attachment_path,
+    notes
+)
+SELECT
+    id,
+    quote_number,
+    quote_date,
+    validity_date,
+    attachment_path,
+    notes
+FROM demand_supplier_quotes
+WHERE attachment_path IS NOT NULL
+  AND attachment_path <> ''
+ON CONFLICT (demand_supplier_quote_id, attachment_path) DO NOTHING;
 SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
 SELECT setval(pg_get_serial_sequence('unit_types', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM unit_types), 0), 1), COALESCE((SELECT MAX(id) FROM unit_types), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_items), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_items), 0) > 0);
@@ -2648,6 +2701,7 @@ SELECT setval(pg_get_serial_sequence('demand_lists', 'id'), GREATEST(COALESCE((S
 SELECT setval(pg_get_serial_sequence('demand_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_supplier_quotes', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_supplier_quote_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0) > 0);
+SELECT setval(pg_get_serial_sequence('demand_supplier_quote_attachments', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quote_attachments), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quote_attachments), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_price_references', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_price_references), 0), 1), COALESCE((SELECT MAX(id) FROM demand_price_references), 0) > 0);
 SELECT setval(pg_get_serial_sequence('project_licitation_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_licitation_items), 0), 1), COALESCE((SELECT MAX(id) FROM project_licitation_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('project_status_events', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM project_status_events), 0), 1), COALESCE((SELECT MAX(id) FROM project_status_events), 0) > 0);

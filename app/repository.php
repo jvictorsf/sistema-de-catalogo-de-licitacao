@@ -1046,7 +1046,7 @@ function create_project(array $data): int
             :description,
             :status,
             :cancellation_reason,
-            CASE WHEN :status = 'canceled' THEN CURRENT_TIMESTAMP ELSE NULL END
+            CASE WHEN CAST(:is_canceled AS boolean) THEN CURRENT_TIMESTAMP ELSE NULL END
         )
         RETURNING id
     ");
@@ -1055,6 +1055,7 @@ function create_project(array $data): int
         'name' => $data['name'],
         'description' => $data['description'] ?? null,
         'status' => $status,
+        'is_canceled' => $status === 'canceled' ? 'true' : 'false',
         'cancellation_reason' => $status === 'canceled' ? $cancellationReason : null,
     ]);
 
@@ -1166,12 +1167,12 @@ function update_project(int $id, array $data): void
                 status = :status,
                 cancellation_reason = :cancellation_reason,
                 canceled_at = CASE
-                    WHEN :status = 'canceled' AND status <> 'canceled' THEN CURRENT_TIMESTAMP
+                    WHEN CAST(:is_newly_canceled AS boolean) THEN CURRENT_TIMESTAMP
                     ELSE canceled_at
                 END,
                 reopen_reason = :reopen_reason,
                 reopened_at = CASE
-                    WHEN :status = 'reopened' AND status <> 'reopened' THEN CURRENT_TIMESTAMP
+                    WHEN CAST(:is_newly_reopened AS boolean) THEN CURRENT_TIMESTAMP
                     ELSE reopened_at
                 END,
                 reopen_mode = :reopen_mode,
@@ -1184,6 +1185,8 @@ function update_project(int $id, array $data): void
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'status' => $nextStatus,
+            'is_newly_canceled' => $nextStatus === 'canceled' && $currentStatus !== 'canceled' ? 'true' : 'false',
+            'is_newly_reopened' => $nextStatus === 'reopened' && $currentStatus !== 'reopened' ? 'true' : 'false',
             'cancellation_reason' => $cancellationReason !== '' ? $cancellationReason : null,
             'reopen_reason' => $reopenReason !== '' ? $reopenReason : null,
             'reopen_mode' => $reopenMode,

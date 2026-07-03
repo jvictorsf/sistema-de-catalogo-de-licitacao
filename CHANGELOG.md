@@ -2,6 +2,10 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.32] - 2026-07-03
+
+### Corrigido
+- Criacao e edicao de projetos deixam de reutilizar o parametro `:status` em expressoes `CASE`, evitando erro de parametro ambiguo no PostgreSQL ao salvar novos projetos.
 ## [1.5.31] - 2026-07-02
 
 ### Adicionado

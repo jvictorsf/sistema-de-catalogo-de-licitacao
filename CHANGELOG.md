@@ -2,6 +2,16 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.5.33] - 2026-07-03
+
+### Adicionado
+- Observacoes padrao especificas para itens de servico, com foco em execucao, qualificacao, normas aplicaveis, garantia e suporte quando cabivel.
+
+### Alterado
+- Formulario de itens passa a trocar o modelo de especificacao tecnica conforme o tipo de unidade selecionado, preservando campos ja preenchidos e substituindo apenas observacoes padrao conhecidas.
+
+### Corrigido
+- Itens de servico deixam de receber observacoes padrao de produtos no JSON de especificacao tecnica.
 ## [1.5.32] - 2026-07-03
 
 ### Corrigido

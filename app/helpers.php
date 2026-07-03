@@ -67,7 +67,12 @@ function pretty_json(mixed $value): string
     return json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 }
 
-function standard_item_observations(): array
+function item_specification_kind(string $kind): string
+{
+    return $kind === 'service' ? 'service' : 'product';
+}
+
+function standard_product_item_observations(): array
 {
     return [
         'A imagem do produto, quando utilizada no processo administrativo, será meramente ilustrativa, sem vinculação obrigatória de marca ou fabricante.',
@@ -78,7 +83,54 @@ function standard_item_observations(): array
     ];
 }
 
-function default_item_specification(): array
+function standard_service_item_observations(): array
+{
+    return [
+        'O serviço deverá ser executado conforme as condições, prazos e níveis mínimos de qualidade definidos no termo de referência.',
+        'Serão aceitas soluções tecnicamente equivalentes ou superiores desde que atendam integralmente às especificações mínimas exigidas.',
+        'A contratada deverá empregar profissionais qualificados e materiais, ferramentas e equipamentos adequados à execução do serviço, quando aplicável.',
+        'A execução deverá observar as normas técnicas, de segurança, ambientais e demais legislações vigentes aplicáveis ao serviço.',
+        'A contratada deverá prestar garantia, correção de falhas e suporte durante o período previsto para o serviço executado, quando aplicável.',
+    ];
+}
+
+function standard_item_observations(string $kind = 'product'): array
+{
+    return item_specification_kind($kind) === 'service'
+        ? standard_service_item_observations()
+        : standard_product_item_observations();
+}
+
+function opposite_standard_item_observations(string $kind): array
+{
+    return item_specification_kind($kind) === 'service'
+        ? standard_product_item_observations()
+        : standard_service_item_observations();
+}
+
+function item_specification_kind_from_unit_type(?array $unitType): string
+{
+    if (!$unitType) {
+        return 'product';
+    }
+
+    $name = strtolower(trim((string) ($unitType['name'] ?? '')));
+    $abbreviation = strtolower(trim((string) ($unitType['abbreviation'] ?? '')));
+    $description = strtolower(trim((string) ($unitType['description'] ?? '')));
+
+    if (
+        in_array($abbreviation, ['serv', 'svc', 'srv'], true) ||
+        str_starts_with($name, 'servi') ||
+        str_contains($description, 'servico') ||
+        str_contains($description, 'serviço')
+    ) {
+        return 'service';
+    }
+
+    return 'product';
+}
+
+function default_item_specification(string $kind = 'product', bool $withStandardObservations = true): array
 {
     return [
         'marca_referencia' => '',
@@ -88,13 +140,13 @@ function default_item_specification(): array
         'criterios_aceitacao' => [],
         'documentacao_exigida' => [],
         'certificados' => [],
-        'observacoes' => standard_item_observations(),
+        'observacoes' => $withStandardObservations ? standard_item_observations($kind) : [],
     ];
 }
 
-function default_item_specification_json(): string
+function default_item_specification_json(string $kind = 'product'): string
 {
-    return pretty_json(default_item_specification());
+    return pretty_json(default_item_specification($kind));
 }
 
 function item_specification_key_order(): array
@@ -111,9 +163,14 @@ function item_specification_key_order(): array
     ];
 }
 
-function normalize_item_specification_array(array $decoded): array
+function normalize_item_specification_array(
+    array $decoded,
+    string $kind = 'product',
+    bool $withStandardObservations = true
+): array
 {
-    $normalized = array_merge(default_item_specification(), $decoded);
+    $kind = item_specification_kind($kind);
+    $normalized = array_merge(default_item_specification($kind, false), $decoded);
 
     foreach ([
         'caracteristicas_minimas',
@@ -127,9 +184,18 @@ function normalize_item_specification_array(array $decoded): array
         }
     }
 
-    foreach (standard_item_observations() as $observation) {
-        if (!in_array($observation, $normalized['observacoes'], true)) {
-            $normalized['observacoes'][] = $observation;
+    if ($withStandardObservations) {
+        $oppositeObservations = opposite_standard_item_observations($kind);
+        $normalized['observacoes'] = array_values(array_filter(
+            $normalized['observacoes'],
+            static fn (mixed $observation): bool => !is_string($observation)
+                || !in_array($observation, $oppositeObservations, true)
+        ));
+
+        foreach (standard_item_observations($kind) as $observation) {
+            if (!in_array($observation, $normalized['observacoes'], true)) {
+                $normalized['observacoes'][] = $observation;
+            }
         }
     }
 
@@ -153,7 +219,7 @@ function normalize_item_specification_array(array $decoded): array
     return $ordered;
 }
 
-function normalize_item_specification_json(string $json): string
+function normalize_item_specification_json(string $json, string $kind = 'product'): string
 {
     $decoded = json_decode($json, true);
 
@@ -161,10 +227,10 @@ function normalize_item_specification_json(string $json): string
         $decoded = [];
     }
 
-    return pretty_json(normalize_item_specification_array($decoded));
+    return pretty_json(normalize_item_specification_array($decoded, $kind));
 }
 
-function format_item_specification_json(mixed $value): string
+function format_item_specification_json(mixed $value, string $kind = 'product'): string
 {
     if (is_string($value)) {
         $decoded = json_decode($value, true);
@@ -173,25 +239,25 @@ function format_item_specification_json(mixed $value): string
             return $value;
         }
 
-        return pretty_json(normalize_item_specification_array(is_array($decoded) ? $decoded : []));
+        return pretty_json(normalize_item_specification_array(is_array($decoded) ? $decoded : [], $kind, false));
     }
 
-    return pretty_json(normalize_item_specification_array(is_array($value) ? $value : []));
+    return pretty_json(normalize_item_specification_array(is_array($value) ? $value : [], $kind, false));
 }
 
-function item_specification_array_from_value(mixed $value): array
+function item_specification_array_from_value(mixed $value, string $kind = 'product'): array
 {
     if (is_string($value)) {
         $decoded = json_decode($value, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            return normalize_item_specification_array([]);
+            return normalize_item_specification_array([], $kind, false);
         }
 
-        return normalize_item_specification_array(is_array($decoded) ? $decoded : []);
+        return normalize_item_specification_array(is_array($decoded) ? $decoded : [], $kind, false);
     }
 
-    return normalize_item_specification_array(is_array($value) ? $value : []);
+    return normalize_item_specification_array(is_array($value) ? $value : [], $kind, false);
 }
 
 function item_specification_label(string $key): string

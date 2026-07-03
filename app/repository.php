@@ -75,6 +75,33 @@ function normalize_decimal_db_value(mixed $value): ?string
     return $normalized === '' ? null : $normalized;
 }
 
+function item_specification_kind_from_data(array $data): string
+{
+    if (
+        array_key_exists('unit_type_name', $data) ||
+        array_key_exists('unit_type_abbreviation', $data) ||
+        array_key_exists('unit_type_description', $data)
+    ) {
+        $kindFromText = item_specification_kind_from_unit_type([
+            'name' => $data['unit_type_name'] ?? '',
+            'abbreviation' => $data['unit_type_abbreviation'] ?? '',
+            'description' => $data['unit_type_description'] ?? '',
+        ]);
+
+        if ($kindFromText === 'service') {
+            return $kindFromText;
+        }
+    }
+
+    $unitTypeId = (int) ($data['unit_type_id'] ?? 0);
+
+    if ($unitTypeId <= 0) {
+        return 'product';
+    }
+
+    return item_specification_kind_from_unit_type(find_unit_type($unitTypeId));
+}
+
 function ensure_item_tracking_code(int $id): void
 {
     $stmt = db()->prepare("
@@ -257,7 +284,10 @@ function find_item(int $id): ?array
 
 function create_item(array $data): int
 {
-    $data['specification'] = normalize_item_specification_json((string) $data['specification']);
+    $data['specification'] = normalize_item_specification_json(
+        (string) $data['specification'],
+        item_specification_kind_from_data($data)
+    );
     $data['environmental_impacts'] = normalize_environmental_impacts_json($data['environmental_impacts'] ?? '');
 
     $stmt = db()->prepare("
@@ -318,7 +348,10 @@ function create_item(array $data): int
 
 function update_item(int $id, array $data): void
 {
-    $data['specification'] = normalize_item_specification_json((string) $data['specification']);
+    $data['specification'] = normalize_item_specification_json(
+        (string) $data['specification'],
+        item_specification_kind_from_data($data)
+    );
     $data['environmental_impacts'] = normalize_environmental_impacts_json($data['environmental_impacts'] ?? '');
 
     $stmt = db()->prepare("
@@ -6159,7 +6192,10 @@ function duplicate_item(int $id): int
         'level' => $item['level'],
         'status' => $item['status'] ?? 'draft',
         'name' => $newName,
-        'specification' => normalize_item_specification_json((string) $specification),
+        'specification' => normalize_item_specification_json(
+            (string) $specification,
+            item_specification_kind_from_data($item)
+        ),
         'justification' => $item['justification'],
         'warranty' => $item['warranty'],
         'environmental_impacts' => normalize_environmental_impacts_json($item['environmental_impacts'] ?? ''),
@@ -6832,9 +6868,12 @@ function restore_item_version(int $versionId): int
     $stmt->execute([
         'id' => $itemId,
         'name' => $version['name'],
-        'specification' => normalize_item_specification_json(is_string($version['specification'])
-            ? $version['specification']
-            : json_encode($version['specification'], JSON_UNESCAPED_UNICODE)),
+        'specification' => normalize_item_specification_json(
+            is_string($version['specification'])
+                ? $version['specification']
+                : json_encode($version['specification'], JSON_UNESCAPED_UNICODE),
+            item_specification_kind_from_data($version)
+        ),
         'justification' => $version['justification'],
         'warranty' => $version['warranty'],
         'environmental_impacts' => normalize_environmental_impacts_json($version['environmental_impacts'] ?? ''),
@@ -8071,7 +8110,10 @@ function import_catalog_table_rows(string $table, array $columns, array $jsonCol
                     ? $row[$column]
                     : json_encode($row[$column], JSON_UNESCAPED_UNICODE);
 
-                $values[$column] = normalize_item_specification_json((string) $rawSpecification);
+                $values[$column] = normalize_item_specification_json(
+                    (string) $rawSpecification,
+                    item_specification_kind_from_data($row)
+                );
                 continue;
             }
 

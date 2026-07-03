@@ -122,7 +122,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 require __DIR__ . '/../app/views/header.php';
 
-$specification = old($item ?? [], 'specification', default_item_specification_json());
+$currentUnitType = null;
+$currentUnitTypeId = (int) old($item ?? [], 'unit_type_id');
+
+foreach ($unitTypes as $unitType) {
+    if ((int) $unitType['id'] === $currentUnitTypeId) {
+        $currentUnitType = $unitType;
+        break;
+    }
+}
+
+$currentSpecificationKind = item_specification_kind_from_unit_type($currentUnitType);
+$specification = old($item ?? [], 'specification', default_item_specification_json($currentSpecificationKind));
+$productSpecificationTemplate = default_item_specification_json('product');
+$serviceSpecificationTemplate = default_item_specification_json('service');
+$standardObservationTemplates = [
+    'product' => standard_item_observations('product'),
+    'service' => standard_item_observations('service'),
+];
 $environmentalImpactItems = environmental_impacts_to_array((string) old($item ?? [], 'environmental_impacts', ''));
 ?>
 
@@ -185,12 +202,13 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
         <div class="col-md-4">
             <label class="form-label">Tipo de unidade</label>
 
-            <select name="unit_type_id" class="form-select" required>
+            <select name="unit_type_id" id="unit_type_id" class="form-select" required>
                 <option value="">Selecione...</option>
 
                 <?php foreach ($unitTypes as $unitType): ?>
                     <option
                         value="<?= (int) $unitType['id'] ?>"
+                        data-spec-kind="<?= e(item_specification_kind_from_unit_type($unitType)) ?>"
                         <?= (int) old($item ?? [], 'unit_type_id') === (int) $unitType['id'] ? 'selected' : '' ?>>
 
                         <?= e($unitType['name']) ?>
@@ -308,7 +326,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
 
         <div class="col-12">
             <label class="form-label">Especificação técnica em JSON</label>
-            <textarea name="specification" id="specification" rows="10" class="form-control font-monospace" required><?= e(format_item_specification_json($specification)) ?></textarea>
+            <textarea name="specification" id="specification" rows="10" class="form-control font-monospace" required><?= e(format_item_specification_json($specification, $currentSpecificationKind)) ?></textarea>
             <div id="jsonFeedback" class="form-text">Informe um JSON válido com as características técnicas mínimas.</div>
         </div>
 
@@ -419,6 +437,91 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
         const customImpactInput = document.getElementById('customImpactInput');
         const btnAddImpactTemplate = document.getElementById('btnAddImpactTemplate');
         const btnAddCustomImpact = document.getElementById('btnAddCustomImpact');
+        const unitTypeSelect = document.getElementById('unit_type_id');
+        const specificationInput = document.getElementById('specification');
+        const specificationTemplates = <?= json_encode([
+            'product' => $productSpecificationTemplate,
+            'service' => $serviceSpecificationTemplate,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+        const standardObservations = <?= json_encode($standardObservationTemplates, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+        let currentSpecificationKind = <?= json_encode($currentSpecificationKind) ?>;
+
+        function selectedSpecificationKind() {
+            if (!unitTypeSelect) {
+                return 'product';
+            }
+
+            const selected = unitTypeSelect.options[unitTypeSelect.selectedIndex];
+
+            return selected && selected.dataset.specKind ? selected.dataset.specKind : 'product';
+        }
+
+        function normalizedJsonText(value) {
+            try {
+                return JSON.stringify(JSON.parse(value));
+            } catch (error) {
+                return String(value || '').trim();
+            }
+        }
+
+        function specificationUsesKnownTemplate(value) {
+            const normalizedValue = normalizedJsonText(value);
+
+            return Object.values(specificationTemplates).some(template => (
+                normalizedJsonText(template) === normalizedValue
+            ));
+        }
+
+        function replaceStandardSpecificationObservations(kind) {
+            if (!specificationInput) {
+                return;
+            }
+
+            let specification = null;
+
+            try {
+                specification = JSON.parse(specificationInput.value || '{}');
+            } catch (error) {
+                return;
+            }
+
+            if (!specification || typeof specification !== 'object' || Array.isArray(specification)) {
+                return;
+            }
+
+            const targetDefaults = standardObservations[kind] || standardObservations.product || [];
+            const knownDefaults = Object.values(standardObservations).flat();
+            const currentObservations = Array.isArray(specification.observacoes)
+                ? specification.observacoes
+                : [];
+            const customObservations = currentObservations.filter(observation => (
+                !knownDefaults.includes(observation)
+            ));
+
+            specification.observacoes = [...customObservations];
+
+            targetDefaults.forEach(observation => {
+                if (!specification.observacoes.includes(observation)) {
+                    specification.observacoes.push(observation);
+                }
+            });
+
+            specificationInput.value = JSON.stringify(specification, null, 2);
+        }
+
+        if (unitTypeSelect && specificationInput) {
+            unitTypeSelect.addEventListener('change', function() {
+                const nextKind = selectedSpecificationKind();
+
+                if (!specificationInput.value.trim() || specificationUsesKnownTemplate(specificationInput.value)) {
+                    specificationInput.value = specificationTemplates[nextKind] || specificationTemplates.product;
+                } else if (nextKind !== currentSpecificationKind) {
+                    replaceStandardSpecificationObservations(nextKind);
+                }
+
+                currentSpecificationKind = nextKind;
+            });
+        }
 
         if (justificationSelect) {
             justificationSelect.addEventListener('change', function() {

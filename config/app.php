@@ -40,7 +40,7 @@ if (is_file($envFile)) {
     }
 }
 
-defined('APP_NAME') || define('APP_NAME', env_value('APP_NAME', 'Catalogo de Licitacao'));
+defined('APP_NAME') || define('APP_NAME', env_value('APP_NAME', 'Sistema Interno de Compras e Licitacoes'));
 defined('APP_URL') || define('APP_URL', env_value('APP_URL', 'https://catalogo-licitacao.esturvo.intra'));
 defined('APP_ENV') || define('APP_ENV', env_value('APP_ENV', 'production'));
 defined('APP_STORAGE_PATH') || define('APP_STORAGE_PATH', BASE_PATH . '/storage');

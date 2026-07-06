@@ -546,6 +546,8 @@ function project_closure_payload(int $projectId): array
             'name' => (string) ($project['name'] ?? ''),
             'description' => (string) ($project['description'] ?? ''),
             'status' => (string) ($project['status'] ?? ''),
+            'process_type' => normalize_project_process_type($project['process_type'] ?? 'licitacao'),
+            'direct_purchase_award_criterion' => normalize_direct_purchase_award_criterion($project['direct_purchase_award_criterion'] ?? 'global_lowest'),
             'cancellation_reason' => (string) ($project['cancellation_reason'] ?? ''),
             'canceled_at' => (string) ($project['canceled_at'] ?? ''),
             'reopen_reason' => (string) ($project['reopen_reason'] ?? ''),
@@ -1062,6 +1064,8 @@ function create_project(array $data): int
     }
 
     $cancellationReason = trim((string) ($data['cancellation_reason'] ?? ''));
+    $processType = normalize_project_process_type($data['process_type'] ?? 'licitacao');
+    $awardCriterion = normalize_direct_purchase_award_criterion($data['direct_purchase_award_criterion'] ?? 'global_lowest');
 
     if ($status === 'canceled' && $cancellationReason === '') {
         throw new InvalidArgumentException('Informe a justificativa do cancelamento.');
@@ -1071,12 +1075,16 @@ function create_project(array $data): int
         INSERT INTO procurement_projects (
             name,
             description,
+            process_type,
+            direct_purchase_award_criterion,
             status,
             cancellation_reason,
             canceled_at
         ) VALUES (
             :name,
             :description,
+            :process_type,
+            :direct_purchase_award_criterion,
             :status,
             :cancellation_reason,
             CASE WHEN CAST(:is_canceled AS boolean) THEN CURRENT_TIMESTAMP ELSE NULL END
@@ -1087,6 +1095,8 @@ function create_project(array $data): int
     $stmt->execute([
         'name' => $data['name'],
         'description' => $data['description'] ?? null,
+        'process_type' => $processType,
+        'direct_purchase_award_criterion' => $awardCriterion,
         'status' => $status,
         'is_canceled' => $status === 'canceled' ? 'true' : 'false',
         'cancellation_reason' => $status === 'canceled' ? $cancellationReason : null,
@@ -1116,6 +1126,8 @@ function update_project(int $id, array $data): void
 
     $currentStatus = (string) ($project['status'] ?? 'draft');
     $nextStatus = (string) ($data['status'] ?? 'draft');
+    $processType = normalize_project_process_type($data['process_type'] ?? ($project['process_type'] ?? 'licitacao'));
+    $awardCriterion = normalize_direct_purchase_award_criterion($data['direct_purchase_award_criterion'] ?? ($project['direct_purchase_award_criterion'] ?? 'global_lowest'));
     $allowedStatuses = array_keys(project_status_options_for_form($project));
 
     if (!in_array($nextStatus, $allowedStatuses, true)) {
@@ -1135,6 +1147,11 @@ function update_project(int $id, array $data): void
     if ($currentStatus === 'canceled') {
         $data['name'] = $project['name'];
         $data['description'] = $project['description'];
+    }
+
+    if (in_array($currentStatus, ['closed', 'canceled'], true)) {
+        $processType = normalize_project_process_type($project['process_type'] ?? 'licitacao');
+        $awardCriterion = normalize_direct_purchase_award_criterion($project['direct_purchase_award_criterion'] ?? 'global_lowest');
     }
 
     $cancellationReason = trim((string) ($data['cancellation_reason'] ?? ''));
@@ -1197,6 +1214,8 @@ function update_project(int $id, array $data): void
             UPDATE procurement_projects SET
                 name = :name,
                 description = :description,
+                process_type = :process_type,
+                direct_purchase_award_criterion = :direct_purchase_award_criterion,
                 status = :status,
                 cancellation_reason = :cancellation_reason,
                 canceled_at = CASE
@@ -1217,6 +1236,8 @@ function update_project(int $id, array $data): void
             'id' => $id,
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
+            'process_type' => $processType,
+            'direct_purchase_award_criterion' => $awardCriterion,
             'status' => $nextStatus,
             'is_newly_canceled' => $nextStatus === 'canceled' && $currentStatus !== 'canceled' ? 'true' : 'false',
             'is_newly_reopened' => $nextStatus === 'reopened' && $currentStatus !== 'reopened' ? 'true' : 'false',
@@ -1245,6 +1266,134 @@ function update_project(int $id, array $data): void
     }
 }
 
+function repository_json_array(mixed $value): array
+{
+    if (is_array($value)) {
+        return $value;
+    }
+
+    if (is_string($value) && trim($value) !== '') {
+        $decoded = json_decode($value, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    return [];
+}
+
+function direct_purchase_dod_table_exists(): bool
+{
+    return database_table_exists('direct_purchase_dod_documents');
+}
+
+function get_direct_purchase_dod(int $projectId): array
+{
+    $project = find_project($projectId) ?? [];
+    $dod = [
+        'id' => null,
+        'project_id' => $projectId,
+        'exists' => false,
+        'schema_available' => direct_purchase_dod_table_exists(),
+        'header' => direct_purchase_dod_default_header($project),
+        'footer' => direct_purchase_dod_default_footer(),
+        'sections' => direct_purchase_dod_default_sections(),
+    ];
+
+    if (!$dod['schema_available']) {
+        return $dod;
+    }
+
+    $stmt = db()->prepare("
+        SELECT *
+        FROM direct_purchase_dod_documents
+        WHERE project_id = :project_id
+    ");
+    $stmt->execute(['project_id' => $projectId]);
+    $row = $stmt->fetch();
+
+    if (!$row) {
+        return $dod;
+    }
+
+    return [
+        'id' => (int) $row['id'],
+        'project_id' => $projectId,
+        'exists' => true,
+        'schema_available' => true,
+        'header' => direct_purchase_dod_normalize_header(repository_json_array($row['header'] ?? []), $project),
+        'footer' => direct_purchase_dod_normalize_footer(repository_json_array($row['footer'] ?? [])),
+        'sections' => direct_purchase_dod_normalize_sections(repository_json_array($row['sections'] ?? [])),
+        'created_at' => $row['created_at'] ?? null,
+        'updated_at' => $row['updated_at'] ?? null,
+    ];
+}
+
+function save_direct_purchase_dod(int $projectId, array $data): void
+{
+    if (!direct_purchase_dod_table_exists()) {
+        throw new RuntimeException('Recurso DOD indisponivel. Atualize o schema do banco de dados.');
+    }
+
+    $project = find_project($projectId);
+
+    if (!$project) {
+        throw new RuntimeException('Projeto nao encontrado.');
+    }
+
+    if (!project_is_direct_purchase($project)) {
+        throw new RuntimeException('O DOD esta disponivel apenas para projetos de Compra Direta.');
+    }
+
+    assert_project_editable($projectId);
+
+    $header = direct_purchase_dod_normalize_header($data['header'] ?? [], $project);
+    $footer = direct_purchase_dod_normalize_footer($data['footer'] ?? []);
+    $sections = direct_purchase_dod_normalize_sections($data['sections'] ?? []);
+
+    $stmt = db()->prepare("
+        INSERT INTO direct_purchase_dod_documents (
+            project_id,
+            header,
+            footer,
+            sections
+        ) VALUES (
+            :project_id,
+            CAST(:header AS jsonb),
+            CAST(:footer AS jsonb),
+            CAST(:sections AS jsonb)
+        )
+        ON CONFLICT (project_id) DO UPDATE SET
+            header = EXCLUDED.header,
+            footer = EXCLUDED.footer,
+            sections = EXCLUDED.sections
+    ");
+
+    $stmt->execute([
+        'project_id' => $projectId,
+        'header' => json_encode($header, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'footer' => json_encode($footer, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'sections' => json_encode($sections, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ]);
+}
+
+function clone_direct_purchase_dod(int $projectId, int $newProjectId): void
+{
+    if (!direct_purchase_dod_table_exists()) {
+        return;
+    }
+
+    $sourceDod = get_direct_purchase_dod($projectId);
+
+    if (empty($sourceDod['exists'])) {
+        return;
+    }
+
+    save_direct_purchase_dod($newProjectId, [
+        'header' => $sourceDod['header'],
+        'footer' => $sourceDod['footer'],
+        'sections' => $sourceDod['sections'],
+    ]);
+}
 function delete_project(int $id): void
 {
     assert_project_editable($id);
@@ -2129,6 +2278,7 @@ function create_demand_list(array $data): int
             name,
             requester_department,
             responsible_name,
+            quote_collector_name,
             notes
         ) VALUES (
             :project_id,
@@ -2137,6 +2287,7 @@ function create_demand_list(array $data): int
             :name,
             :requester_department,
             :responsible_name,
+            :quote_collector_name,
             :notes
         )
         RETURNING id
@@ -2149,6 +2300,7 @@ function create_demand_list(array $data): int
         'name' => $data['name'],
         'requester_department' => $data['requester_department'] ?? null,
         'responsible_name' => $data['responsible_name'] ?? null,
+        'quote_collector_name' => $data['quote_collector_name'] ?? null,
         'notes' => $data['notes'] ?? null,
     ]);
 
@@ -2167,6 +2319,7 @@ function update_demand_list(int $id, array $data): void
             name = :name,
             requester_department = :requester_department,
             responsible_name = :responsible_name,
+            quote_collector_name = :quote_collector_name,
             notes = :notes
         WHERE id = :id
     ");
@@ -2178,6 +2331,7 @@ function update_demand_list(int $id, array $data): void
         'name' => $data['name'],
         'requester_department' => $data['requester_department'] ?? null,
         'responsible_name' => $data['responsible_name'] ?? null,
+        'quote_collector_name' => $data['quote_collector_name'] ?? null,
         'notes' => $data['notes'] ?? null,
     ]);
 }
@@ -5000,6 +5154,81 @@ function get_demand_budget_report(int $demandListId): array
     ];
 }
 
+function get_direct_purchase_budget_evaluation(int $projectId): array
+{
+    $project = find_project($projectId) ?? [];
+    $criterion = normalize_direct_purchase_award_criterion($project['direct_purchase_award_criterion'] ?? 'global_lowest');
+    $supplierTotals = [];
+    $itemWinners = [];
+    $pricedItemCount = 0;
+
+    foreach (get_project_demands($projectId) as $demand) {
+        $report = get_demand_budget_report((int) $demand['id']);
+        $quotesById = [];
+
+        foreach ($report['quotes'] ?? [] as $quote) {
+            $quoteId = (int) $quote['id'];
+            $supplierId = (int) $quote['supplier_id'];
+            $quotesById[$quoteId] = $quote;
+
+            if (!isset($supplierTotals[$supplierId])) {
+                $supplierTotals[$supplierId] = [
+                    'supplier_id' => $supplierId,
+                    'supplier_name' => (string) ($quote['supplier_name'] ?? ''),
+                    'supplier_document' => (string) ($quote['supplier_document'] ?? ''),
+                    'total' => 0.0,
+                    'quote_count' => 0,
+                ];
+            }
+
+            $supplierTotals[$supplierId]['total'] += (float) (($report['supplier_totals'] ?? [])[$quoteId] ?? 0);
+            $supplierTotals[$supplierId]['quote_count']++;
+        }
+
+        foreach ($report['items'] ?? [] as $item) {
+            $best = null;
+            $quantity = (float) ($item['budget_quantity'] ?? 0);
+
+            foreach (($item['supplier_prices'] ?? []) as $quoteId => $unitPrice) {
+                if ($unitPrice === null || !isset($quotesById[(int) $quoteId])) {
+                    continue;
+                }
+
+                $candidate = [
+                    'demand_name' => (string) ($demand['name'] ?? ''),
+                    'tracking_code' => (string) ($item['tracking_code'] ?? ''),
+                    'item_name' => (string) ($item['item_name'] ?? ''),
+                    'quantity' => $quantity,
+                    'unit_price' => (float) $unitPrice,
+                    'total' => (float) $unitPrice * $quantity,
+                    'supplier_name' => (string) ($quotesById[(int) $quoteId]['supplier_name'] ?? ''),
+                    'supplier_document' => (string) ($quotesById[(int) $quoteId]['supplier_document'] ?? ''),
+                ];
+
+                if ($best === null || $candidate['unit_price'] < $best['unit_price']) {
+                    $best = $candidate;
+                }
+            }
+
+            if ($best !== null) {
+                $itemWinners[] = $best;
+                $pricedItemCount++;
+            }
+        }
+    }
+
+    $supplierTotals = array_values($supplierTotals);
+    usort($supplierTotals, static fn (array $left, array $right): int => ((float) $left['total'] <=> (float) $right['total']) ?: strcasecmp($left['supplier_name'], $right['supplier_name']));
+
+    return [
+        'criterion' => $criterion,
+        'criterion_label' => direct_purchase_award_criterion_label($criterion),
+        'global_winner' => $supplierTotals[0] ?? null,
+        'supplier_totals' => $supplierTotals,
+        'item_winners' => $itemWinners,
+        'priced_item_count' => $pricedItemCount,
+    ];
+}
 function get_project_demand_budget_items(int $projectId): array
 {
     $budgetItems = [];
@@ -5502,6 +5731,7 @@ function insert_cloned_demand_list(array $demand, int $newProjectId): int
             name,
             requester_department,
             responsible_name,
+            quote_collector_name,
             notes
         ) VALUES (
             :project_id,
@@ -5510,6 +5740,7 @@ function insert_cloned_demand_list(array $demand, int $newProjectId): int
             :name,
             :requester_department,
             :responsible_name,
+            :quote_collector_name,
             :notes
         )
         RETURNING id
@@ -5522,6 +5753,7 @@ function insert_cloned_demand_list(array $demand, int $newProjectId): int
         'name' => $demand['name'],
         'requester_department' => $demand['requester_department'] ?? null,
         'responsible_name' => $demand['responsible_name'] ?? null,
+        'quote_collector_name' => $demand['quote_collector_name'] ?? null,
         'notes' => $demand['notes'] ?? null,
     ]);
 
@@ -5966,12 +6198,15 @@ function duplicate_project(int $projectId): int
         $newProjectId = create_project([
             'name' => $project['name'] . ' - Copia',
             'description' => $project['description'],
+            'process_type' => normalize_project_process_type($project['process_type'] ?? 'licitacao'),
+            'direct_purchase_award_criterion' => normalize_direct_purchase_award_criterion($project['direct_purchase_award_criterion'] ?? 'global_lowest'),
             'status' => 'draft',
         ]);
 
         [$demandIdMap, $demandItemIdMap] = clone_project_demands_and_items($projectId, $newProjectId);
         clone_project_licitation_numbers($projectId, $newProjectId);
         clone_project_lot_denominations($projectId, $newProjectId);
+        clone_direct_purchase_dod($projectId, $newProjectId);
         $quoteItemIdMap = clone_project_supplier_quotes($demandIdMap, $demandItemIdMap);
         clone_project_price_references($demandItemIdMap, $quoteItemIdMap);
 
@@ -7418,8 +7653,13 @@ function catalog_json_table_definitions(): array
         ],
         'procurement_projects' => [
             'label' => 'Projetos',
-            'columns' => ['id', 'name', 'description', 'status', 'closure_hash', 'closed_at', 'cancellation_reason', 'canceled_at', 'reopen_reason', 'reopened_at', 'reopen_mode', 'reopen_correction_deadline', 'created_at', 'updated_at'],
-            'json' => [],
+            'columns' => ['id', 'name', 'description', 'process_type', 'direct_purchase_award_criterion', 'direct_purchase_parameters', 'status', 'closure_hash', 'closed_at', 'cancellation_reason', 'canceled_at', 'reopen_reason', 'reopened_at', 'reopen_mode', 'reopen_correction_deadline', 'created_at', 'updated_at'],
+            'json' => ['direct_purchase_parameters'],
+        ],
+        'direct_purchase_dod_documents' => [
+            'label' => 'DODs de compra direta',
+            'columns' => ['id', 'project_id', 'header', 'footer', 'sections', 'created_at', 'updated_at'],
+            'json' => ['header', 'footer', 'sections'],
         ],
         'secretariats' => [
             'label' => 'Secretarias',
@@ -7486,6 +7726,7 @@ function catalog_json_table_definitions(): array
                 'name',
                 'requester_department',
                 'responsible_name',
+                'quote_collector_name',
                 'notes',
                 'created_at',
                 'updated_at',
@@ -7683,6 +7924,7 @@ function catalog_json_scope_tables(string $scope): array
             'project_licitation_items',
             'project_annex_versions',
             'project_status_events',
+            'direct_purchase_dod_documents',
             'project_lot_denominations',
             'project_lot_assignments',
             'justification_templates',
@@ -7711,6 +7953,7 @@ function catalog_json_scope_tables(string $scope): array
             'project_licitation_items',
             'project_annex_versions',
             'project_status_events',
+            'direct_purchase_dod_documents',
             'project_lot_denominations',
             'project_lot_assignments',
         ],

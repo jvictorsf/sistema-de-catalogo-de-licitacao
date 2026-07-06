@@ -438,6 +438,292 @@ function item_status_badge_class(?string $status): string
     return $classes[$status ?? ''] ?? 'text-bg-secondary';
 }
 
+function project_process_type_options(): array
+{
+    return [
+        'licitacao' => 'Licitacao',
+        'compra_direta' => 'Compra Direta',
+    ];
+}
+
+function normalize_project_process_type(mixed $value): string
+{
+    $value = trim((string) $value);
+
+    return array_key_exists($value, project_process_type_options()) ? $value : 'licitacao';
+}
+
+function project_process_type_label(?string $type): string
+{
+    $labels = project_process_type_options();
+
+    return $labels[$type ?? ''] ?? 'Licitacao';
+}
+
+function project_process_type_badge_class(?string $type): string
+{
+    return normalize_project_process_type($type) === 'compra_direta'
+        ? 'text-bg-primary'
+        : 'text-bg-success';
+}
+
+function project_is_direct_purchase(mixed $project): bool
+{
+    $type = is_array($project) ? ($project['process_type'] ?? null) : $project;
+
+    return normalize_project_process_type($type) === 'compra_direta';
+}
+
+function direct_purchase_award_criterion_options(): array
+{
+    return [
+        'global_lowest' => 'Menor valor global',
+        'item_lowest' => 'Menor valor por item',
+    ];
+}
+
+function normalize_direct_purchase_award_criterion(mixed $value): string
+{
+    $value = trim((string) $value);
+
+    return array_key_exists($value, direct_purchase_award_criterion_options()) ? $value : 'global_lowest';
+}
+
+function direct_purchase_award_criterion_label(?string $criterion): string
+{
+    $labels = direct_purchase_award_criterion_options();
+
+    return $labels[$criterion ?? ''] ?? $labels['global_lowest'];
+}
+
+function direct_purchase_dod_default_header(array $project = []): array
+{
+    return [
+        'entity_name' => '',
+        'place' => '',
+        'issue_date' => date('Y-m-d'),
+        'title' => 'Documento de Oficializacao de Demanda (DOD)',
+        'document_number' => '',
+        'recipient' => '',
+        'subject' => (string) ($project['name'] ?? ''),
+    ];
+}
+
+function direct_purchase_dod_default_footer(): array
+{
+    return [
+        'issue_place' => '',
+        'issue_date' => date('Y-m-d'),
+        'requester_name' => '',
+        'requester_role' => '',
+        'authority_name' => '',
+        'authority_role' => '',
+        'additional_fields' => [],
+    ];
+}
+
+function direct_purchase_dod_default_sections(): array
+{
+    $rows = [
+        ['objeto', 'Objeto da Contratacao', 'Descrever de forma objetiva o servico, item ou conjunto de itens a contratar.'],
+        ['necessidade', 'Descricao da Necessidade', 'Explicar o problema administrativo, operacional ou publico que justifica a demanda.'],
+        ['justificativa', 'Justificativa da Contratacao do Objeto', 'Relacionar a contratacao ao interesse publico, continuidade do servico e finalidade institucional.'],
+        ['quantidades', 'Estimativa de Quantidades e Metodologia', 'Indicar memoria de calculo, historico de consumo, demanda prevista ou criterio tecnico usado.'],
+        ['requisitos', 'Requisitos da Contratacao', 'Listar requisitos minimos, padroes de qualidade, prazos, garantia, suporte e criterios de aceitacao.'],
+        ['valor', 'Estimativa de Valor', 'Apresentar a forma de pesquisa de precos, fornecedores consultados e criterio de apuracao.'],
+        ['conclusao', 'Conclusao da Contratacao', 'Concluir quanto a necessidade, oportunidade e adequacao da compra direta.'],
+        ['providencias', 'Providencias a serem Tomadas pela Administracao', 'Registrar providencias internas, fiscais, autorizacoes, dotacao, prazos e encaminhamentos.'],
+        ['correlatas', 'Contratacoes Correlatas e Interdependentes', 'Informar contratos relacionados, dependencias tecnicas ou declarar inexistencia quando nao houver.'],
+        ['impactos_ambientais', 'Demonstracao de Possiveis Impactos Ambientais', 'Descrever impactos e medidas mitigadoras, sustentabilidade, descarte e uso racional de recursos.'],
+    ];
+    $sections = [];
+
+    foreach ($rows as $index => [$id, $title, $guidance]) {
+        $sections[] = [
+            'id' => $id,
+            'sort_order' => $index + 1,
+            'number' => (string) ($index + 1),
+            'title' => $title,
+            'enabled' => true,
+            'required' => true,
+            'content' => '',
+            'guidance' => $guidance,
+        ];
+    }
+
+    return $sections;
+}
+
+function direct_purchase_dod_normalize_header(mixed $header, array $project = []): array
+{
+    return array_merge(
+        direct_purchase_dod_default_header($project),
+        is_array($header) ? $header : []
+    );
+}
+
+function direct_purchase_dod_normalize_footer(mixed $footer): array
+{
+    $footer = array_merge(
+        direct_purchase_dod_default_footer(),
+        is_array($footer) ? $footer : []
+    );
+
+    $footer['additional_fields'] = is_array($footer['additional_fields'] ?? null)
+        ? array_values(array_filter($footer['additional_fields'], static fn (mixed $row): bool => is_array($row) && trim((string) ($row['label'] ?? '')) !== ''))
+        : [];
+
+    return $footer;
+}
+
+function direct_purchase_dod_section_id(string $title, int $index): string
+{
+    $base = strtolower(trim($title));
+    $base = strtr($base, [
+        ' ' => '_', '-' => '_', '/' => '_', '.' => '', ',' => '', ';' => '', ':' => '',
+        'ç' => 'c', 'ã' => 'a', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'é' => 'e', 'ê' => 'e',
+        'í' => 'i', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o', 'ú' => 'u',
+    ]);
+    $base = preg_replace('/[^a-z0-9_]+/', '', $base) ?: 'topico';
+
+    return $base . '_' . $index;
+}
+
+function direct_purchase_dod_normalize_sections(mixed $sections): array
+{
+    $source = is_array($sections) && $sections ? $sections : direct_purchase_dod_default_sections();
+    $normalized = [];
+
+    foreach (array_values($source) as $index => $section) {
+        if (!is_array($section)) {
+            continue;
+        }
+
+        $title = trim((string) ($section['title'] ?? ''));
+
+        if ($title === '') {
+            continue;
+        }
+
+        $sortOrder = (int) ($section['sort_order'] ?? ($index + 1));
+        $number = trim((string) ($section['number'] ?? ''));
+
+        $normalized[] = [
+            'id' => trim((string) ($section['id'] ?? '')) ?: direct_purchase_dod_section_id($title, $index + 1),
+            'sort_order' => $sortOrder > 0 ? $sortOrder : ($index + 1),
+            'number' => $number !== '' ? $number : (string) ($index + 1),
+            'title' => $title,
+            'enabled' => boolish($section['enabled'] ?? true, true),
+            'required' => boolish($section['required'] ?? false, false),
+            'content' => trim((string) ($section['content'] ?? '')),
+            'guidance' => trim((string) ($section['guidance'] ?? '')),
+        ];
+    }
+
+    usort($normalized, static fn (array $left, array $right): int => ((int) $left['sort_order'] <=> (int) $right['sort_order']) ?: strcasecmp($left['title'], $right['title']));
+
+    return array_values($normalized);
+}
+
+function direct_purchase_dod_enabled_sections(array $sections): array
+{
+    return array_values(array_filter($sections, static fn (array $section): bool => !empty($section['enabled'])));
+}
+
+function direct_purchase_dod_additional_fields_from_text(string $text): array
+{
+    $fields = [];
+
+    foreach (preg_split('/\r\n|\r|\n/', $text) ?: [] as $line) {
+        $line = trim($line);
+
+        if ($line === '') {
+            continue;
+        }
+
+        [$label, $value] = array_pad(array_map('trim', explode(':', $line, 2)), 2, '');
+        $fields[] = [
+            'label' => $label,
+            'value' => $value,
+        ];
+    }
+
+    return $fields;
+}
+
+function direct_purchase_dod_additional_fields_text(array $fields): string
+{
+    $lines = [];
+
+    foreach ($fields as $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $label = trim((string) ($field['label'] ?? ''));
+        $value = trim((string) ($field['value'] ?? ''));
+
+        if ($label !== '') {
+            $lines[] = $label . ($value !== '' ? ': ' . $value : '');
+        }
+    }
+
+    return implode(PHP_EOL, $lines);
+}
+
+function direct_purchase_dod_ai_prompt_text(array $project, array $demands, array $items, array $dod): string
+{
+    $lines = [
+        'Voce e uma IA de apoio administrativo para gerar um Documento de Oficializacao de Demanda (DOD) de Compra Direta.',
+        'Elabore texto objetivo, formal e revisavel, observando a Lei n. 14.133/2021, normas internas da Administracao e boas praticas de redacao administrativa.',
+        'Use somente os topicos habilitados abaixo. Nao invente dados ausentes; quando faltar informacao, sinalize como ponto a complementar.',
+        '',
+        'Projeto: ' . (string) ($project['name'] ?? ''),
+        'Modalidade: ' . project_process_type_label($project['process_type'] ?? null),
+        'Criterio do orcamento: ' . direct_purchase_award_criterion_label($project['direct_purchase_award_criterion'] ?? null),
+        'Descricao: ' . trim((string) ($project['description'] ?? '')),
+        '',
+        'Demandas:',
+    ];
+
+    foreach ($demands as $demand) {
+        $lines[] = '- ' . trim(implode(' | ', array_filter([
+            (string) ($demand['name'] ?? ''),
+            (string) ($demand['secretariat_name'] ?? ''),
+            (string) ($demand['requester_department'] ?? $demand['requester_unit_name'] ?? ''),
+            (string) ($demand['responsible_name'] ?? ''),
+            (string) ($demand['quote_collector_name'] ?? ''),
+        ])));
+    }
+
+    $lines[] = '';
+    $lines[] = 'Itens consolidados:';
+
+    foreach ($items as $item) {
+        $lines[] = '- ' . trim(implode(' | ', array_filter([
+            (string) ($item['tracking_code'] ?? ''),
+            (string) ($item['item_name'] ?? ''),
+            'Qtd: ' . format_decimal_quantity($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0),
+            'Unidade: ' . licitation_annex_unit_text($item),
+        ])));
+    }
+
+    $lines[] = '';
+    $lines[] = 'Topicos habilitados do DOD:';
+
+    foreach (direct_purchase_dod_enabled_sections($dod['sections'] ?? []) as $section) {
+        $lines[] = ($section['number'] ?? '') . '. ' . ($section['title'] ?? '');
+
+        if (trim((string) ($section['guidance'] ?? '')) !== '') {
+            $lines[] = 'Orientacao: ' . trim((string) $section['guidance']);
+        }
+    }
+
+    $lines[] = '';
+    $lines[] = 'Retorne o conteudo dividido exatamente pelos topicos habilitados.';
+
+    return implode(PHP_EOL, $lines);
+}
 function project_status_options(): array
 {
     return [

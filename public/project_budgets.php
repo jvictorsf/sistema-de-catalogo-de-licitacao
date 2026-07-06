@@ -14,6 +14,7 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
+$isDirectPurchase = project_is_direct_purchase($project);
 $demands = get_project_demands($id);
 $reports = [];
 $totalQuotes = 0;
@@ -25,13 +26,14 @@ foreach ($demands as $demand) {
     $totalQuotes += count($report['quotes'] ?? []);
     $totalAverage += (float) ($report['total_average'] ?? 0);
 }
+$directPurchaseEvaluation = $isDirectPurchase ? get_direct_purchase_budget_evaluation($id) : null;
 
 require __DIR__ . '/../app/views/header.php';
 ?>
 
 <div class="d-flex justify-content-between align-items-start gap-3 mb-4 print-hide">
     <div>
-        <h1 class="h3 mb-1">Orcamentos do projeto</h1>
+        <h1 class="h3 mb-1"><?= $isDirectPurchase ? 'Orcamentos da Compra Direta' : 'Orcamentos do projeto' ?></h1>
         <p class="text-muted mb-0"><?= e($project['name']) ?></p>
     </div>
 
@@ -65,6 +67,79 @@ require __DIR__ . '/../app/views/header.php';
         </div>
     </div>
 </div>
+
+<?php if ($isDirectPurchase && $directPurchaseEvaluation): ?>
+    <div class="card card-body mb-4">
+        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+            <div>
+                <h2 class="h5 mb-1">Apuracao da Compra Direta</h2>
+                <p class="text-muted mb-0">Criterio configurado: <?= e($directPurchaseEvaluation['criterion_label'] ?? '-') ?></p>
+            </div>
+            <span class="badge text-bg-primary">Compra Direta</span>
+        </div>
+
+        <?php if (($directPurchaseEvaluation['criterion'] ?? '') === 'global_lowest'): ?>
+            <?php $winner = $directPurchaseEvaluation['global_winner'] ?? null; ?>
+            <?php if ($winner): ?>
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <div class="text-muted small">Fornecedor com menor valor global</div>
+                        <div class="fw-semibold"><?= e($winner['supplier_name'] ?: '-') ?></div>
+                        <div class="small text-muted"><?= e($winner['supplier_document'] ? format_brazil_document($winner['supplier_document']) : '-') ?></div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">Valor global informado</div>
+                        <div class="h5 mb-0">R$ <?= number_format((float) $winner['total'], 2, ',', '.') ?></div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted small">Orcamentos considerados</div>
+                        <div class="fw-semibold"><?= (int) ($winner['quote_count'] ?? 0) ?> registro(s)</div>
+                    </div>
+                </div>
+            <?php else: ?>
+                <div class="alert alert-warning mb-0">Ainda nao ha fornecedores com valores para apuracao global.</div>
+            <?php endif; ?>
+        <?php else: ?>
+            <?php $itemWinners = $directPurchaseEvaluation['item_winners'] ?? []; ?>
+            <?php if ($itemWinners): ?>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Codigo</th>
+                                <th>Item</th>
+                                <th>Fornecedor vencedor</th>
+                                <th>Qtd.</th>
+                                <th>Valor unit.</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($itemWinners as $winner): ?>
+                                <tr>
+                                    <td><span class="badge text-bg-dark"><?= e($winner['tracking_code']) ?></span></td>
+                                    <td>
+                                        <?= e($winner['item_name']) ?>
+                                        <div class="small text-muted"><?= e($winner['demand_name']) ?></div>
+                                    </td>
+                                    <td>
+                                        <?= e($winner['supplier_name']) ?>
+                                        <div class="small text-muted"><?= e($winner['supplier_document'] ? format_brazil_document($winner['supplier_document']) : '-') ?></div>
+                                    </td>
+                                    <td><?= e(format_decimal_quantity($winner['quantity'])) ?></td>
+                                    <td>R$ <?= number_format((float) $winner['unit_price'], 2, ',', '.') ?></td>
+                                    <td class="fw-semibold">R$ <?= number_format((float) $winner['total'], 2, ',', '.') ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php else: ?>
+                <div class="alert alert-warning mb-0">Ainda nao ha itens com valores para apuracao por menor item.</div>
+            <?php endif; ?>
+        <?php endif; ?>
+    </div>
+<?php endif; ?>
 
 <?php if (!$demands): ?>
     <div class="alert alert-warning">Nenhuma demanda cadastrada neste projeto.</div>

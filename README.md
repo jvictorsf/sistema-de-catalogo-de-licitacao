@@ -1,7 +1,7 @@
-# Sistema de Catalogo de Licitacao
+# Sistema Interno de Compras e Licitacoes
 
 ## Finalidade
-Sistema interno para cadastrar itens padronizados de licitacao, organizar categorias, tipos de unidade, kits, projetos de contratacao, demandas por setor, fornecedores, orcamentos e relatorios institucionais.
+Sistema interno para cadastrar itens, servicos, kits, fornecedores, demandas, projetos de licitacao e compras diretas, com orcamentos, documentos oficiais, anexos e relatorios administrativos.
 
 ## URL de Acesso
 https://catalogo-licitacao.esturvo.intra
@@ -32,7 +32,7 @@ Departamento solicitante
 - PostgreSQL 13+
 - Nginx
 - Bootstrap Icons via CDN
-- OpenAI API opcional para sugestao assistida de itens
+- OpenAI API opcional para sugestao assistida de itens e apoio textual ao DOD
 - Acesso HTTPS a BrasilAPI opcional para consulta de CNPJ de fornecedores
 
 ## Procedimento de Backup
@@ -72,7 +72,7 @@ Depois, restaurar `public/uploads/`, `storage/` e o brasao municipal, se houver.
 - Itens podem informar conteudo da embalagem e unidade do conteudo, por exemplo pacote com 100 unidades ou caixa com 305 metros.
 - Erros da aplicacao sao registrados em `storage/logs/app.log`; erros nativos do PHP ficam em `storage/logs/php-error.log`.
 - Os impactos ambientais dos itens sao armazenados como lista estruturada.
-- As sugestoes de IA sao apoio inicial e precisam de revisao tecnica antes de uso em processo licitatorio.
+- As sugestoes de IA sao apoio inicial e precisam de revisao tecnica antes de uso em processo administrativo, compra direta ou licitatorio.
 
 ## Padrao de Especificacao Tecnica
 Novos itens usam o seguinte JSON base:

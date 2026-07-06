@@ -31,6 +31,7 @@ if (!$project) {
 
 $errors = [];
 $projectLocked = project_is_locked($project);
+$isDirectPurchase = project_is_direct_purchase($project);
 $requesterUnits = get_requester_units(!$isEditing);
 $cancelUrl = $isEditing
     ? '/demand_show.php?id=' . (int) $id
@@ -44,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'name' => trim($_POST['name'] ?? ''),
         'requester_department' => trim($_POST['requester_department'] ?? ''),
         'responsible_name' => trim($_POST['responsible_name'] ?? ''),
+        'quote_collector_name' => trim($_POST['quote_collector_name'] ?? ''),
         'notes' => trim($_POST['notes'] ?? ''),
     ];
 
@@ -176,7 +178,7 @@ require __DIR__ . '/../app/views/header.php';
         <?php endif; ?>
 
         <div class="col-md-6">
-            <label class="form-label">Responsável</label>
+            <label class="form-label"><?= $isDirectPurchase ? 'Requisitante' : 'Responsável' ?></label>
             <input
                 type="text"
                 name="responsible_name"
@@ -185,6 +187,18 @@ require __DIR__ . '/../app/views/header.php';
                 value="<?= e(old($demand, 'responsible_name')) ?>"
                 placeholder="Ex.: Diretor(a), Coordenador(a), Secretário(a)">
         </div>
+
+        <?php if ($isDirectPurchase): ?>
+            <div class="col-md-6">
+                <label class="form-label">Cotador</label>
+                <input
+                    type="text"
+                    name="quote_collector_name"
+                    class="form-control"
+                    value="<?= e(old($demand, 'quote_collector_name')) ?>"
+                    placeholder="Servidor responsável pela cotação na prefeitura">
+            </div>
+        <?php endif; ?>
 
         <div class="col-12">
             <label class="form-label">Observações</label>

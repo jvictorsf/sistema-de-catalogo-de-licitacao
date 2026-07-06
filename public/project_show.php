@@ -27,6 +27,7 @@ $annexStatuses = get_project_annex_statuses($id);
 $quoteSuccess = trim($_GET['quote_success'] ?? '');
 $projectError = trim($_GET['project_error'] ?? '');
 $projectLocked = project_is_locked($project);
+$isDirectPurchase = project_is_direct_purchase($project);
 $projectInRectification = project_is_rectification($project);
 $projectCanceled = project_is_canceled($project);
 $projectReopened = project_is_reopened($project);
@@ -46,9 +47,16 @@ require __DIR__ . '/../app/views/header.php';
         </a>
 
         <a href="/project_supplier_quote_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-outline-success">
-            <i class="bi bi-cash-coin"></i>Orçamento geral
+            <i class="bi bi-cash-coin"></i><?= $isDirectPurchase ? 'Orcamento geral da compra' : 'Orcamento geral' ?>
         </a>
 
+        <?php if ($isDirectPurchase): ?>
+            <a href="/direct_purchase_dod.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-primary">
+                <i class="bi bi-file-earmark-text"></i>DOD
+            </a>
+        <?php endif; ?>
+
+        <?php if (!$isDirectPurchase): ?>
         <a href="/project_licitation_numbers.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-dark">
             <i class="bi bi-list-ol"></i>Ordenar itens
         </a>
@@ -56,6 +64,7 @@ require __DIR__ . '/../app/views/header.php';
         <a href="/project_lots.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-dark">
             <i class="bi bi-boxes"></i>Denominacoes
         </a>
+        <?php endif; ?>
         <?php endif; ?>
 
         <div class="btn-group">
@@ -83,6 +92,25 @@ require __DIR__ . '/../app/views/header.php';
                         PDF Institucional
                     </a>
                 </li>
+                <?php if ($isDirectPurchase): ?>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><h6 class="dropdown-header">Compra Direta</h6></li>
+                    <li>
+                        <a href="/direct_purchase_dod.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
+                            DOD - configurar/consultar
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/direct_purchase_dod_export.php?id=<?= (int) $project['id'] ?>" target="_blank" class="dropdown-item">
+                            DOD - PDF
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/direct_purchase_dod_export.php?id=<?= (int) $project['id'] ?>&format=word" class="dropdown-item">
+                            DOD - Word
+                        </a>
+                    </li>
+                <?php endif; ?>
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Demandas sem precos</h6></li>
                 <li>
@@ -139,6 +167,7 @@ require __DIR__ . '/../app/views/header.php';
             </ul>
         </div>
 
+        <?php if (!$isDirectPurchase): ?>
         <div class="btn-group">
             <button
                 type="button"
@@ -295,6 +324,7 @@ require __DIR__ . '/../app/views/header.php';
             </ul>
         </div>
 
+        <?php endif; ?>
         <div class="btn-group">
             <button
                 type="button"
@@ -385,6 +415,14 @@ require __DIR__ . '/../app/views/header.php';
             <span class="badge <?= e(project_status_badge_class($project['status'] ?? null)) ?>">
                 <?= e(project_status_label($project['status'] ?? null)) ?>
             </span>
+            <span class="badge <?= e(project_process_type_badge_class($project['process_type'] ?? null)) ?>">
+                <?= e(project_process_type_label($project['process_type'] ?? null)) ?>
+            </span>
+            <?php if ($isDirectPurchase): ?>
+                <span class="badge text-bg-light text-dark border">
+                    <?= e(direct_purchase_award_criterion_label($project['direct_purchase_award_criterion'] ?? null)) ?>
+                </span>
+            <?php endif; ?>
         </div>
 
         <?php if (trim((string) ($project['description'] ?? '')) !== ''): ?>
@@ -497,7 +535,7 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 <?php endif; ?>
 
-<?php if ($annexStatuses): ?>
+<?php if (!$isDirectPurchase && $annexStatuses): ?>
     <div class="card card-body mb-4">
         <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div>

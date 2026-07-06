@@ -179,6 +179,9 @@ CREATE TABLE IF NOT EXISTS procurement_projects (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    process_type VARCHAR(30) NOT NULL DEFAULT 'licitacao',
+    direct_purchase_award_criterion VARCHAR(30) NOT NULL DEFAULT 'global_lowest',
+    direct_purchase_parameters JSONB NOT NULL DEFAULT '{}'::jsonb,
     status VARCHAR(50) NOT NULL DEFAULT 'draft',
     closure_hash CHAR(64),
     closed_at TIMESTAMP NULL,
@@ -188,6 +191,16 @@ CREATE TABLE IF NOT EXISTS procurement_projects (
     reopened_at TIMESTAMP NULL,
     reopen_mode VARCHAR(30),
     reopen_correction_deadline DATE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS direct_purchase_dod_documents (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL UNIQUE REFERENCES procurement_projects(id) ON DELETE CASCADE,
+    header JSONB NOT NULL DEFAULT '{}'::jsonb,
+    footer JSONB NOT NULL DEFAULT '{}'::jsonb,
+    sections JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -285,6 +298,7 @@ CREATE TABLE IF NOT EXISTS demand_lists (
     name VARCHAR(255) NOT NULL,
     requester_department VARCHAR(255),
     responsible_name VARCHAR(255),
+    quote_collector_name VARCHAR(255),
     notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -502,6 +516,15 @@ ALTER TABLE procurement_projects
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS process_type VARCHAR(30) NOT NULL DEFAULT 'licitacao';
+
+ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS direct_purchase_award_criterion VARCHAR(30) NOT NULL DEFAULT 'global_lowest';
+
+ALTER TABLE procurement_projects
+ADD COLUMN IF NOT EXISTS direct_purchase_parameters JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE procurement_projects
 ADD COLUMN IF NOT EXISTS closure_hash CHAR(64);
 
 ALTER TABLE procurement_projects
@@ -673,6 +696,9 @@ END
 $$;
 
 ALTER TABLE demand_lists
+ADD COLUMN IF NOT EXISTS quote_collector_name VARCHAR(255);
+
+ALTER TABLE demand_lists
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE demand_items
@@ -827,6 +853,12 @@ EXECUTE FUNCTION touch_updated_at();
 DROP TRIGGER IF EXISTS trg_touch_updated_at_projects ON procurement_projects;
 CREATE TRIGGER trg_touch_updated_at_projects
 BEFORE UPDATE ON procurement_projects
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_direct_purchase_dod_documents ON direct_purchase_dod_documents;
+CREATE TRIGGER trg_touch_updated_at_direct_purchase_dod_documents
+BEFORE UPDATE ON direct_purchase_dod_documents
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 
@@ -1175,6 +1207,12 @@ ON project_licitation_items (project_id);
 
 CREATE INDEX IF NOT EXISTS idx_project_licitation_items_item
 ON project_licitation_items (procurement_item_id);
+
+CREATE INDEX IF NOT EXISTS idx_direct_purchase_dod_documents_project
+ON direct_purchase_dod_documents (project_id);
+
+CREATE INDEX IF NOT EXISTS idx_procurement_projects_process_type
+ON procurement_projects (process_type);
 
 CREATE INDEX IF NOT EXISTS idx_procurement_projects_closure_hash
 ON procurement_projects (closure_hash);
@@ -2694,6 +2732,7 @@ SELECT setval(pg_get_serial_sequence('procurement_items', 'id'), GREATEST(COALES
 SELECT setval(pg_get_serial_sequence('procurement_item_images', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_item_images), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_item_images), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_item_versions', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_item_versions), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_item_versions), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_projects', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_projects), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_projects), 0) > 0);
+SELECT setval(pg_get_serial_sequence('direct_purchase_dod_documents', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM direct_purchase_dod_documents), 0), 1), COALESCE((SELECT MAX(id) FROM direct_purchase_dod_documents), 0) > 0);
 SELECT setval(pg_get_serial_sequence('secretariats', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM secretariats), 0), 1), COALESCE((SELECT MAX(id) FROM secretariats), 0) > 0);
 SELECT setval(pg_get_serial_sequence('requester_units', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM requester_units), 0), 1), COALESCE((SELECT MAX(id) FROM requester_units), 0) > 0);
 SELECT setval(pg_get_serial_sequence('suppliers', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM suppliers), 0), 1), COALESCE((SELECT MAX(id) FROM suppliers), 0) > 0);

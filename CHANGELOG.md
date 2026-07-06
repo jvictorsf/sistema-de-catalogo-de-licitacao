@@ -2,6 +2,19 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.0] - 2026-07-06
+
+### Adicionado
+- Modalidade do projeto passa a diferenciar Licitacao e Compra Direta.
+- Compra Direta passa a contar com DOD configuravel, com cabecalho, rodape, topicos habilitaveis, reordenacao, textos padrao, prompt de apoio por IA e exportacao para visualizacao/PDF e Word.
+- Demandas de Compra Direta passam a destacar requisitante e campo de cotador.
+- Orcamento do projeto passa a exibir apuracao da Compra Direta por menor valor global ou menor valor por item.
+- Schema passa a incluir campos de Compra Direta no projeto, campo de cotador na demanda e tabela `direct_purchase_dod_documents`.
+
+### Alterado
+- Sistema passa a ser identificado como Sistema Interno de Compras e Licitacoes.
+- Tela do projeto separa acoes de Licitacao e Compra Direta, ocultando anexos licitatorios quando a modalidade for Compra Direta.
+- Listagem de projetos passa a exibir a modalidade do projeto.
 ## [1.5.33] - 2026-07-03
 
 ### Adicionado

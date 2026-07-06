@@ -14,9 +14,9 @@ require __DIR__ . '/../app/views/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 class="h3 mb-1">Projetos de Contratação</h1>
+        <h1 class="h3 mb-1">Projetos de Compras e Licitacoes</h1>
         <p class="text-muted mb-0">
-            Organize demandas por unidade/setor e consolide os quantitativos.
+            Organize licitacoes, compras diretas, demandas por unidade/setor e consolidacao de quantitativos.
         </p>
     </div>
 
@@ -31,6 +31,7 @@ require __DIR__ . '/../app/views/header.php';
             <thead class="table-light">
                 <tr>
                     <th>Projeto</th>
+                    <th>Modalidade</th>
                     <th>Status</th>
                     <th>Criado em</th>
                     <th class="text-end">Ações</th>
@@ -40,7 +41,7 @@ require __DIR__ . '/../app/views/header.php';
             <tbody>
                 <?php if (!$projects): ?>
                     <tr>
-                        <td colspan="4" class="text-center text-muted py-4">
+                        <td colspan="5" class="text-center text-muted py-4">
                             Nenhum projeto cadastrado.
                         </td>
                     </tr>
@@ -53,6 +54,12 @@ require __DIR__ . '/../app/views/header.php';
                             <div class="small text-muted">
                                 <?= e(mb_strimwidth((string) $project['description'], 0, 100, '...')) ?>
                             </div>
+                        </td>
+
+                        <td>
+                            <span class="badge <?= e(project_process_type_badge_class($project['process_type'] ?? null)) ?>">
+                                <?= e(project_process_type_label($project['process_type'] ?? null)) ?>
+                            </span>
                         </td>
 
                         <td>

@@ -18,6 +18,7 @@ if (!$demand) {
 
 $project = find_project((int) $demand['project_id']);
 $projectLocked = project_is_locked($project);
+$isDirectPurchase = project_is_direct_purchase($project);
 $items = get_demand_items($id);
 $catalogItems = search_items();
 $supplierQuotes = get_demand_supplier_quotes($id);
@@ -92,20 +93,27 @@ require __DIR__ . '/../app/views/header.php';
 
 <div class="card card-body mb-4">
     <div class="row g-3">
-        <div class="col-md-4">
+        <div class="<?= $isDirectPurchase ? 'col-md-3' : 'col-md-4' ?>">
             <div class="text-muted small">Secretaria</div>
             <div class="fw-semibold"><?= e($demand['secretariat_name'] ?? 'Sem secretaria vinculada') ?></div>
         </div>
 
-        <div class="col-md-4">
+        <div class="<?= $isDirectPurchase ? 'col-md-3' : 'col-md-4' ?>">
             <div class="text-muted small">Unidade/Setor demandante</div>
             <div class="fw-semibold"><?= e($demand['requester_department'] ?: '-') ?></div>
         </div>
 
-        <div class="col-md-4">
-            <div class="text-muted small">Responsável</div>
+        <div class="<?= $isDirectPurchase ? 'col-md-3' : 'col-md-4' ?>">
+            <div class="text-muted small"><?= $isDirectPurchase ? 'Requisitante' : 'Responsável' ?></div>
             <div class="fw-semibold"><?= e($demand['responsible_name'] ?: '-') ?></div>
         </div>
+
+        <?php if ($isDirectPurchase): ?>
+            <div class="col-md-3">
+                <div class="text-muted small">Cotador</div>
+                <div class="fw-semibold"><?= e($demand['quote_collector_name'] ?: '-') ?></div>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 

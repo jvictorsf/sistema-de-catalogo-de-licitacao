@@ -54,6 +54,8 @@ $primaryNavItems = [
             'project_budgets.php',
             'project_global_price_bank.php',
             'project_supplier_quote_form.php',
+            'direct_purchase_dod.php',
+            'direct_purchase_dod_export.php',
         ],
     ],
     [

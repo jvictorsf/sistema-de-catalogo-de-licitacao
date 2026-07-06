@@ -23,6 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = [
         'name' => trim($_POST['name'] ?? ''),
         'description' => trim($_POST['description'] ?? ''),
+        'process_type' => trim($_POST['process_type'] ?? 'licitacao'),
+        'direct_purchase_award_criterion' => trim($_POST['direct_purchase_award_criterion'] ?? 'global_lowest'),
         'status' => trim($_POST['status'] ?? 'draft'),
         'cancellation_reason' => trim($_POST['cancellation_reason'] ?? ''),
         'reopen_reason' => trim($_POST['reopen_reason'] ?? ''),
@@ -55,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $selectedStatus = (string) ($project['status'] ?? 'draft');
+$selectedProcessType = normalize_project_process_type($project['process_type'] ?? 'licitacao');
+$selectedAwardCriterion = normalize_direct_purchase_award_criterion($project['direct_purchase_award_criterion'] ?? 'global_lowest');
 $selectedReopenMode = (string) ($project['reopen_mode'] ?? 'continuity');
 
 require __DIR__ . '/../app/views/header.php';
@@ -64,10 +68,10 @@ require __DIR__ . '/../app/views/header.php';
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1 class="h3 mb-1">
-            <?= $project ? 'Editar projeto' : 'Novo projeto de contratacao' ?>
+            <?= $project ? 'Editar projeto' : 'Novo projeto' ?>
         </h1>
         <p class="text-muted mb-0">
-            Exemplo: Licitacao de Informatica 2026.
+            Escolha entre Licitacao e Compra Direta para organizar demandas, itens e orcamentos.
         </p>
     </div>
 
@@ -102,7 +106,7 @@ require __DIR__ . '/../app/views/header.php';
 
 <form method="post" class="card card-body shadow-sm" id="projectForm">
     <div class="row g-3">
-        <div class="col-md-8">
+        <div class="col-lg-6">
             <label class="form-label">Nome do projeto</label>
             <input
                 type="text"
@@ -113,7 +117,21 @@ require __DIR__ . '/../app/views/header.php';
                 <?= $projectLocked ? 'readonly' : '' ?>>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-md-6 col-lg-3">
+            <label class="form-label">Modalidade</label>
+            <?php if ($projectLocked): ?>
+                <input type="hidden" name="process_type" value="<?= e($selectedProcessType) ?>">
+            <?php endif; ?>
+            <select name="process_type" id="projectProcessType" class="form-select" <?= $projectLocked ? 'disabled' : '' ?>>
+                <?php foreach (project_process_type_options() as $value => $label): ?>
+                    <option value="<?= e($value) ?>" <?= $selectedProcessType === $value ? 'selected' : '' ?>>
+                        <?= e($label) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="col-md-6 col-lg-3">
             <label class="form-label">Status</label>
             <select name="status" class="form-select" id="projectStatusSelect">
                 <?php foreach (project_status_options_for_form($project) as $value => $label): ?>
@@ -122,6 +140,21 @@ require __DIR__ . '/../app/views/header.php';
                     </option>
                 <?php endforeach; ?>
             </select>
+        </div>
+
+        <div class="col-md-6 <?= $selectedProcessType === 'compra_direta' ? '' : 'd-none' ?>" data-direct-purchase-panel>
+            <label class="form-label">Vencedor no orcamento geral</label>
+            <?php if ($projectLocked): ?>
+                <input type="hidden" name="direct_purchase_award_criterion" value="<?= e($selectedAwardCriterion) ?>">
+            <?php endif; ?>
+            <select name="direct_purchase_award_criterion" class="form-select" <?= $projectLocked ? 'disabled' : '' ?>>
+                <?php foreach (direct_purchase_award_criterion_options() as $value => $label): ?>
+                    <option value="<?= e($value) ?>" <?= $selectedAwardCriterion === $value ? 'selected' : '' ?>>
+                        <?= e($label) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <div class="form-text">Define se a apuracao da compra direta sera pelo menor valor global ou pelo menor valor item a item.</div>
         </div>
 
         <div class="col-12">
@@ -187,10 +220,20 @@ require __DIR__ . '/../app/views/header.php';
     document.addEventListener('DOMContentLoaded', function() {
         const statusSelect = document.getElementById('projectStatusSelect');
         const reopenMode = document.getElementById('projectReopenMode');
+        const processType = document.getElementById('projectProcessType');
+        const directPurchasePanels = Array.from(document.querySelectorAll('[data-direct-purchase-panel]'));
         const panels = Array.from(document.querySelectorAll('[data-status-panel]'));
         const statusRequired = Array.from(document.querySelectorAll('[data-required-when]'));
         const deadlinePanel = document.querySelector('[data-reopen-deadline-panel]');
         const deadlineInput = document.querySelector('[data-required-when-reopen-mode]');
+
+        function syncDirectPurchasePanels() {
+            const isDirectPurchase = processType && processType.value === 'compra_direta';
+
+            directPurchasePanels.forEach(function(panel) {
+                panel.classList.toggle('d-none', !isDirectPurchase);
+            });
+        }
 
         function syncStatusPanels() {
             const status = statusSelect ? statusSelect.value : '';
@@ -224,10 +267,15 @@ require __DIR__ . '/../app/views/header.php';
             statusSelect.addEventListener('change', syncStatusPanels);
         }
 
+        if (processType) {
+            processType.addEventListener('change', syncDirectPurchasePanels);
+        }
+
         if (reopenMode) {
             reopenMode.addEventListener('change', syncReopenMode);
         }
 
+        syncDirectPurchasePanels();
         syncStatusPanels();
     });
 </script>

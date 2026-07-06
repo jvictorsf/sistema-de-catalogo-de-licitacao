@@ -64,6 +64,8 @@ Depois, restaurar `public/uploads/`, `storage/` e o brasao municipal, se houver.
 - O Nginx deve apontar o `root` para `/srv/apps/internos/sistema-de-catalogo-de-licitacao/public`.
 - Arquivos de aplicacao, configuracao, schema e storage ficam fora da raiz publica.
 - O codigo de rastreio dos itens e gerado automaticamente no banco no formato `CL000001`.
+- O primeiro acesso administrativo deve ser feito em `/setup_admin.php` apos aplicar o schema. Depois disso, o acesso normal ocorre em `/login.php`.
+- Perfis disponiveis: Administrador, Gestor, Operador e Consulta. O menu e as rotas administrativas respeitam as permissoes de cada perfil.
 - A importacao/exportacao JSON esta disponivel no menu **Dados**.
 - A pagina **Dados** oferece um template JSON de importacao para cada escopo.
 - Orcamentos reais de fornecedores podem ser anexados em public/uploads/supplier_quotes/.

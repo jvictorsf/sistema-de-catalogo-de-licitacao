@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config.php';
 
 $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $currentPage = $currentPath === '/' ? 'index.php' : basename($currentPath);
+$currentUser = function_exists('auth_current_user') ? auth_current_user() : null;
 
 $primaryNavItems = [
     [
@@ -16,6 +17,7 @@ $primaryNavItems = [
         'href' => '/project_bi.php',
         'label' => 'Gestao de projetos',
         'icon' => 'bi-graph-up-arrow',
+        'permission' => 'bi.view',
         'active' => ['project_bi.php'],
     ],
     [
@@ -64,6 +66,7 @@ $primaryNavItems = [
         'href' => '/kits.php',
         'label' => 'Kits',
         'icon' => 'bi-collection',
+        'permission' => 'catalog.manage',
         'active' => ['kits.php', 'kit_form.php', 'kit_show.php'],
     ],
 ];
@@ -77,18 +80,21 @@ $navGroups = [
                 'href' => '/categories.php',
                 'label' => 'Categorias',
                 'icon' => 'bi-tags',
+                'permission' => 'catalog.manage',
                 'active' => ['categories.php', 'category_form.php'],
             ],
             [
                 'href' => '/unit_types.php',
                 'label' => 'Unidades',
                 'icon' => 'bi-rulers',
+                'permission' => 'catalog.manage',
                 'active' => ['unit_types.php', 'unit_type_form.php'],
             ],
             [
                 'href' => '/requester_units.php',
                 'label' => 'Demandantes',
                 'icon' => 'bi-building',
+                'permission' => 'requesters.manage',
                 'active' => ['requester_units.php', 'requester_unit_form.php', 'secretariat_form.php'],
             ],
             [
@@ -101,18 +107,21 @@ $navGroups = [
                 'href' => '/suppliers.php',
                 'label' => 'Fornecedores',
                 'icon' => 'bi-truck',
+                'permission' => 'suppliers.manage',
                 'active' => ['suppliers.php', 'supplier_form.php', 'demand_supplier_quote_form.php', 'demand_budget.php', 'demand_price_bank.php'],
             ],
             [
                 'href' => '/library.php',
                 'label' => 'Biblioteca',
                 'icon' => 'bi-journal-text',
+                'permission' => 'catalog.manage',
                 'active' => ['library.php', 'justification_template_form.php', 'impact_template_form.php'],
             ],
             [
                 'href' => '/similar_items.php',
                 'label' => 'Semelhantes',
                 'icon' => 'bi-intersect',
+                'permission' => 'catalog.manage',
                 'active' => ['similar_items.php'],
             ],
         ],
@@ -122,15 +131,24 @@ $navGroups = [
         'icon' => 'bi-gear',
         'items' => [
             [
+                'href' => '/users.php',
+                'label' => 'Usuarios',
+                'icon' => 'bi-people-gear',
+                'permission' => 'system.manage_users',
+                'active' => ['users.php', 'user_form.php'],
+            ],
+            [
                 'href' => '/data.php',
                 'label' => 'Dados',
                 'icon' => 'bi-database',
+                'permission' => 'system.manage_data',
                 'active' => ['data.php'],
             ],
             [
                 'href' => '/document_hash_validate.php',
                 'label' => 'Validar hash',
                 'icon' => 'bi-shield-check',
+                'permission' => 'hashes.view',
                 'active' => ['document_hash_validate.php'],
             ],
         ],
@@ -220,7 +238,37 @@ $navGroups = [
                             </ul>
                         </div>
                     <?php endforeach; ?>
-                </div>
+                    <?php if ($currentUser): ?>
+                        <div class="nav-item dropdown">
+                            <a
+                                href="#"
+                                class="nav-link dropdown-toggle d-flex align-items-center gap-2"
+                                role="button"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">
+                                <i class="bi bi-person-circle"></i>
+                                <span><?= e($currentUser['name'] ?? 'Usuario') ?></span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <span class="dropdown-item-text small text-muted">
+                                        <?= e(auth_role_label($currentUser['role'] ?? '')) ?>
+                                    </span>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a href="/profile.php" class="dropdown-item d-flex align-items-center gap-2">
+                                        <i class="bi bi-key"></i><span>Minha senha</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="/logout.php" class="dropdown-item d-flex align-items-center gap-2">
+                                        <i class="bi bi-box-arrow-right"></i><span>Sair</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    <?php endif; ?>                </div>
             </div>
         </div>
     </nav>

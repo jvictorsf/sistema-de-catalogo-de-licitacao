@@ -290,6 +290,27 @@ CREATE TABLE IF NOT EXISTS cnae_references (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS app_users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    username VARCHAR(80) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(30) NOT NULL DEFAULT 'operator',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
+    last_login_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_app_users_role CHECK (role IN ('admin', 'manager', 'operator', 'viewer'))
+);
+
+ALTER TABLE app_users
+DROP CONSTRAINT IF EXISTS ck_app_users_role;
+
+ALTER TABLE app_users
+ADD CONSTRAINT ck_app_users_role
+CHECK (role IN ('admin', 'manager', 'operator', 'viewer'));
 CREATE TABLE IF NOT EXISTS collaborators (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -932,6 +953,11 @@ BEFORE UPDATE ON requester_units
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 
+DROP TRIGGER IF EXISTS trg_touch_updated_at_app_users ON app_users;
+CREATE TRIGGER trg_touch_updated_at_app_users
+BEFORE UPDATE ON app_users
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
 DROP TRIGGER IF EXISTS trg_touch_updated_at_collaborators ON collaborators;
 CREATE TRIGGER trg_touch_updated_at_collaborators
 BEFORE UPDATE ON collaborators
@@ -1208,6 +1234,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_procurement_items_tracking_code
 ON procurement_items (tracking_code)
 WHERE tracking_code IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS idx_app_users_username
+ON app_users (lower(username));
+
+CREATE INDEX IF NOT EXISTS idx_app_users_email
+ON app_users (lower(email));
+
+CREATE INDEX IF NOT EXISTS idx_app_users_role_active
+ON app_users (role, is_active);
 CREATE INDEX IF NOT EXISTS idx_collaborators_name
 ON collaborators (lower(name));
 
@@ -2812,7 +2846,7 @@ FROM demand_supplier_quotes
 WHERE attachment_path IS NOT NULL
   AND attachment_path <> ''
 ON CONFLICT (demand_supplier_quote_id, attachment_path) DO NOTHING;
-SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
+SELECT setval(pg_get_serial_sequence('app_users', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM app_users), 0), 1), COALESCE((SELECT MAX(id) FROM app_users), 0) > 0);SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
 SELECT setval(pg_get_serial_sequence('unit_types', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM unit_types), 0), 1), COALESCE((SELECT MAX(id) FROM unit_types), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_items), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_item_images', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_item_images), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_item_images), 0) > 0);

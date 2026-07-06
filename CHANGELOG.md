@@ -2,6 +2,23 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.2] - 2026-07-06
+
+### Adicionado
+- Sistema de autenticacao com login, logout, sessao segura e criacao assistida do primeiro administrador em `/setup_admin.php`.
+- Cadastro administrativo de usuarios com perfis Administrador, Gestor, Operador e Consulta.
+- Controle de permissoes por perfil para usuarios, dados, catalogo, projetos, orcamentos, fornecedores, demandantes, confirmacoes, relatorios, BI, hashes e IA.
+- Area de perfil para o usuario autenticado trocar a propria senha.
+- Schema passa a incluir a tabela `app_users`, indices, constraint de perfil e trigger de atualizacao.
+
+### Alterado
+- Todas as paginas internas passam a exigir login, mantendo publico apenas login, logout, criacao inicial do administrador e assinatura por token de demanda.
+- Menu principal passa a exibir opcoes conforme as permissoes do perfil autenticado.
+- README passa a documentar o primeiro acesso administrativo e os perfis de usuario.
+
+### Seguranca
+- Rotas administrativas validam permissao no servidor, inclusive em acesso direto por URL.
+- O sistema impede desativar o proprio usuario e impede deixar a aplicacao sem administrador ativo.
 ## [1.6.1] - 2026-07-06
 
 ### Adicionado

@@ -7,6 +7,18 @@ function e(?string $value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
+function app_url(string $path = ''): string
+{
+    $base = defined('APP_URL') ? trim((string) APP_URL) : '';
+
+    if ($base === '') {
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        $base = $scheme . '://' . $host;
+    }
+
+    return rtrim($base, '/') . '/' . ltrim($path, '/');
+}
 function redirect(string $path): never
 {
     header("Location: {$path}");
@@ -2128,6 +2140,122 @@ function upload_supplier_quote_files(array $files): array
     }
 
     return $paths;
+}
+function demand_confirmation_storage_dir(): string
+{
+    return (defined('APP_STORAGE_PATH') ? APP_STORAGE_PATH : dirname(__DIR__) . '/storage')
+        . '/uploads/demand_confirmations';
+}
+
+function demand_confirmation_file_path(string $filename): string
+{
+    return demand_confirmation_storage_dir() . '/' . basename($filename);
+}
+
+function demand_confirmation_file_url(int $requestId, string $kind): string
+{
+    return '/demand_confirmation_file.php?id=' . $requestId . '&kind=' . rawurlencode($kind);
+}
+
+function demand_confirmation_default_statement(): string
+{
+    return 'Declaro, para os fins administrativos cabiveis, que conferi os itens, quantidades e informacoes da demanda apresentada e confirmo que correspondem a necessidade do setor/unidade requisitante.';
+}
+
+function demand_confirmation_token_url(string $token): string
+{
+    return '/demand_confirmation_sign.php?token=' . rawurlencode($token);
+}
+
+function demand_confirmation_status_label(?string $status): string
+{
+    return match ($status) {
+        'signed' => 'Assinada',
+        'revoked' => 'Revogada',
+        'expired' => 'Expirada',
+        default => 'Pendente',
+    };
+}
+
+function demand_confirmation_status_badge_class(?string $status): string
+{
+    return match ($status) {
+        'signed' => 'text-bg-success',
+        'revoked' => 'text-bg-secondary',
+        'expired' => 'text-bg-warning',
+        default => 'text-bg-primary',
+    };
+}
+
+function save_demand_confirmation_signature(string $dataUrl): string
+{
+    if (!preg_match('/^data:image\/(png|jpeg);base64,/', $dataUrl, $matches)) {
+        throw new RuntimeException('Assinatura invalida. Assine novamente no campo indicado.');
+    }
+
+    $extension = $matches[1] === 'jpeg' ? 'jpg' : 'png';
+    $payload = substr($dataUrl, strpos($dataUrl, ',') + 1);
+    $binary = base64_decode($payload, true);
+
+    if ($binary === false || strlen($binary) < 100) {
+        throw new RuntimeException('Assinatura nao foi capturada corretamente.');
+    }
+
+    if (strlen($binary) > 2 * 1024 * 1024) {
+        throw new RuntimeException('A assinatura deve ter no maximo 2 MB.');
+    }
+
+    $uploadDir = demand_confirmation_storage_dir();
+    ensure_writable_upload_dir($uploadDir, 'assinaturas de demanda');
+
+    $filename = 'assinatura_' . date('Ymd_His') . '_' . bin2hex(random_bytes(8)) . '.' . $extension;
+    $destination = $uploadDir . '/' . $filename;
+
+    if (file_put_contents($destination, $binary) === false) {
+        throw new RuntimeException('Nao foi possivel salvar a assinatura.');
+    }
+
+    return $filename;
+}
+
+function upload_demand_confirmation_document(array $file): string
+{
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        throw new RuntimeException('Envie uma foto ou PDF do documento para comprovacao.');
+    }
+
+    if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('Erro ao enviar o documento de comprovacao.');
+    }
+
+    $allowedTypes = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'application/pdf' => 'pdf',
+    ];
+
+    $mime = mime_content_type($file['tmp_name']);
+
+    if (!isset($allowedTypes[$mime])) {
+        throw new RuntimeException('Documento invalido. Use JPG, PNG, WEBP ou PDF.');
+    }
+
+    if (($file['size'] ?? 0) > 10 * 1024 * 1024) {
+        throw new RuntimeException('O documento deve ter no maximo 10 MB.');
+    }
+
+    $uploadDir = demand_confirmation_storage_dir();
+    ensure_writable_upload_dir($uploadDir, 'documentos de confirmacao de demanda');
+
+    $filename = 'documento_' . date('Ymd_His') . '_' . bin2hex(random_bytes(8)) . '.' . $allowedTypes[$mime];
+    $destination = $uploadDir . '/' . $filename;
+
+    if (!move_uploaded_file($file['tmp_name'], $destination)) {
+        throw new RuntimeException('Nao foi possivel salvar o documento de comprovacao.');
+    }
+
+    return $filename;
 }
 function upload_item_image(array $file): ?string
 {

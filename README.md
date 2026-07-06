@@ -40,7 +40,7 @@ Salvar:
 - Dump do banco PostgreSQL `catalogo_licitacao`.
 - Arquivo `.env`.
 - Diretorio `public/uploads/`.
-- Diretorio `storage/`, quando houver arquivos de importacao, exportacao ou logs relevantes.
+- Diretorio `storage/`, incluindo logs e arquivos privados de confirmacao de demanda em `storage/uploads/demand_confirmations/`.
 - Brasao em `public/assets/brasao-municipio.png`, quando utilizado.
 
 Exemplo:
@@ -66,7 +66,8 @@ Depois, restaurar `public/uploads/`, `storage/` e o brasao municipal, se houver.
 - O codigo de rastreio dos itens e gerado automaticamente no banco no formato `CL000001`.
 - A importacao/exportacao JSON esta disponivel no menu **Dados**.
 - A pagina **Dados** oferece um template JSON de importacao para cada escopo.
-- Orcamentos reais de fornecedores podem ser anexados em `public/uploads/supplier_quotes/`.
+- Orcamentos reais de fornecedores podem ser anexados em public/uploads/supplier_quotes/.
+- Confirmacoes formais de demanda usam link por token, assinatura em canvas e documento pessoal armazenado em `storage/uploads/demand_confirmations/`, sem download publico direto. Essas confirmacoes formais devem ser preservadas por dump do PostgreSQL e backup do `storage`, nao por exportacao JSON operacional.
 - A consulta de CNPJ de fornecedores utiliza `https://brasilapi.com.br/api/cnpj/v1/{cnpj}` quando houver acesso externo.
 - Unidades demandantes podem ter uma unidade pai para representar subunidades ou departamentos internos.
 - Itens podem informar conteudo da embalagem e unidade do conteudo, por exemplo pacote com 100 unidades ou caixa com 305 metros.

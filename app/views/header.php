@@ -32,6 +32,8 @@ $primaryNavItems = [
             'projects.php',
             'project_form.php',
             'project_show.php',
+            'demand_show.php',
+            'demand_confirmation_form.php',
             'project_report.php',
             'project_demand_report.php',
             'project_export_word.php',
@@ -88,6 +90,12 @@ $navGroups = [
                 'label' => 'Demandantes',
                 'icon' => 'bi-building',
                 'active' => ['requester_units.php', 'requester_unit_form.php', 'secretariat_form.php'],
+            ],
+            [
+                'href' => '/collaborators.php',
+                'label' => 'Colaboradores',
+                'icon' => 'bi-people',
+                'active' => ['collaborators.php', 'collaborator_form.php'],
             ],
             [
                 'href' => '/suppliers.php',

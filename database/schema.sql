@@ -290,6 +290,19 @@ CREATE TABLE IF NOT EXISTS cnae_references (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS collaborators (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    document_number VARCHAR(50),
+    registration_number VARCHAR(100),
+    role VARCHAR(255),
+    department VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(50),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS demand_lists (
     id SERIAL PRIMARY KEY,
     project_id INTEGER NOT NULL REFERENCES procurement_projects(id) ON DELETE CASCADE,
@@ -304,6 +317,29 @@ CREATE TABLE IF NOT EXISTS demand_lists (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS demand_confirmation_requests (
+    id SERIAL PRIMARY KEY,
+    demand_list_id INTEGER NOT NULL REFERENCES demand_lists(id) ON DELETE CASCADE,
+    collaborator_id INTEGER NULL REFERENCES collaborators(id) ON DELETE SET NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    requester_name VARCHAR(255) NOT NULL,
+    requester_document VARCHAR(50),
+    requester_role VARCHAR(255),
+    requester_email VARCHAR(255),
+    requester_phone VARCHAR(50),
+    statement_text TEXT NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    expires_at TIMESTAMP NULL,
+    signed_at TIMESTAMP NULL,
+    signature_path VARCHAR(255),
+    document_photo_path VARCHAR(255),
+    snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+    content_hash CHAR(64),
+    signer_ip VARCHAR(100),
+    signer_user_agent TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS demand_items (
     id SERIAL PRIMARY KEY,
     demand_list_id INTEGER NOT NULL REFERENCES demand_lists(id) ON DELETE CASCADE,
@@ -698,6 +734,28 @@ $$;
 ALTER TABLE demand_lists
 ADD COLUMN IF NOT EXISTS quote_collector_name VARCHAR(255);
 
+ALTER TABLE demand_confirmation_requests
+ADD COLUMN IF NOT EXISTS collaborator_id INTEGER NULL REFERENCES collaborators(id) ON DELETE SET NULL;
+
+ALTER TABLE demand_confirmation_requests
+ADD COLUMN IF NOT EXISTS requester_email VARCHAR(255);
+
+ALTER TABLE demand_confirmation_requests
+ADD COLUMN IF NOT EXISTS requester_phone VARCHAR(50);
+
+ALTER TABLE demand_confirmation_requests
+ADD COLUMN IF NOT EXISTS snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE demand_confirmation_requests
+ADD COLUMN IF NOT EXISTS content_hash CHAR(64);
+
+ALTER TABLE demand_confirmation_requests
+ADD COLUMN IF NOT EXISTS signer_ip VARCHAR(100);
+
+ALTER TABLE demand_confirmation_requests
+ADD COLUMN IF NOT EXISTS signer_user_agent TEXT;
+
+
 ALTER TABLE demand_lists
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
@@ -874,6 +932,17 @@ BEFORE UPDATE ON requester_units
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 
+DROP TRIGGER IF EXISTS trg_touch_updated_at_collaborators ON collaborators;
+CREATE TRIGGER trg_touch_updated_at_collaborators
+BEFORE UPDATE ON collaborators
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_demand_confirmation_requests ON demand_confirmation_requests;
+CREATE TRIGGER trg_touch_updated_at_demand_confirmation_requests
+BEFORE UPDATE ON demand_confirmation_requests
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
 DROP TRIGGER IF EXISTS trg_touch_updated_at_demands ON demand_lists;
 CREATE TRIGGER trg_touch_updated_at_demands
 BEFORE UPDATE ON demand_lists
@@ -1139,6 +1208,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_procurement_items_tracking_code
 ON procurement_items (tracking_code)
 WHERE tracking_code IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS idx_collaborators_name
+ON collaborators (lower(name));
+
+CREATE INDEX IF NOT EXISTS idx_collaborators_document
+ON collaborators (lower(document_number));
+
+CREATE INDEX IF NOT EXISTS idx_demand_confirmation_requests_demand
+ON demand_confirmation_requests (demand_list_id);
+
+CREATE INDEX IF NOT EXISTS idx_demand_confirmation_requests_collaborator
+ON demand_confirmation_requests (collaborator_id);
+
+CREATE INDEX IF NOT EXISTS idx_demand_confirmation_requests_status
+ON demand_confirmation_requests (status);
+
+CREATE INDEX IF NOT EXISTS idx_demand_confirmation_requests_hash
+ON demand_confirmation_requests (content_hash);
 CREATE INDEX IF NOT EXISTS idx_demand_items_demand_list
 ON demand_items (demand_list_id);
 
@@ -2735,8 +2821,10 @@ SELECT setval(pg_get_serial_sequence('procurement_projects', 'id'), GREATEST(COA
 SELECT setval(pg_get_serial_sequence('direct_purchase_dod_documents', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM direct_purchase_dod_documents), 0), 1), COALESCE((SELECT MAX(id) FROM direct_purchase_dod_documents), 0) > 0);
 SELECT setval(pg_get_serial_sequence('secretariats', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM secretariats), 0), 1), COALESCE((SELECT MAX(id) FROM secretariats), 0) > 0);
 SELECT setval(pg_get_serial_sequence('requester_units', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM requester_units), 0), 1), COALESCE((SELECT MAX(id) FROM requester_units), 0) > 0);
+SELECT setval(pg_get_serial_sequence('collaborators', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM collaborators), 0), 1), COALESCE((SELECT MAX(id) FROM collaborators), 0) > 0);
 SELECT setval(pg_get_serial_sequence('suppliers', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM suppliers), 0), 1), COALESCE((SELECT MAX(id) FROM suppliers), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_lists', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_lists), 0), 1), COALESCE((SELECT MAX(id) FROM demand_lists), 0) > 0);
+SELECT setval(pg_get_serial_sequence('demand_confirmation_requests', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_confirmation_requests), 0), 1), COALESCE((SELECT MAX(id) FROM demand_confirmation_requests), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_supplier_quotes', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_supplier_quote_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0) > 0);

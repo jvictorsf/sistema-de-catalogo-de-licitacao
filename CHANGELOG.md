@@ -2,6 +2,21 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.1] - 2026-07-06
+
+### Adicionado
+- Cadastro de colaboradores para reutilizar responsaveis, requisitantes e tecnicos nas confirmacoes formais de demanda.
+- Fluxo de confirmacao formal da demanda por link com token, assinatura em canvas para uso no celular e upload de documento de comprovacao.
+- Painel na demanda para acompanhar solicitacoes pendentes, assinadas, expiradas ou revogadas, com hash da confirmacao quando assinada.
+- Schema passa a incluir as tabelas `collaborators` e `demand_confirmation_requests`, com snapshot JSON, hash, metadados de assinatura e arquivos privados em storage.
+
+### Alterado
+- Menu Cadastros passa a incluir Colaboradores.
+- README passa a documentar o armazenamento privado das evidencias de confirmacao de demanda.
+
+### Seguranca
+- Documento pessoal e assinatura ficam armazenados em `storage/uploads/demand_confirmations/` e nao sao expostos por endpoint publico direto enquanto o sistema nao possuir login/perfis.
+
 ## [1.6.0] - 2026-07-06
 
 ### Adicionado
@@ -15,6 +30,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 - Sistema passa a ser identificado como Sistema Interno de Compras e Licitacoes.
 - Tela do projeto separa acoes de Licitacao e Compra Direta, ocultando anexos licitatorios quando a modalidade for Compra Direta.
 - Listagem de projetos passa a exibir a modalidade do projeto.
+
 ## [1.5.33] - 2026-07-03
 
 ### Adicionado
@@ -25,6 +41,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
 ### Corrigido
 - Itens de servico deixam de receber observacoes padrao de produtos no JSON de especificacao tecnica.
+
 ## [1.5.32] - 2026-07-03
 
 ### Corrigido
@@ -38,6 +55,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 ### Alterado
 - Telas de demanda, orcamento da demanda e orcamentos do projeto passam a exibir todos os documentos vinculados ao orcamento do fornecedor.
 - Clonagem de projetos e exportacao/importacao JSON passam a contemplar documentos multiplos dos orcamentos.
+
 ## [1.5.30] - 2026-07-02
 
 ### Adicionado

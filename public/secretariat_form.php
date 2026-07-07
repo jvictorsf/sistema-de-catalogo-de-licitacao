@@ -45,7 +45,7 @@ require __DIR__ . '/../app/views/header.php';
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1 class="h3 mb-1"><?= $secretariat ? 'Editar secretaria' : 'Nova secretaria' ?></h1>
-        <p class="text-muted mb-0">Organize as unidades demandantes por secretaria.</p>
+        <p class="text-muted mb-0">Organize as unidades administrativas por secretaria.</p>
     </div>
 
     <a href="/requester_units.php" class="btn btn-outline-secondary">

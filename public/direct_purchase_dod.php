@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/config.php';
 require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';
+require_once __DIR__ . '/../app/demand_confirmations.php';
 
 $id = (int) ($_GET['id'] ?? $_POST['project_id'] ?? 0);
 $project = find_project($id);
@@ -21,6 +22,12 @@ if (!project_is_direct_purchase($project)) {
 $errors = [];
 $projectLocked = project_is_locked($project);
 $dod = get_direct_purchase_dod($id);
+$collaborators = get_collaborators(true);
+$collaboratorsById = [];
+
+foreach ($collaborators as $collaboratorOption) {
+    $collaboratorsById[(int) $collaboratorOption['id']] = $collaboratorOption;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($projectLocked) {
@@ -28,12 +35,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (empty($dod['schema_available'])) {
         $errors[] = 'Atualize o schema do banco antes de salvar o DOD da Compra Direta.';
     } else {
+        $headerPost = is_array($_POST['header'] ?? null) ? $_POST['header'] : [];
+        $headerPost['additional_logo_paths'] = direct_purchase_dod_logo_paths_from_text((string) ($_POST['header_additional_logo_paths'] ?? ''));
         $footer = is_array($_POST['footer'] ?? null) ? $_POST['footer'] : [];
         $footer['additional_fields'] = direct_purchase_dod_additional_fields_from_text((string) ($_POST['footer_additional_fields'] ?? ''));
 
+        if (is_array($footer['signatures'] ?? null)) {
+            foreach ($footer['signatures'] as &$signaturePost) {
+                if (!is_array($signaturePost)) {
+                    continue;
+                }
+
+                $collaboratorId = (int) ($signaturePost['collaborator_id'] ?? 0);
+
+                if ($collaboratorId && isset($collaboratorsById[$collaboratorId])) {
+                    $selectedCollaborator = $collaboratorsById[$collaboratorId];
+                    $signaturePost['name'] = trim((string) ($signaturePost['name'] ?? '')) ?: (string) ($selectedCollaborator['name'] ?? '');
+                    $signaturePost['role'] = trim((string) ($signaturePost['role'] ?? '')) ?: (string) ($selectedCollaborator['role'] ?? '');
+                }
+            }
+            unset($signaturePost);
+        }
+
         try {
             save_direct_purchase_dod($id, [
-                'header' => is_array($_POST['header'] ?? null) ? $_POST['header'] : [],
+                'header' => $headerPost,
                 'footer' => $footer,
                 'sections' => is_array($_POST['sections'] ?? null) ? $_POST['sections'] : [],
             ]);
@@ -47,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dod = [
         'schema_available' => $dod['schema_available'] ?? false,
         'exists' => $dod['exists'] ?? false,
-        'header' => direct_purchase_dod_normalize_header($_POST['header'] ?? [], $project),
+        'header' => direct_purchase_dod_normalize_header($headerPost ?? ($_POST['header'] ?? []), $project),
         'footer' => direct_purchase_dod_normalize_footer($footer ?? []),
         'sections' => direct_purchase_dod_normalize_sections($_POST['sections'] ?? []),
     ];
@@ -57,11 +83,23 @@ $demands = get_project_demands($id);
 $consolidatedItems = get_project_consolidated_items($id);
 $budgetEvaluation = get_direct_purchase_budget_evaluation($id);
 $header = $dod['header'];
-$footer = $dod['footer'];
+$footer = direct_purchase_dod_prefill_footer_from_demands($dod['footer'], $demands);
 $sections = direct_purchase_dod_apply_auto_content($project, $demands, $consolidatedItems, $dod, $budgetEvaluation);
 $footerAdditionalFields = direct_purchase_dod_additional_fields_text($footer['additional_fields'] ?? []);
+$headerAdditionalLogoPaths = direct_purchase_dod_logo_paths_text($header['additional_logo_paths'] ?? []);
 $aiPrompt = direct_purchase_dod_ai_prompt_text($project, $demands, $consolidatedItems, ['sections' => $sections]);
 $signatureRows = direct_purchase_dod_normalize_signatures($footer['signatures'] ?? [], $footer);
+$collaboratorOptionsHtml = '<option value="">Preencher manualmente</option>';
+
+foreach ($collaborators as $collaboratorOption) {
+    $collaboratorOptionsHtml .= sprintf(
+        '<option value="%d" data-name="%s" data-role="%s">%s</option>',
+        (int) $collaboratorOption['id'],
+        e($collaboratorOption['name'] ?? ''),
+        e($collaboratorOption['role'] ?? ''),
+        e(trim((string) ($collaboratorOption['name'] ?? '') . ' - ' . (string) ($collaboratorOption['role'] ?? ''), ' -'))
+    );
+}
 
 require __DIR__ . '/../app/views/header.php';
 ?>
@@ -131,18 +169,36 @@ require __DIR__ . '/../app/views/header.php';
             <span class="badge text-bg-light text-dark border">DOD</span>
         </div>
 
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label">Nome da entidade</label>
-                <input type="text" name="header[entity_name]" class="form-control" value="<?= e($header['entity_name'] ?? '') ?>">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Estado</label>
-                <input type="text" name="header[state_name]" class="form-control" value="<?= e($header['state_name'] ?? '') ?>">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Local</label>
-                <input type="text" name="header[place]" class="form-control" value="<?= e($header['place'] ?? '') ?>">
+                <div class="row g-3">
+            <div class="col-12">
+                <div class="border rounded bg-light p-3">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="small text-muted">Entidade</div>
+                            <strong><?= e($header['entity_name'] ?? '') ?></strong>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="small text-muted">Estado</div>
+                            <strong><?= e($header['state_name'] ?? '') ?></strong>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="small text-muted">Local padrao</div>
+                            <strong><?= e($header['place'] ?? '') ?></strong>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="small text-muted">Logo esquerda</div>
+                            <code><?= e($header['logo_left_path'] ?? '') ?></code>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="small text-muted">Brasao central</div>
+                            <code><?= e($header['logo_center_path'] ?? '') ?></code>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="small text-muted">Logo direita</div>
+                            <code><?= e($header['logo_right_path'] ?? '') ?></code>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Secretaria</label>
@@ -152,17 +208,10 @@ require __DIR__ . '/../app/views/header.php';
                 <label class="form-label">Departamento</label>
                 <input type="text" name="header[department_name]" class="form-control" value="<?= e($header['department_name'] ?? '') ?>" placeholder="DEPARTAMENTO DE ...">
             </div>
-            <div class="col-md-4">
-                <label class="form-label">Logo esquerda</label>
-                <input type="text" name="header[logo_left_path]" class="form-control" value="<?= e($header['logo_left_path'] ?? '') ?>">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Brasão central</label>
-                <input type="text" name="header[logo_center_path]" class="form-control" value="<?= e($header['logo_center_path'] ?? '') ?>">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Logo direita</label>
-                <input type="text" name="header[logo_right_path]" class="form-control" value="<?= e($header['logo_right_path'] ?? '') ?>">
+            <div class="col-12">
+                <label class="form-label">Logos adicionais do departamento</label>
+                <textarea name="header_additional_logo_paths" rows="2" class="form-control" placeholder="/assets/logo-saude.png"><?= e($headerAdditionalLogoPaths) ?></textarea>
+                <div class="form-text">Informe um caminho por linha. O brasao principal continua vindo de MUNICIPAL_LOGO_PATH.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Data</label>
@@ -268,7 +317,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="row g-3">
             <div class="col-md-4">
                 <label class="form-label">Local da emissão</label>
-                <input type="text" name="footer[issue_place]" class="form-control" value="<?= e($footer['issue_place'] ?? '') ?>">
+                <input type="text" name="footer[issue_place]" class="form-control" readonly value="<?= e($footer['issue_place'] ?? '') ?>">
             </div>
             <div class="col-md-4">
                 <label class="form-label">Data da emissão</label>
@@ -323,17 +372,23 @@ require __DIR__ . '/../app/views/header.php';
         <div class="vstack gap-2" data-signature-list data-next-signature-index="<?= count($signatureRows) ?>">
             <?php foreach ($signatureRows as $signatureIndex => $signature): ?>
                 <div class="row g-2 align-items-end border rounded p-2" data-signature-row>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">Tipo</label>
                         <input type="text" name="footer[signatures][<?= (int) $signatureIndex ?>][label]" class="form-control" value="<?= e($signature['label'] ?? '') ?>">
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Nome</label>
-                        <input type="text" name="footer[signatures][<?= (int) $signatureIndex ?>][name]" class="form-control" value="<?= e($signature['name'] ?? '') ?>">
+                    <div class="col-md-3">
+                        <label class="form-label">Colaborador</label>
+                        <select name="footer[signatures][<?= (int) $signatureIndex ?>][collaborator_id]" class="form-select" data-signature-collaborator>
+                            <?= str_replace('value="' . (int) ($signature['collaborator_id'] ?? 0) . '"', 'value="' . (int) ($signature['collaborator_id'] ?? 0) . '" selected', $collaboratorOptionsHtml) ?>
+                        </select>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Cargo/função</label>
-                        <input type="text" name="footer[signatures][<?= (int) $signatureIndex ?>][role]" class="form-control" value="<?= e($signature['role'] ?? '') ?>">
+                    <div class="col-md-3">
+                        <label class="form-label">Nome</label>
+                        <input type="text" name="footer[signatures][<?= (int) $signatureIndex ?>][name]" class="form-control" value="<?= e($signature['name'] ?? '') ?>" data-signature-name>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Cargo/funcao</label>
+                        <input type="text" name="footer[signatures][<?= (int) $signatureIndex ?>][role]" class="form-control" value="<?= e($signature['role'] ?? '') ?>" data-signature-role>
                     </div>
                     <div class="col-md-1 d-grid">
                         <button type="button" class="btn btn-outline-danger" title="Remover assinatura" data-remove-signature>
@@ -374,6 +429,7 @@ require __DIR__ . '/../app/views/header.php';
         const copyButton = document.querySelector('[data-copy-prompt]');
         const signatureList = document.querySelector('[data-signature-list]');
         const addSignatureButton = document.querySelector('[data-add-signature]');
+        const collaboratorOptionsHtml = <?= json_encode($collaboratorOptionsHtml, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 
         function insertAroundSelection(textarea, before, after, placeholder) {
             const start = textarea.selectionStart || 0;
@@ -449,6 +505,35 @@ require __DIR__ . '/../app/views/header.php';
             });
         }
 
+        function bindSignatureCollaborators(scope) {
+            (scope || document).querySelectorAll('[data-signature-collaborator]').forEach(function(select) {
+                if (select.dataset.bound) {
+                    return;
+                }
+
+                select.dataset.bound = '1';
+                select.addEventListener('change', function() {
+                    const row = select.closest('[data-signature-row]');
+                    const option = select.options[select.selectedIndex];
+
+                    if (!row || !option || !option.value) {
+                        return;
+                    }
+
+                    const nameInput = row.querySelector('[data-signature-name]');
+                    const roleInput = row.querySelector('[data-signature-role]');
+
+                    if (nameInput) {
+                        nameInput.value = option.dataset.name || nameInput.value;
+                    }
+
+                    if (roleInput) {
+                        roleInput.value = option.dataset.role || roleInput.value;
+                    }
+                });
+            });
+        }
+
         if (addButton && list) {
             addButton.addEventListener('click', function() {
                 const index = Number(list.dataset.nextIndex || '0');
@@ -509,18 +594,22 @@ require __DIR__ . '/../app/views/header.php';
                 const wrapper = document.createElement('div');
                 wrapper.className = 'row g-2 align-items-end border rounded p-2';
                 wrapper.dataset.signatureRow = '1';
-                wrapper.innerHTML = `
-                    <div class="col-md-3">
+                                wrapper.innerHTML = `
+                    <div class="col-md-2">
                         <label class="form-label">Tipo</label>
                         <input type="text" name="footer[signatures][${index}][label]" class="form-control" value="Assinatura ${index + 1}">
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Nome</label>
-                        <input type="text" name="footer[signatures][${index}][name]" class="form-control">
+                    <div class="col-md-3">
+                        <label class="form-label">Colaborador</label>
+                        <select name="footer[signatures][${index}][collaborator_id]" class="form-select" data-signature-collaborator>${collaboratorOptionsHtml}</select>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Cargo/função</label>
-                        <input type="text" name="footer[signatures][${index}][role]" class="form-control">
+                    <div class="col-md-3">
+                        <label class="form-label">Nome</label>
+                        <input type="text" name="footer[signatures][${index}][name]" class="form-control" data-signature-name>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Cargo/funcao</label>
+                        <input type="text" name="footer[signatures][${index}][role]" class="form-control" data-signature-role>
                     </div>
                     <div class="col-md-1 d-grid">
                         <button type="button" class="btn btn-outline-danger" title="Remover assinatura" data-remove-signature>
@@ -529,6 +618,7 @@ require __DIR__ . '/../app/views/header.php';
                     </div>`;
                 signatureList.appendChild(wrapper);
                 bindSignatureRemove(wrapper);
+                bindSignatureCollaborators(wrapper);
             });
         }
 
@@ -544,6 +634,7 @@ require __DIR__ . '/../app/views/header.php';
 
         enhanceRichEditors(document);
         bindSignatureRemove(document);
+        bindSignatureCollaborators(document);
     });
 </script>
 

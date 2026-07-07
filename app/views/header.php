@@ -92,7 +92,7 @@ $navGroups = [
             ],
             [
                 'href' => '/requester_units.php',
-                'label' => 'Demandantes',
+                'label' => 'Unidades Adm.',
                 'icon' => 'bi-building',
                 'permission' => 'requesters.manage',
                 'active' => ['requester_units.php', 'requester_unit_form.php', 'secretariat_form.php'],

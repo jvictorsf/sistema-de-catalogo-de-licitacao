@@ -1566,12 +1566,22 @@ function create_requester_unit(array $data): int
             secretariat_id,
             name,
             default_responsible_name,
+            address,
+            postal_code,
+            phone,
+            branch,
+            email,
             is_active
         ) VALUES (
             :parent_id,
             :secretariat_id,
             :name,
             :default_responsible_name,
+            :address,
+            :postal_code,
+            :phone,
+            :branch,
+            :email,
             :is_active
         )
         RETURNING id
@@ -1582,12 +1592,16 @@ function create_requester_unit(array $data): int
         'secretariat_id' => $data['secretariat_id'] ?: null,
         'name' => $data['name'],
         'default_responsible_name' => $data['default_responsible_name'] ?? null,
+        'address' => trim((string) ($data['address'] ?? '')) ?: null,
+        'postal_code' => trim((string) ($data['postal_code'] ?? '')) ?: null,
+        'phone' => only_digits((string) ($data['phone'] ?? '')) ?: null,
+        'branch' => trim((string) ($data['branch'] ?? '')) ?: null,
+        'email' => trim((string) ($data['email'] ?? '')) ?: null,
         'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 
     return (int) $stmt->fetchColumn();
 }
-
 function update_requester_unit(int $id, array $data): void
 {
     $stmt = db()->prepare("
@@ -1596,6 +1610,11 @@ function update_requester_unit(int $id, array $data): void
             secretariat_id = :secretariat_id,
             name = :name,
             default_responsible_name = :default_responsible_name,
+            address = :address,
+            postal_code = :postal_code,
+            phone = :phone,
+            branch = :branch,
+            email = :email,
             is_active = :is_active
         WHERE id = :id
     ");
@@ -1606,10 +1625,14 @@ function update_requester_unit(int $id, array $data): void
         'secretariat_id' => $data['secretariat_id'] ?: null,
         'name' => $data['name'],
         'default_responsible_name' => $data['default_responsible_name'] ?? null,
+        'address' => trim((string) ($data['address'] ?? '')) ?: null,
+        'postal_code' => trim((string) ($data['postal_code'] ?? '')) ?: null,
+        'phone' => only_digits((string) ($data['phone'] ?? '')) ?: null,
+        'branch' => trim((string) ($data['branch'] ?? '')) ?: null,
+        'email' => trim((string) ($data['email'] ?? '')) ?: null,
         'is_active' => pg_bool($data['is_active'] ?? true),
     ]);
 }
-
 function deactivate_requester_unit(int $id): void
 {
     $stmt = db()->prepare("
@@ -2226,6 +2249,11 @@ function get_project_demands(int $projectId): array
                 ELSE ru.name
             END AS requester_unit_name,
             ru.default_responsible_name,
+            COALESCE(NULLIF(ru.address, ''), parent_ru.address) AS requester_unit_address,
+            COALESCE(NULLIF(ru.postal_code, ''), parent_ru.postal_code) AS requester_unit_postal_code,
+            COALESCE(NULLIF(ru.phone, ''), parent_ru.phone) AS requester_unit_phone,
+            COALESCE(NULLIF(ru.branch, ''), parent_ru.branch) AS requester_unit_branch,
+            COALESCE(NULLIF(ru.email, ''), parent_ru.email) AS requester_unit_email,
             s.name AS secretariat_name
         FROM demand_lists dl
         LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
@@ -2250,6 +2278,11 @@ function find_demand_list(int $id): ?array
                 ELSE ru.name
             END AS requester_unit_name,
             ru.default_responsible_name,
+            COALESCE(NULLIF(ru.address, ''), parent_ru.address) AS requester_unit_address,
+            COALESCE(NULLIF(ru.postal_code, ''), parent_ru.postal_code) AS requester_unit_postal_code,
+            COALESCE(NULLIF(ru.phone, ''), parent_ru.phone) AS requester_unit_phone,
+            COALESCE(NULLIF(ru.branch, ''), parent_ru.branch) AS requester_unit_branch,
+            COALESCE(NULLIF(ru.email, ''), parent_ru.email) AS requester_unit_email,
             s.name AS secretariat_name
         FROM demand_lists dl
         LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
@@ -7849,7 +7882,7 @@ function catalog_json_scopes(): array
         'all' => 'Base completa',
         'items' => 'Itens',
         'projects' => 'Projetos e demandas',
-        'requesters' => 'Secretarias e unidades demandantes',
+        'requesters' => 'Secretarias e unidades administrativas',
         'suppliers' => 'Fornecedores',
         'categories' => 'Categorias',
         'unit_types' => 'Tipos de unidade',
@@ -7936,13 +7969,38 @@ function catalog_json_table_definitions(): array
             'json' => [],
         ],
         'requester_units' => [
-            'label' => 'Unidades demandantes',
+            'label' => 'Unidades administrativas',
             'columns' => [
                 'id',
                 'parent_id',
                 'secretariat_id',
                 'name',
                 'default_responsible_name',
+                'address',
+                'postal_code',
+                'phone',
+                'branch',
+                'email',
+                'is_active',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
+        'collaborators' => [
+            'label' => 'Colaboradores',
+            'columns' => [
+                'id',
+                'name',
+                'document_number',
+                'registration_number',
+                'role',
+                'department',
+                'requester_unit_id',
+                'email',
+                'phone',
+                'branch',
+                'whatsapp',
                 'is_active',
                 'created_at',
                 'updated_at',
@@ -8183,6 +8241,7 @@ function catalog_json_scope_tables(string $scope): array
             'procurement_projects',
             'secretariats',
             'requester_units',
+            'collaborators',
             'suppliers',
             'demand_lists',
             'demand_items',
@@ -8212,6 +8271,7 @@ function catalog_json_scope_tables(string $scope): array
             'procurement_projects',
             'secretariats',
             'requester_units',
+            'collaborators',
             'suppliers',
             'demand_lists',
             'demand_items',
@@ -8229,6 +8289,7 @@ function catalog_json_scope_tables(string $scope): array
         'requesters' => [
             'secretariats',
             'requester_units',
+            'collaborators',
         ],
         'suppliers' => ['suppliers'],
         'categories' => ['categories'],
@@ -8376,10 +8437,45 @@ function catalog_json_sample_row(string $table, array $columns): array
             'secretariat_id' => 1,
             'name' => 'Nome da unidade, setor ou subunidade',
             'default_responsible_name' => 'Responsavel padrao',
+            'address' => 'Rua da unidade, 100, Centro',
+            'postal_code' => '00000-000',
+            'phone' => '(00) 0000-0000',
+            'branch' => '000',
+            'email' => 'unidade@municipio.sp.gov.br',
             'is_active' => true,
         ]);
     }
 
+    if ($table === 'collaborators') {
+        return array_merge($row, [
+            'name' => 'Nome do colaborador',
+            'document_number' => '000.000.000-00',
+            'registration_number' => '0001',
+            'role' => 'Cargo ou funcao',
+            'department' => 'Unidade administrativa',
+            'requester_unit_id' => 1,
+            'email' => 'colaborador@municipio.sp.gov.br',
+            'phone' => '(00) 0000-0000',
+            'branch' => '000',
+            'whatsapp' => '(00) 00000-0000',
+            'is_active' => true,
+        ]);
+    }
+    if ($table === 'collaborators') {
+        return array_merge($row, [
+            'name' => 'Nome do colaborador',
+            'document_number' => '000.000.000-00',
+            'registration_number' => '0001',
+            'role' => 'Cargo ou funcao',
+            'department' => 'Unidade administrativa',
+            'requester_unit_id' => 1,
+            'email' => 'colaborador@municipio.sp.gov.br',
+            'phone' => '(00) 0000-0000',
+            'branch' => '000',
+            'whatsapp' => '(00) 00000-0000',
+            'is_active' => true,
+        ]);
+    }
     if ($table === 'suppliers') {
         return array_merge($row, [
             'name' => 'Nome do fornecedor',

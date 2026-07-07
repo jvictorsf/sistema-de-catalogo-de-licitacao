@@ -101,7 +101,7 @@ require __DIR__ . '/../app/views/header.php';
         </div>
 
         <div class="<?= $isDirectPurchase ? 'col-md-3' : 'col-md-4' ?>">
-            <div class="text-muted small">Unidade/Setor demandante</div>
+            <div class="text-muted small">Unidade administrativa</div>
             <div class="fw-semibold"><?= e($demand['requester_department'] ?: '-') ?></div>
         </div>
 

@@ -17,7 +17,7 @@ require __DIR__ . '/../app/views/header.php';
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1 class="h3 mb-1">Colaboradores</h1>
-        <p class="text-muted mb-0">Base de responsaveis, requisitantes e tecnicos usados nas confirmacoes de demanda.</p>
+        <p class="text-muted mb-0">Base de responsaveis, requisitantes e tecnicos usados nas demandas e assinaturas.</p>
     </div>
 
     <a href="/collaborator_form.php" class="btn btn-primary">
@@ -37,7 +37,7 @@ require __DIR__ . '/../app/views/header.php';
             <label class="form-label">Pesquisar</label>
             <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input type="search" name="q" class="form-control" placeholder="Nome, CPF, matricula, cargo, setor ou e-mail" value="<?= e($q) ?>">
+                <input type="search" name="q" class="form-control" placeholder="Nome, CPF, matricula, cargo, unidade, secretaria, ramal, telefone ou e-mail" value="<?= e($q) ?>">
             </div>
         </div>
         <div class="col-lg-2 d-grid">
@@ -52,6 +52,7 @@ require __DIR__ . '/../app/views/header.php';
             <thead class="table-light">
                 <tr>
                     <th>Colaborador</th>
+                    <th>Lotacao</th>
                     <th>Documento</th>
                     <th>Contato</th>
                     <th>Status</th>
@@ -61,7 +62,7 @@ require __DIR__ . '/../app/views/header.php';
             <tbody>
                 <?php if (!$collaborators): ?>
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">Nenhum colaborador cadastrado.</td>
+                        <td colspan="6" class="text-center text-muted py-4">Nenhum colaborador cadastrado.</td>
                     </tr>
                 <?php endif; ?>
 
@@ -72,7 +73,13 @@ require __DIR__ . '/../app/views/header.php';
                             <?php if (!empty($collaborator['role'])): ?>
                                 <div class="small text-muted"><?= e($collaborator['role']) ?></div>
                             <?php endif; ?>
-                            <?php if (!empty($collaborator['department'])): ?>
+                        </td>
+                        <td>
+                            <?= e($collaborator['requester_unit_name'] ?: ($collaborator['department'] ?: '-')) ?>
+                            <?php if (!empty($collaborator['secretariat_name'])): ?>
+                                <div class="small text-muted"><?= e($collaborator['secretariat_name']) ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($collaborator['department']) && $collaborator['department'] !== ($collaborator['requester_unit_name'] ?? '')): ?>
                                 <div class="small text-muted"><?= e($collaborator['department']) ?></div>
                             <?php endif; ?>
                         </td>
@@ -85,7 +92,13 @@ require __DIR__ . '/../app/views/header.php';
                         <td>
                             <?= e($collaborator['email'] ?: '-') ?>
                             <?php if (!empty($collaborator['phone'])): ?>
-                                <div class="small text-muted"><?= e(format_brazil_phone($collaborator['phone'])) ?></div>
+                                <div class="small text-muted">Tel.: <?= e(format_brazil_phone($collaborator['phone'])) ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($collaborator['branch'])): ?>
+                                <div class="small text-muted">Ramal: <?= e($collaborator['branch']) ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($collaborator['whatsapp'])): ?>
+                                <div class="small text-muted">WhatsApp: <?= e(format_brazil_phone($collaborator['whatsapp'])) ?></div>
                             <?php endif; ?>
                         </td>
                         <td>

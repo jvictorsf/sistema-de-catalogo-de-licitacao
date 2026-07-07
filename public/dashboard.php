@@ -100,7 +100,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card card-body dashboard-kpi dashboard-kpi-compact">
             <div class="dashboard-kpi-icon text-bg-secondary"><i class="bi bi-diagram-3"></i></div>
             <div>
-                <div class="text-muted small">Unidades demandantes</div>
+                <div class="text-muted small">Unidades administrativas</div>
                 <div class="h4 mb-0"><?= e((string) $summary['total_requester_units']) ?></div>
             </div>
         </div>

@@ -71,7 +71,7 @@ Depois, restaurar `public/uploads/`, `storage/` e o brasao municipal, se houver.
 - Orcamentos reais de fornecedores podem ser anexados em public/uploads/supplier_quotes/.
 - Confirmacoes formais de demanda usam link por token, assinatura em canvas e documento pessoal armazenado em `storage/uploads/demand_confirmations/`, sem download publico direto. Essas confirmacoes formais devem ser preservadas por dump do PostgreSQL e backup do `storage`, nao por exportacao JSON operacional.
 - A consulta de CNPJ de fornecedores utiliza `https://brasilapi.com.br/api/cnpj/v1/{cnpj}` quando houver acesso externo.
-- Unidades demandantes podem ter uma unidade pai para representar subunidades ou departamentos internos.
+- Unidades administrativas podem ter uma unidade pai para representar subunidades ou departamentos internos.
 - Itens podem informar conteudo da embalagem e unidade do conteudo, por exemplo pacote com 100 unidades ou caixa com 305 metros.
 - Erros da aplicacao sao registrados em `storage/logs/app.log`; erros nativos do PHP ficam em `storage/logs/php-error.log`.
 - Os impactos ambientais dos itens sao armazenados como lista estruturada.
@@ -112,6 +112,20 @@ MUNICIPAL_LOGO_PATH=/assets/brasao-municipio.png
 
 Se o arquivo nao existir, os relatorios continuam sendo gerados sem imagem.
 
+## Variaveis Institucionais do DOD
+O DOD da Compra Direta usa as seguintes variaveis no `.env` para padronizar cabecalho e rodape:
+
+```env
+MUNICIPAL_LOGO_PATH=/assets/brasao-municipio.png
+DOD_ENTITY_NAME="PREFEITURA MUNICIPAL DE ESPIRITO SANTO DO TURVO"
+DOD_ENTITY_STATE="ESTADO DE SAO PAULO"
+DOD_ENTITY_CITY="Espirito Santo do Turvo - SP"
+DOD_ENTITY_CNPJ=57.264.509/0001-69
+DOD_LOGO_LEFT_PATH=/assets/municipio-agro.png
+DOD_LOGO_RIGHT_PATH=/assets/municipio-verde-azul.png
+```
+
+Logos especificas de secretaria ou departamento podem ser adicionadas na propria tela do DOD, uma por linha.
 ## Estrutura
 
 ```txt

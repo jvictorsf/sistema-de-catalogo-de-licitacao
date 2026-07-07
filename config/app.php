@@ -45,6 +45,12 @@ defined('APP_URL') || define('APP_URL', env_value('APP_URL', 'https://catalogo-l
 defined('APP_ENV') || define('APP_ENV', env_value('APP_ENV', 'production'));
 defined('APP_STORAGE_PATH') || define('APP_STORAGE_PATH', BASE_PATH . '/storage');
 defined('MUNICIPAL_LOGO_PATH') || define('MUNICIPAL_LOGO_PATH', env_value('MUNICIPAL_LOGO_PATH', '/assets/brasao-municipio.png'));
+defined('DOD_ENTITY_NAME') || define('DOD_ENTITY_NAME', env_value('DOD_ENTITY_NAME', 'PREFEITURA MUNICIPAL DE ESPIRITO SANTO DO TURVO'));
+defined('DOD_ENTITY_STATE') || define('DOD_ENTITY_STATE', env_value('DOD_ENTITY_STATE', 'ESTADO DE SAO PAULO'));
+defined('DOD_ENTITY_CITY') || define('DOD_ENTITY_CITY', env_value('DOD_ENTITY_CITY', 'Espirito Santo do Turvo - SP'));
+defined('DOD_ENTITY_CNPJ') || define('DOD_ENTITY_CNPJ', env_value('DOD_ENTITY_CNPJ', '57.264.509/0001-69'));
+defined('DOD_LOGO_LEFT_PATH') || define('DOD_LOGO_LEFT_PATH', env_value('DOD_LOGO_LEFT_PATH', '/assets/municipio-agro.png'));
+defined('DOD_LOGO_RIGHT_PATH') || define('DOD_LOGO_RIGHT_PATH', env_value('DOD_LOGO_RIGHT_PATH', '/assets/municipio-verde-azul.png'));
 
 defined('DB_HOST') || define('DB_HOST', env_value('DB_HOST', 'localhost'));
 defined('DB_PORT') || define('DB_PORT', env_value('DB_PORT', '5432'));

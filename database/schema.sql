@@ -232,6 +232,11 @@ CREATE TABLE IF NOT EXISTS requester_units (
     secretariat_id INTEGER NULL REFERENCES secretariats(id) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
     default_responsible_name VARCHAR(255),
+    address TEXT,
+    postal_code VARCHAR(20),
+    phone VARCHAR(50),
+    branch VARCHAR(30),
+    email VARCHAR(255),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -318,8 +323,11 @@ CREATE TABLE IF NOT EXISTS collaborators (
     registration_number VARCHAR(100),
     role VARCHAR(255),
     department VARCHAR(255),
+    requester_unit_id INTEGER NULL REFERENCES requester_units(id) ON DELETE SET NULL,
     email VARCHAR(255),
     phone VARCHAR(50),
+    branch VARCHAR(30),
+    whatsapp VARCHAR(50),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -646,6 +654,21 @@ ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE requester_units
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
+ALTER TABLE requester_units
+ADD COLUMN IF NOT EXISTS address TEXT;
+
+ALTER TABLE requester_units
+ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20);
+
+ALTER TABLE requester_units
+ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+
+ALTER TABLE requester_units
+ADD COLUMN IF NOT EXISTS branch VARCHAR(30);
+
+ALTER TABLE requester_units
+ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+
 ALTER TABLE suppliers
 ADD COLUMN IF NOT EXISTS document VARCHAR(30);
 
@@ -754,6 +777,27 @@ $$;
 
 ALTER TABLE demand_lists
 ADD COLUMN IF NOT EXISTS quote_collector_name VARCHAR(255);
+
+ALTER TABLE collaborators
+ADD COLUMN IF NOT EXISTS requester_unit_id INTEGER NULL;
+
+ALTER TABLE collaborators
+ADD COLUMN IF NOT EXISTS branch VARCHAR(30);
+
+ALTER TABLE collaborators
+ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(50);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_collaborators_requester_unit'
+    ) THEN
+        ALTER TABLE collaborators
+        ADD CONSTRAINT fk_collaborators_requester_unit
+        FOREIGN KEY (requester_unit_id) REFERENCES requester_units(id) ON DELETE SET NULL;
+    END IF;
+END
+$$;
 
 ALTER TABLE demand_confirmation_requests
 ADD COLUMN IF NOT EXISTS collaborator_id INTEGER NULL REFERENCES collaborators(id) ON DELETE SET NULL;
@@ -1247,6 +1291,9 @@ ON collaborators (lower(name));
 
 CREATE INDEX IF NOT EXISTS idx_collaborators_document
 ON collaborators (lower(document_number));
+
+CREATE INDEX IF NOT EXISTS idx_collaborators_requester_unit
+ON collaborators (requester_unit_id);
 
 CREATE INDEX IF NOT EXISTS idx_demand_confirmation_requests_demand
 ON demand_confirmation_requests (demand_list_id);

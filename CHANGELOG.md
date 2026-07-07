@@ -2,6 +2,19 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.7] - 2026-07-07
+
+### Adicionado
+- DOD da Compra Direta passa a usar variaveis de ambiente para entidade, estado, local, CNPJ e logos institucionais padrao.
+- DOD passa a aceitar logos adicionais por departamento e assinaturas vinculadas a colaboradores cadastrados ou preenchidas manualmente.
+- Unidades administrativas passam a armazenar endereco, CEP, telefone, ramal e e-mail para preenchimento do rodape institucional.
+- Colaboradores passam a ter vinculo com unidade administrativa, ramal e WhatsApp.
+- Exportacao/importacao JSON passa a incluir contatos das unidades administrativas e colaboradores no escopo de secretarias/unidades.
+
+### Alterado
+- Menu e telas principais passam a adotar a nomenclatura Unidade Administrativa/Secretaria no lugar de demandantes.
+- Cadastro de colaboradores foi reorganizado em secoes de identificacao, lotacao administrativa e contato.
+- Exportacao do DOD passa a preencher o rodape com dados da unidade administrativa vinculada a demanda.
 ## [1.6.6] - 2026-07-07
 
 ### Corrigido

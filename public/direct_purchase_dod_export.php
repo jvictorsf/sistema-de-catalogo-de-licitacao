@@ -66,13 +66,14 @@ $demands = get_project_demands($id);
 $consolidatedItems = get_project_consolidated_items($id);
 $budgetEvaluation = get_direct_purchase_budget_evaluation($id);
 $header = direct_purchase_dod_normalize_header($dod['header'] ?? [], $project);
-$footer = direct_purchase_dod_normalize_footer($dod['footer'] ?? []);
+$footer = direct_purchase_dod_prefill_footer_from_demands(direct_purchase_dod_normalize_footer($dod['footer'] ?? []), $demands);
 $sections = direct_purchase_dod_enabled_sections(direct_purchase_dod_apply_auto_content($project, $demands, $consolidatedItems, $dod, $budgetEvaluation));
 $entityName = trim((string) ($header['entity_name'] ?? '')) ?: APP_NAME;
 $title = trim((string) ($header['title'] ?? '')) ?: 'Documento de Oficialização de Demanda (DOD)';
 $filename = 'dod-compra-direta-projeto-' . $id . '.doc';
 $showPageNumbers = !empty($footer['show_page_numbers']);
 $signatures = direct_purchase_dod_normalize_signatures($footer['signatures'] ?? [], $footer);
+$additionalLogoPaths = direct_purchase_dod_normalize_logo_paths($header['additional_logo_paths'] ?? []);
 
 if ($format === 'word') {
     send_download_headers('application/msword; charset=utf-8', $filename);
@@ -99,6 +100,8 @@ if ($format === 'word') {
         .logo-slot:first-child { text-align: right; }
         .logo-slot:last-child { text-align: left; }
         .logo-placeholder { display: inline-block; width: 82px; min-height: 1px; }
+        .extra-logo-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin: 4px 0 8px; }
+        .logo-extra { max-width: 78px; max-height: 50px; object-fit: contain; }
         .header-line { margin: 1px 0; font-weight: 700; text-transform: uppercase; line-height: 1.25; }
         .header-entity { font-size: 16px; }
         .header-state, .header-secretariat, .header-department { font-size: 13px; }
@@ -156,6 +159,13 @@ if ($format === 'word') {
             <div class="logo-slot"><?= direct_purchase_dod_export_logo($header['logo_center_path'] ?? '', 'logo-center', 'Brasão do Município') ?></div>
             <div class="logo-slot"><?= direct_purchase_dod_export_logo($header['logo_right_path'] ?? '', 'logo-side', 'Município Verde Azul') ?></div>
         </div>
+        <?php if ($additionalLogoPaths): ?>
+            <div class="extra-logo-row">
+                <?php foreach ($additionalLogoPaths as $extraLogoPath): ?>
+                    <?= direct_purchase_dod_export_logo($extraLogoPath, 'logo-extra', 'Logo adicional') ?>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
         <div class="header-line header-entity"><?= e($entityName) ?></div>
         <?php if (!empty($header['state_name'])): ?>
             <div class="header-line header-state"><?= e($header['state_name']) ?></div>

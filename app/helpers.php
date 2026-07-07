@@ -526,14 +526,23 @@ function direct_purchase_dod_seems_mojibake(string $text): bool
 
 function direct_purchase_dod_default_place(): string
 {
-    return direct_purchase_dod_text('Esp\u{00ED}rito Santo do Turvo - SP');
+    $place = trim((string) (defined('DOD_ENTITY_CITY') ? DOD_ENTITY_CITY : ''));
+
+    return $place !== '' ? $place : direct_purchase_dod_text('Esp\u{00ED}rito Santo do Turvo - SP');
+}
+
+function direct_purchase_dod_env_text(string $constantName, string $fallback): string
+{
+    $value = defined($constantName) ? trim((string) constant($constantName)) : '';
+
+    return $value !== '' ? $value : direct_purchase_dod_text($fallback);
 }
 
 function direct_purchase_dod_default_header(array $project = []): array
 {
     return [
-        'entity_name' => direct_purchase_dod_text('PREFEITURA MUNICIPAL DE ESP\u{00CD}RITO SANTO DO TURVO'),
-        'state_name' => direct_purchase_dod_text('ESTADO DE S\u{00C3}O PAULO'),
+        'entity_name' => direct_purchase_dod_env_text('DOD_ENTITY_NAME', 'PREFEITURA MUNICIPAL DE ESP\u{00CD}RITO SANTO DO TURVO'),
+        'state_name' => direct_purchase_dod_env_text('DOD_ENTITY_STATE', 'ESTADO DE S\u{00C3}O PAULO'),
         'secretariat_name' => '',
         'department_name' => '',
         'place' => direct_purchase_dod_default_place(),
@@ -542,9 +551,10 @@ function direct_purchase_dod_default_header(array $project = []): array
         'document_number' => '',
         'recipient' => '',
         'subject' => (string) ($project['name'] ?? ''),
-        'logo_left_path' => '/assets/municipio-agro.png',
+        'logo_left_path' => direct_purchase_dod_env_text('DOD_LOGO_LEFT_PATH', '/assets/municipio-agro.png'),
         'logo_center_path' => municipal_logo_public_path() ?: '/assets/brasao-municipio.png',
-        'logo_right_path' => '/assets/municipio-verde-azul.png',
+        'logo_right_path' => direct_purchase_dod_env_text('DOD_LOGO_RIGHT_PATH', '/assets/municipio-verde-azul.png'),
+        'additional_logo_paths' => [],
     ];
 }
 
@@ -561,17 +571,49 @@ function direct_purchase_dod_default_footer(): array
         'postal_code' => '',
         'phone' => '',
         'branch' => '',
-        'cnpj' => '57.264.509/0001-69',
+        'cnpj' => direct_purchase_dod_env_text('DOD_ENTITY_CNPJ', '57.264.509/0001-69'),
         'email' => '',
         'show_page_numbers' => false,
         'signatures' => [
-            ['label' => 'Requisitante', 'name' => '', 'role' => ''],
-            ['label' => 'Autoridade competente', 'name' => '', 'role' => ''],
+            ['label' => 'Requisitante', 'name' => '', 'role' => '', 'collaborator_id' => null],
+            ['label' => 'Autoridade competente', 'name' => '', 'role' => '', 'collaborator_id' => null],
         ],
         'additional_fields' => [],
     ];
 }
 
+function direct_purchase_dod_normalize_logo_paths(mixed $paths): array
+{
+    if (is_string($paths)) {
+        $paths = preg_split('/\r\n|\r|\n|,/', $paths) ?: [];
+    }
+
+    if (!is_array($paths)) {
+        return [];
+    }
+
+    $normalized = [];
+
+    foreach ($paths as $path) {
+        $path = trim((string) $path);
+
+        if ($path !== '' && !in_array($path, $normalized, true)) {
+            $normalized[] = $path;
+        }
+    }
+
+    return $normalized;
+}
+
+function direct_purchase_dod_logo_paths_from_text(string $text): array
+{
+    return direct_purchase_dod_normalize_logo_paths($text);
+}
+
+function direct_purchase_dod_logo_paths_text(array $paths): string
+{
+    return implode(PHP_EOL, direct_purchase_dod_normalize_logo_paths($paths));
+}
 function direct_purchase_dod_default_sections(): array
 {
     $rows = [
@@ -607,20 +649,25 @@ function direct_purchase_dod_default_sections(): array
 
 function direct_purchase_dod_normalize_header(mixed $header, array $project = []): array
 {
+    $defaults = direct_purchase_dod_default_header($project);
     $header = array_merge(
-        direct_purchase_dod_default_header($project),
+        $defaults,
         is_array($header) ? $header : []
     );
 
-    foreach (['entity_name', 'state_name', 'secretariat_name', 'department_name', 'place', 'title', 'document_number', 'recipient', 'subject', 'logo_left_path', 'logo_center_path', 'logo_right_path'] as $key) {
+    foreach (['secretariat_name', 'department_name', 'title', 'document_number', 'recipient', 'subject'] as $key) {
         $header[$key] = trim((string) ($header[$key] ?? ''));
     }
 
+    foreach (['entity_name', 'state_name', 'place', 'logo_left_path', 'logo_center_path', 'logo_right_path'] as $key) {
+        $header[$key] = trim((string) ($defaults[$key] ?? ''));
+    }
+
+    $header['additional_logo_paths'] = direct_purchase_dod_normalize_logo_paths($header['additional_logo_paths'] ?? []);
     $header['issue_date'] = trim((string) ($header['issue_date'] ?? date('Y-m-d'))) ?: date('Y-m-d');
 
     return $header;
 }
-
 function direct_purchase_dod_normalize_signatures(mixed $signatures, array $footer = []): array
 {
     $source = is_array($signatures) ? array_values($signatures) : [];
@@ -631,11 +678,13 @@ function direct_purchase_dod_normalize_signatures(mixed $signatures, array $foot
                 'label' => 'Requisitante',
                 'name' => (string) ($footer['requester_name'] ?? ''),
                 'role' => (string) ($footer['requester_role'] ?? ''),
+                'collaborator_id' => null,
             ],
             [
                 'label' => 'Autoridade competente',
                 'name' => (string) ($footer['authority_name'] ?? ''),
                 'role' => (string) ($footer['authority_role'] ?? ''),
+                'collaborator_id' => null,
             ],
         ];
     }
@@ -650,8 +699,9 @@ function direct_purchase_dod_normalize_signatures(mixed $signatures, array $foot
         $label = trim((string) ($signature['label'] ?? ''));
         $name = trim((string) ($signature['name'] ?? ''));
         $role = trim((string) ($signature['role'] ?? ''));
+        $collaboratorId = (int) ($signature['collaborator_id'] ?? 0) ?: null;
 
-        if ($label === '' && $name === '' && $role === '') {
+        if ($label === '' && $name === '' && $role === '' && !$collaboratorId) {
             continue;
         }
 
@@ -659,6 +709,7 @@ function direct_purchase_dod_normalize_signatures(mixed $signatures, array $foot
             'label' => $label !== '' ? $label : 'Assinatura ' . ($index + 1),
             'name' => $name,
             'role' => $role,
+            'collaborator_id' => $collaboratorId,
         ];
     }
 
@@ -688,6 +739,37 @@ function direct_purchase_dod_normalize_footer(mixed $footer): array
     $footer['additional_fields'] = is_array($footer['additional_fields'] ?? null)
         ? array_values(array_filter($footer['additional_fields'], static fn (mixed $row): bool => is_array($row) && trim((string) ($row['label'] ?? '')) !== ''))
         : [];
+
+    return $footer;
+}
+
+function direct_purchase_dod_prefill_footer_from_demands(array $footer, array $demands): array
+{
+    $mapping = [
+        'address' => 'requester_unit_address',
+        'postal_code' => 'requester_unit_postal_code',
+        'phone' => 'requester_unit_phone',
+        'branch' => 'requester_unit_branch',
+        'email' => 'requester_unit_email',
+    ];
+
+    foreach ($mapping as $footerKey => $demandKey) {
+        if (trim((string) ($footer[$footerKey] ?? '')) !== '') {
+            continue;
+        }
+
+        foreach ($demands as $demand) {
+            $value = trim((string) ($demand[$demandKey] ?? ''));
+
+            if ($value !== '') {
+                $footer[$footerKey] = $value;
+                break;
+            }
+        }
+    }
+
+    $footer['issue_place'] = trim((string) ($footer['issue_place'] ?? '')) ?: direct_purchase_dod_default_place();
+    $footer['cnpj'] = trim((string) ($footer['cnpj'] ?? '')) ?: direct_purchase_dod_env_text('DOD_ENTITY_CNPJ', '57.264.509/0001-69');
 
     return $footer;
 }
@@ -919,7 +1001,7 @@ function direct_purchase_dod_quantity_methodology_text(array $items): string
     }
 
     $lines = [
-        direct_purchase_dod_text('A estimativa de quantidades foi consolidada automaticamente a partir das demandas registradas no projeto, considerando as quantidades aprovadas em cada unidade demandante.'),
+        direct_purchase_dod_text('A estimativa de quantidades foi consolidada automaticamente a partir das demandas registradas no projeto, considerando as quantidades aprovadas em cada unidade administrativa.'),
         '',
     ];
 

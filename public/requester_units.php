@@ -14,9 +14,9 @@ require __DIR__ . '/../app/views/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 class="h3 mb-1">Demandantes</h1>
+        <h1 class="h3 mb-1">Unidades Administrativas e Secretarias</h1>
         <p class="text-muted mb-0">
-            Cadastre secretarias, unidades, subunidades e responsaveis padrao para agilizar as demandas.
+            Cadastre secretarias, unidades, subunidades, contatos e responsaveis padrao para agilizar demandas e documentos.
         </p>
     </div>
 
@@ -32,7 +32,7 @@ require __DIR__ . '/../app/views/header.php';
 </div>
 
 <div class="row g-4">
-    <div class="col-lg-5">
+    <div class="col-lg-4">
         <div class="card h-100">
             <div class="card-header fw-semibold">
                 Secretarias
@@ -87,10 +87,10 @@ require __DIR__ . '/../app/views/header.php';
         </div>
     </div>
 
-    <div class="col-lg-7">
+    <div class="col-lg-8">
         <div class="card h-100">
             <div class="card-header fw-semibold">
-                Unidades, setores e subunidades demandantes
+                Unidades administrativas, setores e subunidades
             </div>
 
             <div class="table-responsive">
@@ -98,8 +98,8 @@ require __DIR__ . '/../app/views/header.php';
                     <thead class="table-light">
                         <tr>
                             <th>Unidade/Subunidade</th>
-                            <th>Unidade pai</th>
                             <th>Secretaria</th>
+                            <th>Contato</th>
                             <th>Responsavel padrao</th>
                             <th>Status</th>
                             <th class="text-end">Acoes</th>
@@ -122,9 +122,26 @@ require __DIR__ . '/../app/views/header.php';
                                     <?php if (!empty($unit['parent_id'])): ?>
                                         <span class="badge text-bg-light border ms-1">Subunidade</span>
                                     <?php endif; ?>
+                                    <?php if (!empty($unit['parent_unit_name'])): ?>
+                                        <div class="small text-muted">Pai: <?= e($unit['parent_unit_name']) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($unit['address'])): ?>
+                                        <div class="small text-muted"><?= e($unit['address']) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($unit['postal_code'])): ?>
+                                        <div class="small text-muted">CEP <?= e($unit['postal_code']) ?></div>
+                                    <?php endif; ?>
                                 </td>
-                                <td><?= e($unit['parent_unit_name'] ?? '-') ?></td>
                                 <td><?= e($unit['secretariat_name'] ?? '-') ?></td>
+                                <td>
+                                    <?= !empty($unit['email']) ? e($unit['email']) : '-' ?>
+                                    <?php if (!empty($unit['phone'])): ?>
+                                        <div class="small text-muted">Tel.: <?= e(format_brazil_phone($unit['phone'])) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($unit['branch'])): ?>
+                                        <div class="small text-muted">Ramal: <?= e($unit['branch']) ?></div>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?= e($unit['default_responsible_name'] ?? '-') ?></td>
                                 <td>
                                     <span class="badge <?= $unit['is_active'] ? 'text-bg-success' : 'text-bg-secondary' ?>">

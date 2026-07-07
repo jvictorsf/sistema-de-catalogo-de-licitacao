@@ -19,8 +19,11 @@ function normalize_collaborator_data(array $data): array
     $data['registration_number'] = trim((string) ($data['registration_number'] ?? '')) ?: null;
     $data['role'] = trim((string) ($data['role'] ?? '')) ?: null;
     $data['department'] = trim((string) ($data['department'] ?? '')) ?: null;
+    $data['requester_unit_id'] = (int) ($data['requester_unit_id'] ?? 0) ?: null;
     $data['email'] = trim((string) ($data['email'] ?? '')) ?: null;
     $data['phone'] = only_digits((string) ($data['phone'] ?? '')) ?: null;
+    $data['branch'] = trim((string) ($data['branch'] ?? '')) ?: null;
+    $data['whatsapp'] = only_digits((string) ($data['whatsapp'] ?? '')) ?: null;
     $data['is_active'] = array_key_exists('is_active', $data)
         ? filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN)
         : true;
@@ -31,7 +34,6 @@ function normalize_collaborator_data(array $data): array
 
     return $data;
 }
-
 function get_collaborators(bool $activeOnly = false, string $search = ''): array
 {
     if (!collaborators_table_exists()) {
@@ -43,48 +45,76 @@ function get_collaborators(bool $activeOnly = false, string $search = ''): array
     $search = mb_strtolower(trim($search));
 
     if ($activeOnly) {
-        $filters[] = 'is_active = TRUE';
+        $filters[] = 'c.is_active = TRUE';
     }
 
     if ($search !== '') {
         $filters[] = "(
-            lower(name) LIKE :search
-            OR lower(COALESCE(document_number, '')) LIKE :search
-            OR lower(COALESCE(registration_number, '')) LIKE :search
-            OR lower(COALESCE(role, '')) LIKE :search
-            OR lower(COALESCE(department, '')) LIKE :search
-            OR lower(COALESCE(email, '')) LIKE :search
+            lower(c.name) LIKE :search
+            OR lower(COALESCE(c.document_number, '')) LIKE :search
+            OR lower(COALESCE(c.registration_number, '')) LIKE :search
+            OR lower(COALESCE(c.role, '')) LIKE :search
+            OR lower(COALESCE(c.department, '')) LIKE :search
+            OR lower(COALESCE(c.email, '')) LIKE :search
+            OR lower(COALESCE(c.branch, '')) LIKE :search
+            OR lower(COALESCE(c.whatsapp, '')) LIKE :search
+            OR lower(COALESCE(ru.name, '')) LIKE :search
+            OR lower(COALESCE(parent_ru.name, '')) LIKE :search
+            OR lower(COALESCE(s.name, '')) LIKE :search
         )";
         $params['search'] = '%' . $search . '%';
     }
 
-    $sql = 'SELECT * FROM collaborators';
+    $sql = "
+        SELECT
+            c.*,
+            CASE
+                WHEN parent_ru.id IS NOT NULL THEN parent_ru.name || ' - ' || ru.name
+                ELSE ru.name
+            END AS requester_unit_name,
+            s.name AS secretariat_name
+        FROM collaborators c
+        LEFT JOIN requester_units ru ON ru.id = c.requester_unit_id
+        LEFT JOIN requester_units parent_ru ON parent_ru.id = ru.parent_id
+        LEFT JOIN secretariats s ON s.id = ru.secretariat_id
+    ";
 
     if ($filters) {
         $sql .= ' WHERE ' . implode(' AND ', $filters);
     }
 
-    $sql .= ' ORDER BY is_active DESC, lower(name)';
+    $sql .= ' ORDER BY c.is_active DESC, lower(c.name)';
 
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
 
     return $stmt->fetchAll();
 }
-
 function find_collaborator(int $id): ?array
 {
     if (!collaborators_table_exists()) {
         return null;
     }
 
-    $stmt = db()->prepare('SELECT * FROM collaborators WHERE id = :id');
+    $stmt = db()->prepare("
+        SELECT
+            c.*,
+            CASE
+                WHEN parent_ru.id IS NOT NULL THEN parent_ru.name || ' - ' || ru.name
+                ELSE ru.name
+            END AS requester_unit_name,
+            s.name AS secretariat_name
+        FROM collaborators c
+        LEFT JOIN requester_units ru ON ru.id = c.requester_unit_id
+        LEFT JOIN requester_units parent_ru ON parent_ru.id = ru.parent_id
+        LEFT JOIN secretariats s ON s.id = ru.secretariat_id
+        WHERE c.id = :id
+    ");
     $stmt->execute(['id' => $id]);
     $row = $stmt->fetch();
 
     return $row ?: null;
 }
-
 function create_collaborator(array $data): int
 {
     if (!collaborators_table_exists()) {
@@ -93,8 +123,8 @@ function create_collaborator(array $data): int
 
     $data = normalize_collaborator_data($data);
     $stmt = db()->prepare("
-        INSERT INTO collaborators (name, document_number, registration_number, role, department, email, phone, is_active)
-        VALUES (:name, :document_number, :registration_number, :role, :department, :email, :phone, :is_active)
+        INSERT INTO collaborators (name, document_number, registration_number, role, department, requester_unit_id, email, phone, branch, whatsapp, is_active)
+        VALUES (:name, :document_number, :registration_number, :role, :department, :requester_unit_id, :email, :phone, :branch, :whatsapp, :is_active)
         RETURNING id
     ");
     $stmt->execute([
@@ -103,14 +133,16 @@ function create_collaborator(array $data): int
         'registration_number' => $data['registration_number'],
         'role' => $data['role'],
         'department' => $data['department'],
+        'requester_unit_id' => $data['requester_unit_id'],
         'email' => $data['email'],
         'phone' => $data['phone'],
+        'branch' => $data['branch'],
+        'whatsapp' => $data['whatsapp'],
         'is_active' => pg_bool($data['is_active']),
     ]);
 
     return (int) $stmt->fetchColumn();
 }
-
 function update_collaborator(int $id, array $data): void
 {
     if (!collaborators_table_exists()) {
@@ -125,8 +157,11 @@ function update_collaborator(int $id, array $data): void
             registration_number = :registration_number,
             role = :role,
             department = :department,
+            requester_unit_id = :requester_unit_id,
             email = :email,
             phone = :phone,
+            branch = :branch,
+            whatsapp = :whatsapp,
             is_active = :is_active
         WHERE id = :id
     ");
@@ -137,12 +172,14 @@ function update_collaborator(int $id, array $data): void
         'registration_number' => $data['registration_number'],
         'role' => $data['role'],
         'department' => $data['department'],
+        'requester_unit_id' => $data['requester_unit_id'],
         'email' => $data['email'],
         'phone' => $data['phone'],
+        'branch' => $data['branch'],
+        'whatsapp' => $data['whatsapp'],
         'is_active' => pg_bool($data['is_active']),
     ]);
 }
-
 function set_collaborator_active(int $id, bool $active): void
 {
     if (!collaborators_table_exists()) {

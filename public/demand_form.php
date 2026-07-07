@@ -130,7 +130,7 @@ require __DIR__ . '/../app/views/header.php';
 
         <?php if ($requesterUnits): ?>
             <div class="col-md-6">
-                <label class="form-label">Unidade/Subunidade demandante</label>
+                <label class="form-label">Unidade/Subunidade administrativa</label>
                 <select name="requester_unit_id" id="requesterUnitSelect" class="form-select" required>
                     <option value="">Selecione...</option>
 
@@ -161,13 +161,13 @@ require __DIR__ . '/../app/views/header.php';
         <?php else: ?>
             <div class="col-12">
                 <div class="alert alert-warning mb-0">
-                    Cadastre secretarias e unidades demandantes antes de criar demandas com vínculo.
-                    <a href="/requester_units.php" class="alert-link">Abrir cadastro de demandantes</a>.
+                    Cadastre secretarias e unidades administrativas antes de criar demandas com vínculo.
+                    <a href="/requester_units.php" class="alert-link">Abrir cadastro de unidades administrativas</a>.
                 </div>
             </div>
 
             <div class="col-md-6">
-                <label class="form-label">Unidade/Subunidade demandante</label>
+                <label class="form-label">Unidade/Subunidade administrativa</label>
                 <input
                     type="text"
                     name="requester_department"

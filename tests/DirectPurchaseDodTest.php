@@ -20,7 +20,7 @@ function dod_test_contains(string $haystack, string $needle, string $message): v
 
 $moneyWords = direct_purchase_dod_money_in_words(1234.56);
 dod_test_assert_true(
-    $moneyWords === 'mil duzentos e trinta e quatro reais e cinquenta e seis centavos',
+    $moneyWords === direct_purchase_dod_text('mil duzentos e trinta e quatro reais e cinquenta e seis centavos'),
     'Valor por extenso do DOD incorreto.'
 );
 
@@ -53,16 +53,21 @@ dod_test_contains($impactText, '- Uso de embalagens', 'Impacto ambiental deve se
 
 $valueText = direct_purchase_dod_value_estimate_text(
     ['direct_purchase_award_criterion' => 'global_lowest'],
-    ['global_winner' => ['supplier_name' => 'Fornecedor A', 'supplier_document' => '12.345.678/0001-90', 'total' => 1500.0]]
+    ['global_winner' => ['supplier_name' => 'BAURUINFO COMERCIAL LTDA', 'supplier_document' => '04033848000178', 'total' => 373.0]]
 );
-dod_test_contains($valueText, 'R$ 1.500,00', 'Estimativa de valor deve exibir valor monetário formatado.');
-dod_test_contains($valueText, 'Fornecedor A', 'Estimativa de valor deve citar fornecedor vencedor.');
+dod_test_contains($valueText, 'R$ 373,00', 'Estimativa de valor deve exibir valor monetario formatado.');
+dod_test_contains($valueText, 'BAURUINFO COMERCIAL LTDA', 'Estimativa de valor deve citar fornecedor vencedor.');
+dod_test_contains($valueText, direct_purchase_dod_text('contrata\u{00E7}\u{00E3}o'), 'Estimativa de valor deve preservar acentuacao de contratacao.');
+dod_test_contains($valueText, direct_purchase_dod_text('or\u{00E7}amento'), 'Estimativa de valor deve preservar acentuacao de orcamento.');
+dod_test_contains($valueText, direct_purchase_dod_text('n\u{00BA} 04033848000178'), 'Estimativa de valor deve preservar simbolo de numero.');
+dod_test_contains($valueText, direct_purchase_dod_text('Of\u{00ED}cio'), 'Estimativa de valor deve preservar acentuacao de Oficio.');
+dod_test_assert_true(strpos($valueText, direct_purchase_dod_text('\u{00C3}')) === false, 'Estimativa de valor nao deve conter mojibake com A til.');
 
-$heading = direct_purchase_dod_section_heading(['number' => '1', 'title' => 'Objeto da Contratação']);
-dod_test_assert_true($heading === '1. Objeto da Contratação', 'Número do tópico deve receber ponto após o número.');
+$heading = direct_purchase_dod_section_heading(['number' => '1', 'title' => direct_purchase_dod_text('Objeto da Contrata\u{00E7}\u{00E3}o')]);
+dod_test_assert_true($heading === direct_purchase_dod_text('1. Objeto da Contrata\u{00E7}\u{00E3}o'), 'Numero do topico deve receber ponto apos o numero.');
 
 $html = direct_purchase_dod_render_content("Texto **importante**\n- Primeiro item\n- Segundo item");
-dod_test_contains($html, '<strong>importante</strong>', 'Renderização do DOD deve aplicar negrito.');
-dod_test_contains($html, '<ul><li>Primeiro item</li><li>Segundo item</li></ul>', 'Renderização do DOD deve aplicar lista não ordenada.');
+dod_test_contains($html, '<strong>importante</strong>', 'Renderizacao do DOD deve aplicar negrito.');
+dod_test_contains($html, '<ul><li>Primeiro item</li><li>Segundo item</li></ul>', 'Renderizacao do DOD deve aplicar lista nao ordenada.');
 
 echo "DirectPurchaseDodTest: OK\n";

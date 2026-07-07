@@ -2,6 +2,14 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.6] - 2026-07-07
+
+### Corrigido
+- Textos automaticos do DOD da Compra Direta deixam de gerar acentuacao corrompida em trechos como contratacao, orcamento, numero e Oficio.
+- Geracao textual do DOD passa a usar escapes Unicode seguros em tempo de execucao, evitando nova gravacao com mojibake.
+
+### Testes
+- Teste do DOD passa a validar explicitamente que a estimativa de valor nao contem sequencias corrompidas e preserva acentuacao.
 ## [1.6.5] - 2026-07-07
 
 ### Adicionado
@@ -322,7 +330,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 - Testes para media aritmetica simples, arredondamento monetario e sinalizacao de outliers.
 
 ### Alterado
-- Anexo II padronizado como "Anexo II ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Planilha de Pesquisa e Estimativa de PreÃƒÆ’Ã‚Â§os".
+- Anexo II padronizado como "Anexo II ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Planilha de Pesquisa e Estimativa de PreÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§os".
 - Calculo do Anexo II passa a usar media aritmetica simples dos precos validos, arredondando o valor unitario estimado antes do total.
 - Anexo II passa a separar quantidade e unidade em colunas distintas.
 - Resumo financeiro do projeto passa a usar o mesmo valor global estimado calculado para o Anexo II.

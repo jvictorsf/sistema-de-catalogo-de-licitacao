@@ -87,22 +87,22 @@ function item_specification_kind(string $kind): string
 function standard_product_item_observations(): array
 {
     return [
-        'A imagem do produto, quando utilizada no processo administrativo, será meramente ilustrativa, sem vinculação obrigatória de marca ou fabricante.',
-        'Serão aceitos produtos equivalentes ou superiores desde que atendam integralmente às especificações mínimas exigidas.',
-        'Não serão aceitos produtos remanufaturados, recondicionados, usados ou de procedência duvidosa.',
-        'Todos os equipamentos deverão ser novos, de primeiro uso e entregues em embalagem original do fabricante.',
-        'O fornecedor deverá assegurar assistência técnica e suporte durante o período de garantia.',
+        'A imagem do produto, quando utilizada no processo administrativo, serÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ meramente ilustrativa, sem vinculaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o obrigatÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³ria de marca ou fabricante.',
+        'SerÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o aceitos produtos equivalentes ou superiores desde que atendam integralmente ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â s especificaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âµes mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­nimas exigidas.',
+        'NÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o serÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o aceitos produtos remanufaturados, recondicionados, usados ou de procedÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âªncia duvidosa.',
+        'Todos os equipamentos deverÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o ser novos, de primeiro uso e entregues em embalagem original do fabricante.',
+        'O fornecedor deverÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ assegurar assistÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âªncia tÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©cnica e suporte durante o perÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­odo de garantia.',
     ];
 }
 
 function standard_service_item_observations(): array
 {
     return [
-        'O serviço deverá ser executado conforme as condições, prazos e níveis mínimos de qualidade definidos no termo de referência.',
-        'Serão aceitas soluções tecnicamente equivalentes ou superiores desde que atendam integralmente às especificações mínimas exigidas.',
-        'A contratada deverá empregar profissionais qualificados e materiais, ferramentas e equipamentos adequados à execução do serviço, quando aplicável.',
-        'A execução deverá observar as normas técnicas, de segurança, ambientais e demais legislações vigentes aplicáveis ao serviço.',
-        'A contratada deverá prestar garantia, correção de falhas e suporte durante o período previsto para o serviço executado, quando aplicável.',
+        'O serviÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§o deverÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ ser executado conforme as condiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âµes, prazos e nÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­veis mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­nimos de qualidade definidos no termo de referÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âªncia.',
+        'SerÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o aceitas soluÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âµes tecnicamente equivalentes ou superiores desde que atendam integralmente ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â s especificaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âµes mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­nimas exigidas.',
+        'A contratada deverÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ empregar profissionais qualificados e materiais, ferramentas e equipamentos adequados ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  execuÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o do serviÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§o, quando aplicÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡vel.',
+        'A execuÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o deverÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ observar as normas tÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©cnicas, de seguranÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§a, ambientais e demais legislaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âµes vigentes aplicÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡veis ao serviÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§o.',
+        'A contratada deverÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ prestar garantia, correÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o de falhas e suporte durante o perÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­odo previsto para o serviÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§o executado, quando aplicÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡vel.',
     ];
 }
 
@@ -134,7 +134,7 @@ function item_specification_kind_from_unit_type(?array $unitType): string
         in_array($abbreviation, ['serv', 'svc', 'srv'], true) ||
         str_starts_with($name, 'servi') ||
         str_contains($description, 'servico') ||
-        str_contains($description, 'serviço')
+        str_contains($description, 'serviÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§o')
     ) {
         return 'service';
     }
@@ -508,28 +508,50 @@ function direct_purchase_award_criterion_label(?string $criterion): string
     return $labels[$criterion ?? ''] ?? $labels['global_lowest'];
 }
 
+function direct_purchase_dod_default_place(): string
+{
+    return 'EspÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­rito Santo do Turvo - SP';
+}
+
 function direct_purchase_dod_default_header(array $project = []): array
 {
     return [
-        'entity_name' => '',
-        'place' => '',
+        'entity_name' => 'PREFEITURA MUNICIPAL DE ESPÃƒÆ’Ã†â€™Ãƒâ€šÃ‚ÂRITO SANTO DO TURVO',
+        'state_name' => 'ESTADO DE SÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢O PAULO',
+        'secretariat_name' => '',
+        'department_name' => '',
+        'place' => direct_purchase_dod_default_place(),
         'issue_date' => date('Y-m-d'),
-        'title' => 'Documento de Oficializacao de Demanda (DOD)',
+        'title' => 'Documento de OficializaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o de Demanda (DOD)',
         'document_number' => '',
         'recipient' => '',
         'subject' => (string) ($project['name'] ?? ''),
+        'logo_left_path' => '/assets/municipio-agro.png',
+        'logo_center_path' => municipal_logo_public_path() ?: '/assets/brasao-municipio.png',
+        'logo_right_path' => '/assets/municipio-verde-azul.png',
     ];
 }
 
 function direct_purchase_dod_default_footer(): array
 {
     return [
-        'issue_place' => '',
+        'issue_place' => direct_purchase_dod_default_place(),
         'issue_date' => date('Y-m-d'),
         'requester_name' => '',
         'requester_role' => '',
         'authority_name' => '',
         'authority_role' => '',
+        'address' => '',
+        'postal_code' => '',
+        'phone' => '',
+        'branch' => '',
+        'cnpj' => '57.264.509/0001-69',
+        'email' => '',
+        'show_page_numbers' => false,
+        'signatures' => [
+            ['label' => 'Requisitante', 'name' => '', 'role' => ''],
+            ['label' => 'Autoridade competente', 'name' => '', 'role' => ''],
+        ],
         'additional_fields' => [],
     ];
 }
@@ -537,20 +559,20 @@ function direct_purchase_dod_default_footer(): array
 function direct_purchase_dod_default_sections(): array
 {
     $rows = [
-        ['objeto', 'Objeto da Contratacao', 'Descrever de forma objetiva o servico, item ou conjunto de itens a contratar.'],
-        ['necessidade', 'Descricao da Necessidade', 'Explicar o problema administrativo, operacional ou publico que justifica a demanda.'],
-        ['justificativa', 'Justificativa da Contratacao do Objeto', 'Relacionar a contratacao ao interesse publico, continuidade do servico e finalidade institucional.'],
-        ['quantidades', 'Estimativa de Quantidades e Metodologia', 'Indicar memoria de calculo, historico de consumo, demanda prevista ou criterio tecnico usado.'],
-        ['requisitos', 'Requisitos da Contratacao', 'Listar requisitos minimos, padroes de qualidade, prazos, garantia, suporte e criterios de aceitacao.'],
-        ['valor', 'Estimativa de Valor', 'Apresentar a forma de pesquisa de precos, fornecedores consultados e criterio de apuracao.'],
-        ['conclusao', 'Conclusao da Contratacao', 'Concluir quanto a necessidade, oportunidade e adequacao da compra direta.'],
-        ['providencias', 'Providencias a serem Tomadas pela Administracao', 'Registrar providencias internas, fiscais, autorizacoes, dotacao, prazos e encaminhamentos.'],
-        ['correlatas', 'Contratacoes Correlatas e Interdependentes', 'Informar contratos relacionados, dependencias tecnicas ou declarar inexistencia quando nao houver.'],
-        ['impactos_ambientais', 'Demonstracao de Possiveis Impactos Ambientais', 'Descrever impactos e medidas mitigadoras, sustentabilidade, descarte e uso racional de recursos.'],
+        ['objeto', 'Objeto da ContrataÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o', 'Descrever de forma objetiva o serviÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§o, item ou conjunto de itens a contratar.', false],
+        ['necessidade', 'DescriÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o da Necessidade', 'Explicar o problema administrativo, operacional ou pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âºblico que justifica a demanda.', false],
+        ['justificativa', 'Justificativa da ContrataÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o do Objeto', 'Relacionar a contrataÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o ao interesse pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âºblico, continuidade do serviÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§o e finalidade institucional.', false],
+        ['quantidades', 'Estimativa de Quantidades e Metodologia', 'Gerado automaticamente a partir dos itens e quantidades cadastrados nas demandas do projeto.', true],
+        ['requisitos', 'Requisitos da ContrataÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o', 'Listar requisitos mÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­nimos, padrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes de qualidade, prazos, garantia, suporte e critÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©rios de aceitaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o.', false],
+        ['valor', 'Estimativa de Valor', 'Gerado automaticamente a partir do OrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amento Geral da compra direta e do critÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©rio de julgamento configurado.', true],
+        ['conclusao', 'ConclusÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o da ContrataÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o', 'Concluir quanto ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  necessidade, oportunidade e adequaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o da compra direta.', false],
+        ['providencias', 'ProvidÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªncias a serem Tomadas pela AdministraÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o', 'Registrar providÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªncias internas, fiscais, autorizaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes, dotaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o, prazos e encaminhamentos.', false],
+        ['correlatas', 'ContrataÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes Correlatas e Interdependentes', 'Informar contratos relacionados, dependÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªncias tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©cnicas ou declarar inexistÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªncia quando nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o houver.', false],
+        ['impactos_ambientais', 'DemonstraÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o de PossÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­veis Impactos Ambientais', 'Gerado automaticamente a partir dos impactos ambientais registrados nos itens demandados, sem duplicidades.', true],
     ];
     $sections = [];
 
-    foreach ($rows as $index => [$id, $title, $guidance]) {
+    foreach ($rows as $index => [$id, $title, $guidance, $autoGenerated]) {
         $sections[] = [
             'id' => $id,
             'sort_order' => $index + 1,
@@ -558,6 +580,7 @@ function direct_purchase_dod_default_sections(): array
             'title' => $title,
             'enabled' => true,
             'required' => true,
+            'auto_generated' => $autoGenerated,
             'content' => '',
             'guidance' => $guidance,
         ];
@@ -568,10 +591,62 @@ function direct_purchase_dod_default_sections(): array
 
 function direct_purchase_dod_normalize_header(mixed $header, array $project = []): array
 {
-    return array_merge(
+    $header = array_merge(
         direct_purchase_dod_default_header($project),
         is_array($header) ? $header : []
     );
+
+    foreach (['entity_name', 'state_name', 'secretariat_name', 'department_name', 'place', 'title', 'document_number', 'recipient', 'subject', 'logo_left_path', 'logo_center_path', 'logo_right_path'] as $key) {
+        $header[$key] = trim((string) ($header[$key] ?? ''));
+    }
+
+    $header['issue_date'] = trim((string) ($header['issue_date'] ?? date('Y-m-d'))) ?: date('Y-m-d');
+
+    return $header;
+}
+
+function direct_purchase_dod_normalize_signatures(mixed $signatures, array $footer = []): array
+{
+    $source = is_array($signatures) ? array_values($signatures) : [];
+
+    if (!$source) {
+        $source = [
+            [
+                'label' => 'Requisitante',
+                'name' => (string) ($footer['requester_name'] ?? ''),
+                'role' => (string) ($footer['requester_role'] ?? ''),
+            ],
+            [
+                'label' => 'Autoridade competente',
+                'name' => (string) ($footer['authority_name'] ?? ''),
+                'role' => (string) ($footer['authority_role'] ?? ''),
+            ],
+        ];
+    }
+
+    $normalized = [];
+
+    foreach ($source as $index => $signature) {
+        if (!is_array($signature)) {
+            continue;
+        }
+
+        $label = trim((string) ($signature['label'] ?? ''));
+        $name = trim((string) ($signature['name'] ?? ''));
+        $role = trim((string) ($signature['role'] ?? ''));
+
+        if ($label === '' && $name === '' && $role === '') {
+            continue;
+        }
+
+        $normalized[] = [
+            'label' => $label !== '' ? $label : 'Assinatura ' . ($index + 1),
+            'name' => $name,
+            'role' => $role,
+        ];
+    }
+
+    return $normalized ?: direct_purchase_dod_default_footer()['signatures'];
 }
 
 function direct_purchase_dod_normalize_footer(mixed $footer): array
@@ -580,6 +655,19 @@ function direct_purchase_dod_normalize_footer(mixed $footer): array
         direct_purchase_dod_default_footer(),
         is_array($footer) ? $footer : []
     );
+
+    foreach (['issue_place', 'requester_name', 'requester_role', 'authority_name', 'authority_role', 'address', 'postal_code', 'phone', 'branch', 'cnpj', 'email'] as $key) {
+        $footer[$key] = trim((string) ($footer[$key] ?? ''));
+    }
+
+    $footer['issue_date'] = trim((string) ($footer['issue_date'] ?? date('Y-m-d'))) ?: date('Y-m-d');
+    $footer['show_page_numbers'] = boolish($footer['show_page_numbers'] ?? false, false);
+    $footer['signatures'] = direct_purchase_dod_normalize_signatures($footer['signatures'] ?? [], $footer);
+
+    $footer['requester_name'] = $footer['requester_name'] ?: (string) ($footer['signatures'][0]['name'] ?? '');
+    $footer['requester_role'] = $footer['requester_role'] ?: (string) ($footer['signatures'][0]['role'] ?? '');
+    $footer['authority_name'] = $footer['authority_name'] ?: (string) ($footer['signatures'][1]['name'] ?? '');
+    $footer['authority_role'] = $footer['authority_role'] ?: (string) ($footer['signatures'][1]['role'] ?? '');
 
     $footer['additional_fields'] = is_array($footer['additional_fields'] ?? null)
         ? array_values(array_filter($footer['additional_fields'], static fn (mixed $row): bool => is_array($row) && trim((string) ($row['label'] ?? '')) !== ''))
@@ -590,20 +678,35 @@ function direct_purchase_dod_normalize_footer(mixed $footer): array
 
 function direct_purchase_dod_section_id(string $title, int $index): string
 {
-    $base = strtolower(trim($title));
+    $base = function_exists('mb_strtolower') ? mb_strtolower(trim($title), 'UTF-8') : strtolower(trim($title));
     $base = strtr($base, [
         ' ' => '_', '-' => '_', '/' => '_', '.' => '', ',' => '', ';' => '', ':' => '',
-        'ç' => 'c', 'ã' => 'a', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'é' => 'e', 'ê' => 'e',
-        'í' => 'i', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o', 'ú' => 'u',
+        'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡' => 'a', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â ' => 'a', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£' => 'a', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢' => 'a', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¤' => 'a',
+        'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©' => 'e', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âª' => 'e', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¨' => 'e', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â«' => 'e',
+        'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­' => 'i', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â®' => 'i', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬' => 'i', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯' => 'i',
+        'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³' => 'o', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´' => 'o', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµ' => 'o', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â²' => 'o', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¶' => 'o',
+        'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âº' => 'u', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â»' => 'u', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¹' => 'u', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¼' => 'u',
+        'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§' => 'c', 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â±' => 'n',
     ]);
     $base = preg_replace('/[^a-z0-9_]+/', '', $base) ?: 'topico';
 
     return $base . '_' . $index;
 }
 
+function direct_purchase_dod_auto_section_ids(): array
+{
+    return ['quantidades', 'valor', 'impactos_ambientais'];
+}
+
 function direct_purchase_dod_normalize_sections(mixed $sections): array
 {
     $source = is_array($sections) && $sections ? $sections : direct_purchase_dod_default_sections();
+    $defaultsById = [];
+
+    foreach (direct_purchase_dod_default_sections() as $defaultSection) {
+        $defaultsById[(string) $defaultSection['id']] = $defaultSection;
+    }
+
     $normalized = [];
 
     foreach (array_values($source) as $index => $section) {
@@ -611,24 +714,29 @@ function direct_purchase_dod_normalize_sections(mixed $sections): array
             continue;
         }
 
-        $title = trim((string) ($section['title'] ?? ''));
+        $id = trim((string) ($section['id'] ?? ''));
+        $default = $id !== '' ? ($defaultsById[$id] ?? []) : [];
+        $title = trim((string) ($section['title'] ?? ($default['title'] ?? '')));
 
         if ($title === '') {
             continue;
         }
 
-        $sortOrder = (int) ($section['sort_order'] ?? ($index + 1));
-        $number = trim((string) ($section['number'] ?? ''));
+        $sortOrder = (int) ($section['sort_order'] ?? ($default['sort_order'] ?? ($index + 1)));
+        $number = trim((string) ($section['number'] ?? ($default['number'] ?? '')));
+        $autoGenerated = in_array($id, direct_purchase_dod_auto_section_ids(), true)
+            || boolish($section['auto_generated'] ?? ($default['auto_generated'] ?? false), false);
 
         $normalized[] = [
-            'id' => trim((string) ($section['id'] ?? '')) ?: direct_purchase_dod_section_id($title, $index + 1),
+            'id' => $id !== '' ? $id : direct_purchase_dod_section_id($title, $index + 1),
             'sort_order' => $sortOrder > 0 ? $sortOrder : ($index + 1),
-            'number' => $number !== '' ? $number : (string) ($index + 1),
+            'number' => $number !== '' ? rtrim($number, '.') : (string) ($index + 1),
             'title' => $title,
-            'enabled' => boolish($section['enabled'] ?? true, true),
-            'required' => boolish($section['required'] ?? false, false),
+            'enabled' => boolish($section['enabled'] ?? ($default['enabled'] ?? true), true),
+            'required' => boolish($section['required'] ?? ($default['required'] ?? false), false),
+            'auto_generated' => $autoGenerated,
             'content' => trim((string) ($section['content'] ?? '')),
-            'guidance' => trim((string) ($section['guidance'] ?? '')),
+            'guidance' => trim((string) ($section['guidance'] ?? ($default['guidance'] ?? ''))),
         ];
     }
 
@@ -683,17 +791,318 @@ function direct_purchase_dod_additional_fields_text(array $fields): string
     return implode(PHP_EOL, $lines);
 }
 
+function direct_purchase_dod_section_number_text(mixed $number): string
+{
+    $number = trim((string) $number);
+
+    return $number !== '' ? rtrim($number, '.') . '.' : '';
+}
+
+function direct_purchase_dod_section_heading(array $section): string
+{
+    return trim(implode(' ', array_filter([
+        direct_purchase_dod_section_number_text($section['number'] ?? ''),
+        (string) ($section['title'] ?? ''),
+    ])));
+}
+
+function direct_purchase_dod_money_text(?float $value): string
+{
+    return $value !== null ? 'R$ ' . number_format($value, 2, ',', '.') : 'R$ 0,00';
+}
+
+function direct_purchase_dod_int_to_words_pt_br(int $number): string
+{
+    $number = max(0, $number);
+    $units = [
+        0 => 'zero', 1 => 'um', 2 => 'dois', 3 => 'trÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªs', 4 => 'quatro', 5 => 'cinco',
+        6 => 'seis', 7 => 'sete', 8 => 'oito', 9 => 'nove', 10 => 'dez', 11 => 'onze',
+        12 => 'doze', 13 => 'treze', 14 => 'quatorze', 15 => 'quinze', 16 => 'dezesseis',
+        17 => 'dezessete', 18 => 'dezoito', 19 => 'dezenove',
+    ];
+    $tens = [2 => 'vinte', 3 => 'trinta', 4 => 'quarenta', 5 => 'cinquenta', 6 => 'sessenta', 7 => 'setenta', 8 => 'oitenta', 9 => 'noventa'];
+    $hundreds = [1 => 'cento', 2 => 'duzentos', 3 => 'trezentos', 4 => 'quatrocentos', 5 => 'quinhentos', 6 => 'seiscentos', 7 => 'setecentos', 8 => 'oitocentos', 9 => 'novecentos'];
+
+    if ($number < 20) {
+        return $units[$number];
+    }
+
+    if ($number < 100) {
+        $ten = intdiv($number, 10);
+        $rest = $number % 10;
+
+        return $tens[$ten] . ($rest > 0 ? ' e ' . $units[$rest] : '');
+    }
+
+    if ($number === 100) {
+        return 'cem';
+    }
+
+    if ($number < 1000) {
+        $hundred = intdiv($number, 100);
+        $rest = $number % 100;
+
+        return $hundreds[$hundred] . ($rest > 0 ? ' e ' . direct_purchase_dod_int_to_words_pt_br($rest) : '');
+    }
+
+    if ($number < 1000000) {
+        $thousands = intdiv($number, 1000);
+        $rest = $number % 1000;
+        $text = $thousands === 1 ? 'mil' : direct_purchase_dod_int_to_words_pt_br($thousands) . ' mil';
+
+        return $text . ($rest > 0 ? ($rest < 100 ? ' e ' : ' ') . direct_purchase_dod_int_to_words_pt_br($rest) : '');
+    }
+
+    if ($number < 1000000000) {
+        $millions = intdiv($number, 1000000);
+        $rest = $number % 1000000;
+        $text = $millions === 1 ? 'um milhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o' : direct_purchase_dod_int_to_words_pt_br($millions) . ' milhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes';
+
+        return $text . ($rest > 0 ? ($rest < 100 ? ' e ' : ' ') . direct_purchase_dod_int_to_words_pt_br($rest) : '');
+    }
+
+    $billions = intdiv($number, 1000000000);
+    $rest = $number % 1000000000;
+    $text = $billions === 1 ? 'um bilhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o' : direct_purchase_dod_int_to_words_pt_br($billions) . ' bilhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes';
+
+    return $text . ($rest > 0 ? ' ' . direct_purchase_dod_int_to_words_pt_br($rest) : '');
+}
+
+function direct_purchase_dod_money_in_words(?float $value): string
+{
+    $value = round(max(0.0, (float) $value), 2);
+    $reais = (int) floor($value);
+    $centavos = (int) round(($value - $reais) * 100);
+
+    if ($centavos === 100) {
+        $reais++;
+        $centavos = 0;
+    }
+
+    $parts = [];
+    $parts[] = direct_purchase_dod_int_to_words_pt_br($reais) . ' ' . ($reais === 1 ? 'real' : 'reais');
+
+    if ($centavos > 0) {
+        $parts[] = direct_purchase_dod_int_to_words_pt_br($centavos) . ' ' . ($centavos === 1 ? 'centavo' : 'centavos');
+    }
+
+    return implode(' e ', $parts);
+}
+
+function direct_purchase_dod_quantity_methodology_text(array $items): string
+{
+    if (!$items) {
+        return 'NÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o hÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ itens cadastrados nas demandas do projeto para compor a estimativa de quantidades.';
+    }
+
+    $lines = [
+        'A estimativa de quantidades foi consolidada automaticamente a partir das demandas registradas no projeto, considerando as quantidades aprovadas em cada unidade demandante.',
+        '',
+    ];
+
+    foreach ($items as $item) {
+        $quantity = format_decimal_quantity($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0);
+        $unit = licitation_annex_unit_text($item);
+        $demandCount = (int) ($item['demand_count'] ?? 0);
+        $demandText = $demandCount === 1 ? '1 demanda' : $demandCount . ' demandas';
+        $code = trim((string) ($item['tracking_code'] ?? ''));
+        $name = trim((string) ($item['item_name'] ?? 'Item'));
+        $label = $code !== '' ? $code . ' - ' . $name : $name;
+
+        $lines[] = '- ' . $label . ': ' . ($quantity !== '' ? $quantity : '0') . ' ' . $unit . ', consolidado a partir de ' . $demandText . '.';
+    }
+
+    $lines[] = '';
+    $lines[] = 'A metodologia adotada preserva a memÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³ria de cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡lculo do sistema, permitindo rastrear a origem das quantidades nas demandas vinculadas ao projeto.';
+
+    return implode(PHP_EOL, $lines);
+}
+
+function direct_purchase_dod_value_estimate_text(array $project, array $budgetEvaluation): string
+{
+    $criterion = normalize_direct_purchase_award_criterion($project['direct_purchase_award_criterion'] ?? 'global_lowest');
+    $criterionText = direct_purchase_award_criterion_label($criterion);
+
+    if ($criterion === 'item_lowest') {
+        $itemWinners = is_array($budgetEvaluation['item_winners'] ?? null) ? $budgetEvaluation['item_winners'] : [];
+        $total = 0.0;
+        $suppliers = [];
+
+        foreach ($itemWinners as $winner) {
+            $total += (float) ($winner['total'] ?? 0);
+            $supplierName = trim((string) ($winner['supplier_name'] ?? ''));
+            $supplierDocument = trim((string) ($winner['supplier_document'] ?? ''));
+
+            if ($supplierName !== '') {
+                $suppliers[$supplierName . '|' . $supplierDocument] = $supplierName . ($supplierDocument !== '' ? ', inscrita no CNPJ sob nÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âº ' . $supplierDocument : '');
+            }
+        }
+
+        if ($total <= 0) {
+            return 'A estimativa de valor serÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ gerada automaticamente apÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³s o lanÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amento dos orÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amentos dos fornecedores no OrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amento Geral da compra direta.';
+        }
+
+        $supplierText = $suppliers ? implode('; ', array_values($suppliers)) : 'fornecedores consultados';
+
+        return implode(PHP_EOL . PHP_EOL, [
+            'O valor estimado da contrataÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© de ' . direct_purchase_dod_money_text($total) . ' (' . direct_purchase_dod_money_in_words($total) . '), conforme composiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o dos menores valores unitÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rios apresentados pelos fornecedores consultados.',
+            'O critÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©rio configurado para a apuraÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© ' . $criterionText . ', razÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o pela qual a estimativa considera a empresa de menor valor para cada item do objeto pretendido. Fornecedores considerados: ' . $supplierText . '.',
+            'Os dados dos fornecedores consultados, respectivos valores apresentados e demais informaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes da pesquisa de preÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§os constam no Anexo I ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â OrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amento Geral, que acompanha este OfÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cio.',
+        ]);
+    }
+
+    $winner = is_array($budgetEvaluation['global_winner'] ?? null) ? $budgetEvaluation['global_winner'] : null;
+
+    if (!$winner || (float) ($winner['total'] ?? 0) <= 0) {
+        return 'A estimativa de valor serÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ gerada automaticamente apÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³s o lanÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amento dos orÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amentos dos fornecedores no OrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amento Geral da compra direta.';
+    }
+
+    $total = (float) $winner['total'];
+    $supplierName = trim((string) ($winner['supplier_name'] ?? 'Fornecedor')) ?: 'Fornecedor';
+    $supplierDocument = trim((string) ($winner['supplier_document'] ?? ''));
+    $documentText = $supplierDocument !== '' ? ', inscrita no CNPJ sob nÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âº ' . $supplierDocument : '';
+
+    return implode(PHP_EOL . PHP_EOL, [
+        'O valor estimado da contrataÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© de ' . direct_purchase_dod_money_text($total) . ' (' . direct_purchase_dod_money_in_words($total) . '), conforme menor orÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amento apresentado pela empresa ' . $supplierName . $documentText . '.',
+        'A empresa ' . $supplierName . ' foi a fornecedora que apresentou o menor valor global para a execuÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o do objeto pretendido, conforme levantamento de preÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§os realizado.',
+        'Os dados dos fornecedores consultados, respectivos valores apresentados e demais informaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes da pesquisa de preÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§os constam no Anexo I ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â OrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amento Geral, que acompanha este OfÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cio.',
+    ]);
+}
+
+function direct_purchase_dod_environmental_impacts_text(array $items): string
+{
+    $impacts = [];
+
+    foreach ($items as $item) {
+        foreach (environmental_impacts_to_array($item['environmental_impacts'] ?? '') as $impact) {
+            $impact = trim((string) $impact);
+
+            if ($impact === '') {
+                continue;
+            }
+
+            $key = function_exists('mb_strtolower') ? mb_strtolower($impact, 'UTF-8') : strtolower($impact);
+            $key = preg_replace('/\s+/', ' ', $key) ?? $key;
+            $impacts[$key] = $impact;
+        }
+    }
+
+    if (!$impacts) {
+        return 'NÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o foram registrados impactos ambientais especÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­ficos nos itens demandados. Caso identificada obrigaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o ambiental na instruÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o processual, a informaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o deverÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ ser complementada pela unidade responsÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡vel.';
+    }
+
+    $lines = [
+        'Foram identificados os seguintes possÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­veis impactos ambientais a partir dos itens cadastrados nas demandas, com consolidaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o automÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡tica e sem duplicidade de ocorrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªncias:',
+        '',
+    ];
+
+    foreach (array_values($impacts) as $impact) {
+        $lines[] = '- ' . $impact;
+    }
+
+    return implode(PHP_EOL, $lines);
+}
+
+function direct_purchase_dod_auto_content_for_section(string $sectionId, array $project, array $demands, array $items, array $budgetEvaluation = []): ?string
+{
+    return match ($sectionId) {
+        'quantidades' => direct_purchase_dod_quantity_methodology_text($items),
+        'valor' => direct_purchase_dod_value_estimate_text($project, $budgetEvaluation),
+        'impactos_ambientais' => direct_purchase_dod_environmental_impacts_text($items),
+        default => null,
+    };
+}
+
+function direct_purchase_dod_apply_auto_content(array $project, array $demands, array $items, array $dod, array $budgetEvaluation = []): array
+{
+    $sections = direct_purchase_dod_normalize_sections($dod['sections'] ?? []);
+
+    foreach ($sections as $index => $section) {
+        $content = direct_purchase_dod_auto_content_for_section((string) ($section['id'] ?? ''), $project, $demands, $items, $budgetEvaluation);
+
+        if ($content !== null) {
+            $sections[$index]['content'] = $content;
+            $sections[$index]['auto_generated'] = true;
+        }
+    }
+
+    return $sections;
+}
+
+function direct_purchase_dod_render_inline_markdown(string $text): string
+{
+    $html = e($text);
+    $html = preg_replace('/\*\*(.+?)\*\*/s', '<strong>$1</strong>', $html) ?? $html;
+    $html = preg_replace('/__(.+?)__/s', '<strong>$1</strong>', $html) ?? $html;
+    $html = preg_replace('/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/s', '<em>$1</em>', $html) ?? $html;
+
+    return $html;
+}
+
+function direct_purchase_dod_render_content(string $text): string
+{
+    $lines = preg_split('/\r\n|\r|\n/', trim($text)) ?: [];
+    $html = '';
+    $listType = null;
+
+    $closeList = static function () use (&$html, &$listType): void {
+        if ($listType !== null) {
+            $html .= '</' . $listType . '>';
+            $listType = null;
+        }
+    };
+
+    foreach ($lines as $line) {
+        $line = rtrim((string) $line);
+
+        if (trim($line) === '') {
+            $closeList();
+            continue;
+        }
+
+        if (preg_match('/^\s*[-*]\s+(.+)$/', $line, $matches)) {
+            if ($listType !== 'ul') {
+                $closeList();
+                $html .= '<ul>';
+                $listType = 'ul';
+            }
+
+            $html .= '<li>' . direct_purchase_dod_render_inline_markdown(trim($matches[1])) . '</li>';
+            continue;
+        }
+
+        if (preg_match('/^\s*\d+[\.)]\s+(.+)$/', $line, $matches)) {
+            if ($listType !== 'ol') {
+                $closeList();
+                $html .= '<ol>';
+                $listType = 'ol';
+            }
+
+            $html .= '<li>' . direct_purchase_dod_render_inline_markdown(trim($matches[1])) . '</li>';
+            continue;
+        }
+
+        $closeList();
+        $html .= '<p>' . direct_purchase_dod_render_inline_markdown(trim($line)) . '</p>';
+    }
+
+    $closeList();
+
+    return $html !== '' ? $html : '<p class="empty">A preencher.</p>';
+}
+
 function direct_purchase_dod_ai_prompt_text(array $project, array $demands, array $items, array $dod): string
 {
     $lines = [
-        'Voce e uma IA de apoio administrativo para gerar um Documento de Oficializacao de Demanda (DOD) de Compra Direta.',
-        'Elabore texto objetivo, formal e revisavel, observando a Lei n. 14.133/2021, normas internas da Administracao e boas praticas de redacao administrativa.',
-        'Use somente os topicos habilitados abaixo. Nao invente dados ausentes; quando faltar informacao, sinalize como ponto a complementar.',
+        'VocÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âª ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© uma IA de apoio administrativo para gerar um Documento de OficializaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o de Demanda (DOD) de Compra Direta.',
+        'Elabore texto objetivo, formal e revisÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡vel, observando a Lei nÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âº 14.133/2021, normas internas da AdministraÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o e boas prÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ticas de redaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o administrativa.',
+        'Use somente os tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³picos habilitados abaixo. NÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o invente dados ausentes; quando faltar informaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o, sinalize como ponto a complementar.',
+        'Os tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³picos marcados como automÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ticos devem ser preservados, pois o sistema os gera com base nas demandas, orÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amentos e impactos dos itens.',
         '',
         'Projeto: ' . (string) ($project['name'] ?? ''),
         'Modalidade: ' . project_process_type_label($project['process_type'] ?? null),
-        'Criterio do orcamento: ' . direct_purchase_award_criterion_label($project['direct_purchase_award_criterion'] ?? null),
-        'Descricao: ' . trim((string) ($project['description'] ?? '')),
+        'CritÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©rio do orÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§amento: ' . direct_purchase_award_criterion_label($project['direct_purchase_award_criterion'] ?? null),
+        'DescriÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o: ' . trim((string) ($project['description'] ?? '')),
         '',
         'Demandas:',
     ];
@@ -721,22 +1130,21 @@ function direct_purchase_dod_ai_prompt_text(array $project, array $demands, arra
     }
 
     $lines[] = '';
-    $lines[] = 'Topicos habilitados do DOD:';
+    $lines[] = 'TÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³picos habilitados do DOD:';
 
     foreach (direct_purchase_dod_enabled_sections($dod['sections'] ?? []) as $section) {
-        $lines[] = ($section['number'] ?? '') . '. ' . ($section['title'] ?? '');
+        $lines[] = direct_purchase_dod_section_heading($section) . (!empty($section['auto_generated']) ? ' [automÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡tico]' : '');
 
         if (trim((string) ($section['guidance'] ?? '')) !== '') {
-            $lines[] = 'Orientacao: ' . trim((string) $section['guidance']);
+            $lines[] = 'OrientaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o: ' . trim((string) $section['guidance']);
         }
     }
 
     $lines[] = '';
-    $lines[] = 'Retorne o conteudo dividido exatamente pelos topicos habilitados.';
+    $lines[] = 'Retorne o conteÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âºdo dividido exatamente pelos tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³picos habilitados, sem alterar os tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³picos automÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ticos.';
 
     return implode(PHP_EOL, $lines);
-}
-function project_status_options(): array
+}function project_status_options(): array
 {
     return [
         'draft' => 'Rascunho',
@@ -1051,7 +1459,7 @@ function price_outlier_flags(array $supplierPrices, float $threshold = 0.30): ar
         $deviation = abs((float) $price - $median) / $median;
 
         if ($deviation > $threshold) {
-            $flags[(string) $supplierKey] = 'Possível preço discrepante. Necessária análise e justificativa antes da exclusão.';
+            $flags[(string) $supplierKey] = 'Poss' . "\u{00ED}" . 'vel pre' . "\u{00E7}" . 'o discrepante. Necess' . "\u{00E1}" . 'ria an' . "\u{00E1}" . 'lise e justificativa antes da exclus' . "\u{00E3}" . 'o.';
         }
     }
 
@@ -1340,34 +1748,34 @@ function render_municipal_logo(string $class = 'report-logo'): string
 function ascii_filename_fallback(string $filename): string
 {
     $fallback = strtr($filename, [
-        'á' => 'a',
-        'à' => 'a',
-        'ã' => 'a',
-        'â' => 'a',
-        'ä' => 'a',
-        'Á' => 'A',
-        'À' => 'A',
-        'Ã' => 'A',
-        'Â' => 'A',
-        'Ä' => 'A',
-        'é' => 'e',
-        'ê' => 'e',
-        'É' => 'E',
-        'Ê' => 'E',
-        'í' => 'i',
-        'Í' => 'I',
-        'ó' => 'o',
-        'õ' => 'o',
-        'ô' => 'o',
-        'Ó' => 'O',
-        'Õ' => 'O',
-        'Ô' => 'O',
-        'ú' => 'u',
-        'ü' => 'u',
-        'Ú' => 'U',
-        'Ü' => 'U',
-        'ç' => 'c',
-        'Ç' => 'C',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡' => 'a',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ' => 'a',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£' => 'a',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢' => 'a',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤' => 'a',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â' => 'A',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬' => 'A',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢' => 'A',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡' => 'A',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾' => 'A',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©' => 'e',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âª' => 'e',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â°' => 'E',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â ' => 'E',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­' => 'i',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â' => 'I',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³' => 'o',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âµ' => 'o',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â´' => 'o',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“' => 'O',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢' => 'O',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â' => 'O',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âº' => 'u',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼' => 'u',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡' => 'U',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ' => 'U',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§' => 'c',
+        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¡' => 'C',
     ]);
     $fallback = preg_replace('/[^A-Za-z0-9 ._-]+/', '', $fallback) ?? '';
     $fallback = preg_replace('/\s+/', ' ', $fallback) ?? '';
@@ -1975,7 +2383,7 @@ function ensure_writable_upload_dir(string $uploadDir, string $label): void
             ]);
         }
 
-        throw new RuntimeException('Não foi possível preparar a pasta de uploads.');
+        throw new RuntimeException('NÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o foi possÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­vel preparar a pasta de uploads.');
     }
 
     if (!is_writable($uploadDir)) {
@@ -1986,7 +2394,7 @@ function ensure_writable_upload_dir(string $uploadDir, string $label): void
             ]);
         }
 
-        throw new RuntimeException('Não foi possível salvar o orçamento. A pasta de uploads não tem permissão de escrita.');
+        throw new RuntimeException('NÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o foi possÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­vel salvar o orÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§amento. A pasta de uploads nÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o tem permissÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o de escrita.');
     }
 }
 
@@ -2055,7 +2463,7 @@ function upload_supplier_quote_file(array $file): ?string
     }
 
     if ($file['error'] !== UPLOAD_ERR_OK) {
-        throw new RuntimeException('Erro ao enviar o orçamento.');
+        throw new RuntimeException('Erro ao enviar o orÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§amento.');
     }
 
     $allowedTypes = [
@@ -2070,11 +2478,11 @@ function upload_supplier_quote_file(array $file): ?string
     $mime = mime_content_type($file['tmp_name']);
 
     if (!isset($allowedTypes[$mime])) {
-        throw new RuntimeException('Formato inválido. Use PDF, DOC, DOCX, JPG, PNG ou WEBP.');
+        throw new RuntimeException('Formato invÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡lido. Use PDF, DOC, DOCX, JPG, PNG ou WEBP.');
     }
 
     if ($file['size'] > 10 * 1024 * 1024) {
-        throw new RuntimeException('O orçamento deve ter no máximo 10 MB.');
+        throw new RuntimeException('O orÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§amento deve ter no mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ximo 10 MB.');
     }
 
     $extension = $allowedTypes[$mime];
@@ -2086,7 +2494,7 @@ function upload_supplier_quote_file(array $file): ?string
 
     if (!@move_uploaded_file($file['tmp_name'], $destination)) {
         if (function_exists('app_log')) {
-            app_log('error', 'Falha ao mover arquivo de orçamento enviado.', [
+            app_log('error', 'Falha ao mover arquivo de orÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§amento enviado.', [
                 'destination' => $destination,
                 'tmp_name' => $file['tmp_name'] ?? null,
                 'upload_dir_writable' => is_writable($uploadDir),
@@ -2094,7 +2502,7 @@ function upload_supplier_quote_file(array $file): ?string
             ]);
         }
 
-        throw new RuntimeException('Não foi possível salvar o orçamento. Verifique as permissões da pasta de uploads.');
+        throw new RuntimeException('NÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o foi possÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­vel salvar o orÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§amento. Verifique as permissÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âµes da pasta de uploads.');
     }
 
     @chmod($destination, 0664);
@@ -2276,11 +2684,11 @@ function upload_item_image(array $file): ?string
     $mime = mime_content_type($file['tmp_name']);
 
     if (!isset($allowedTypes[$mime])) {
-        throw new RuntimeException('Formato de imagem inválido. Use JPG, PNG ou WEBP.');
+        throw new RuntimeException('Formato de imagem invÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡lido. Use JPG, PNG ou WEBP.');
     }
 
     if ($file['size'] > 2 * 1024 * 1024) {
-        throw new RuntimeException('A imagem deve ter no máximo 2 MB.');
+        throw new RuntimeException('A imagem deve ter no mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ximo 2 MB.');
     }
 
     $extension = $allowedTypes[$mime];
@@ -2295,7 +2703,7 @@ function upload_item_image(array $file): ?string
     $destination = $uploadDir . '/' . $filename;
 
     if (!move_uploaded_file($file['tmp_name'], $destination)) {
-        throw new RuntimeException('Não foi possível salvar a imagem.');
+        throw new RuntimeException('NÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o foi possÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­vel salvar a imagem.');
     }
 
     return '/uploads/items/' . $filename;
@@ -2338,11 +2746,11 @@ function upload_item_images(array $files): array
         $mime = mime_content_type($tmpName);
 
         if (!isset($allowedTypes[$mime])) {
-            throw new RuntimeException('Formato inválido. Use JPG, PNG ou WEBP.');
+            throw new RuntimeException('Formato invÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡lido. Use JPG, PNG ou WEBP.');
         }
 
         if ($files['size'][$index] > 2 * 1024 * 1024) {
-            throw new RuntimeException('Cada imagem deve ter no máximo 2 MB.');
+            throw new RuntimeException('Cada imagem deve ter no mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ximo 2 MB.');
         }
 
         $extension = $allowedTypes[$mime];
@@ -2352,7 +2760,7 @@ function upload_item_images(array $files): array
         $destination = $uploadDir . '/' . $filename;
 
         if (!move_uploaded_file($tmpName, $destination)) {
-            throw new RuntimeException('Não foi possível salvar uma das imagens.');
+            throw new RuntimeException('NÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o foi possÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­vel salvar uma das imagens.');
         }
 
         $uploadedPaths[] = '/uploads/items/' . $filename;

@@ -2,6 +2,21 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.5] - 2026-07-07
+
+### Adicionado
+- DOD da Compra Direta passa a gerar automaticamente os topicos de estimativa de quantidades, estimativa de valor e impactos ambientais a partir das demandas, orcamentos e itens do projeto.
+- Rodape do DOD passa a aceitar multiplas assinaturas configuraveis e numeracao opcional de paginas.
+- Tela do DOD recebe editor simples para negrito, italico, listas e listas numeradas nos topicos editaveis.
+- Teste automatizado para conteudos automaticos, valor por extenso, deduplicacao de impactos e renderizacao do DOD.
+
+### Alterado
+- Exportacao do DOD passa a usar cabecalho e rodape institucionais com logos, brasao central, faixas vermelho/azul/amarelo e dados de contato.
+- Local padrao do DOD passa a ser Espirito Santo do Turvo - SP e os numeros de topicos sao exibidos com ponto apos o numero.
+
+### Corrigido
+- Mensagem de alerta de preco discrepante passa a ser gerada com acentuacao correta.
+
 ## [1.6.4] - 2026-07-07
 
 ### Alterado
@@ -307,7 +322,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 - Testes para media aritmetica simples, arredondamento monetario e sinalizacao de outliers.
 
 ### Alterado
-- Anexo II padronizado como "Anexo II â€“ Planilha de Pesquisa e Estimativa de PreÃ§os".
+- Anexo II padronizado como "Anexo II ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Planilha de Pesquisa e Estimativa de PreÃƒÆ’Ã‚Â§os".
 - Calculo do Anexo II passa a usar media aritmetica simples dos precos validos, arredondando o valor unitario estimado antes do total.
 - Anexo II passa a separar quantidade e unidade em colunas distintas.
 - Resumo financeiro do projeto passa a usar o mesmo valor global estimado calculado para o Anexo II.

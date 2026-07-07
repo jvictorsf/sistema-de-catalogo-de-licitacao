@@ -21,20 +21,41 @@ function project_bi_percent_text(?float $value): string
     return $value !== null ? number_format($value * 100, 1, ',', '.') . '%' : '-';
 }
 
+function project_bi_empty_alerts(): array
+{
+    return [
+        'summary' => [
+            'total_items' => 0,
+            'without_prices' => 0,
+            'below_min_quotes' => 0,
+            'with_outliers' => 0,
+            'high_variation' => 0,
+            'total_attention' => 0,
+        ],
+        'items' => [],
+    ];
+}
+
 $filters = [
     'q' => trim((string) ($_GET['q'] ?? '')),
     'status' => array_key_exists((string) ($_GET['status'] ?? ''), project_status_options()) ? (string) $_GET['status'] : '',
 ];
 
-$projectRows = project_bi_project_rows($filters);
-$statusSummary = project_bi_status_summary($projectRows);
 $selectedProjectId = (int) ($_GET['project_id'] ?? 0);
+$projectOptions = project_bi_project_rows($filters);
 
-if ($selectedProjectId <= 0 && $projectRows) {
-    $selectedProjectId = (int) $projectRows[0]['id'];
+
+
+$analysisFilters = $filters;
+
+if ($selectedProjectId > 0) {
+    $analysisFilters['project_id'] = $selectedProjectId;
 }
 
+$projectRows = project_bi_project_rows($analysisFilters);
+$statusSummary = project_bi_status_summary($projectRows);
 $selectedProject = $selectedProjectId > 0 ? find_project($selectedProjectId) : null;
+$selectedProjectRow = $projectRows[0] ?? null;
 $itemOptions = $selectedProject ? get_project_consolidated_items($selectedProjectId) : [];
 $selectedItemId = (int) ($_GET['item_id'] ?? 0);
 
@@ -67,6 +88,8 @@ foreach ($itemSupplierPrices as $index => $row) {
     }
 }
 
+$projectAlerts = $selectedProject ? project_bi_project_item_alerts($selectedProjectId, 12) : project_bi_empty_alerts();
+$projectAlertSummary = $projectAlerts['summary'];
 $supplierRanking = project_bi_supplier_ranking($selectedProjectId, 10);
 $totalEstimatedValue = array_sum(array_map(static fn (array $row): float => (float) ($row['total_estimated_value'] ?? 0), $projectRows));
 $totalQuotes = array_sum(array_map(static fn (array $row): int => (int) ($row['quote_count'] ?? 0), $projectRows));
@@ -86,6 +109,15 @@ if ($selectedProject && !$itemOptions) {
     ];
 }
 
+if ($selectedProject && (int) ($projectAlertSummary['total_attention'] ?? 0) > 0) {
+    $insights[] = [
+        'type' => 'danger',
+        'icon' => 'bi-clipboard2-pulse',
+        'title' => 'Itens do projeto precisam de revisao',
+        'text' => (int) $projectAlertSummary['total_attention'] . ' item(ns) possuem ausencia de cotacao, menos de tres fontes, outlier ou alta divergencia.',
+    ];
+}
+
 if ($selectedItem) {
     if (($priceStats['count'] ?? 0) === 0) {
         $insights[] = [
@@ -99,7 +131,7 @@ if ($selectedItem) {
             'type' => 'warning',
             'icon' => 'bi-clipboard2-data',
             'title' => 'Poucas cotacoes para analise robusta',
-            'text' => 'Ha menos de tres fornecedores com preco para este item. A media pode ficar fragil para tomada de decisao.',
+            'text' => 'Ha menos de tres fontes de preco para este item. A media pode ficar fragil para tomada de decisao.',
         ];
     }
 
@@ -107,8 +139,8 @@ if ($selectedItem) {
         $insights[] = [
             'type' => 'danger',
             'icon' => 'bi-activity',
-            'title' => 'Possivel preco discrepante',
-            'text' => $outlierCount . ' fornecedor(es) ficaram fora da faixa esperada pelo criterio estatistico aplicado.',
+            'title' => 'Possivel preco discrepante no item',
+            'text' => $outlierCount . ' fonte(s) ficaram fora da faixa esperada pelo criterio estatistico aplicado.',
         ];
     }
 
@@ -116,13 +148,13 @@ if ($selectedItem) {
         $insights[] = [
             'type' => 'warning',
             'icon' => 'bi-arrow-down-up',
-            'title' => 'Alta dispersao de precos',
+            'title' => 'Alta dispersao de precos no item',
             'text' => 'O coeficiente de variacao ficou acima de 25%, indicando diferenca relevante entre fornecedores.',
         ];
     }
 }
 
-if ($projectsWithoutSuppliers) {
+if (!$selectedProject && $projectsWithoutSuppliers) {
     $insights[] = [
         'type' => 'info',
         'icon' => 'bi-info-circle',
@@ -136,7 +168,7 @@ if (!$insights) {
         'type' => 'success',
         'icon' => 'bi-check-circle',
         'title' => 'Nenhum ponto critico evidente',
-        'text' => 'Os filtros atuais nao indicaram outliers, ausencia de fornecedores ou dispersao relevante.',
+        'text' => $selectedProject ? 'O projeto selecionado nao indicou outliers, ausencia de fontes ou dispersao relevante.' : 'Os filtros atuais nao indicaram outliers, ausencia de fornecedores ou dispersao relevante.',
     ];
 }
 
@@ -195,8 +227,8 @@ require __DIR__ . '/../app/views/header.php';
         <div class="col-lg-4">
             <label class="form-label">Projeto analisado</label>
             <select name="project_id" class="form-select" onchange="this.form.item_id.value = ''; this.form.submit();">
-                <option value="0">Selecione...</option>
-                <?php foreach ($projectRows as $projectOption): ?>
+                <option value="0">Todos os projetos filtrados</option>
+                <?php foreach ($projectOptions as $projectOption): ?>
                     <option value="<?= (int) $projectOption['id'] ?>" <?= $selectedProjectId === (int) $projectOption['id'] ? 'selected' : '' ?>>
                         <?= e($projectOption['name']) ?>
                     </option>
@@ -205,7 +237,7 @@ require __DIR__ . '/../app/views/header.php';
         </div>
         <div class="col-lg-3">
             <label class="form-label">Item dentro do projeto</label>
-            <select name="item_id" class="form-select">
+            <select name="item_id" class="form-select" <?= !$selectedProject ? 'disabled' : '' ?>>
                 <option value="0">Todos/primeiro item</option>
                 <?php foreach ($itemOptions as $itemOption): ?>
                     <option value="<?= (int) $itemOption['procurement_item_id'] ?>" <?= $selectedItemId === (int) $itemOption['procurement_item_id'] ? 'selected' : '' ?>>
@@ -230,8 +262,8 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card card-body dashboard-kpi">
             <div class="dashboard-kpi-icon text-bg-primary"><i class="bi bi-folder2-open"></i></div>
             <div>
-                <div class="text-muted small">Projetos filtrados</div>
-                <div class="h3 mb-0"><?= count($projectRows) ?></div>
+                <div class="text-muted small"><?= $selectedProject ? 'Projeto analisado' : 'Projetos filtrados' ?></div>
+                <div class="h3 mb-0"><?= $selectedProject ? '1' : count($projectRows) ?></div>
             </div>
         </div>
     </div>
@@ -239,7 +271,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card card-body dashboard-kpi">
             <div class="dashboard-kpi-icon text-bg-success"><i class="bi bi-currency-dollar"></i></div>
             <div>
-                <div class="text-muted small">Valor estimado filtrado</div>
+                <div class="text-muted small"><?= $selectedProject ? 'Valor estimado do projeto' : 'Valor estimado filtrado' ?></div>
                 <div class="h4 mb-0"><?= e(project_bi_money((float) $totalEstimatedValue)) ?></div>
             </div>
         </div>
@@ -248,7 +280,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card card-body dashboard-kpi">
             <div class="dashboard-kpi-icon text-bg-info"><i class="bi bi-receipt"></i></div>
             <div>
-                <div class="text-muted small">Orcamentos vinculados</div>
+                <div class="text-muted small"><?= $selectedProject ? 'Orcamentos do projeto' : 'Orcamentos vinculados' ?></div>
                 <div class="h3 mb-0"><?= (int) $totalQuotes ?></div>
             </div>
         </div>
@@ -257,8 +289,8 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card card-body dashboard-kpi">
             <div class="dashboard-kpi-icon text-bg-danger"><i class="bi bi-activity"></i></div>
             <div>
-                <div class="text-muted small">Outliers do item</div>
-                <div class="h3 mb-0"><?= (int) $outlierCount ?></div>
+                <div class="text-muted small"><?= $selectedProject ? 'Itens com atencao' : 'Outliers do item' ?></div>
+                <div class="h3 mb-0"><?= $selectedProject ? (int) ($projectAlertSummary['total_attention'] ?? 0) : (int) $outlierCount ?></div>
             </div>
         </div>
     </div>
@@ -267,7 +299,7 @@ require __DIR__ . '/../app/views/header.php';
 <div class="row g-4 mb-4">
     <div class="col-xl-6">
         <div class="card h-100">
-            <div class="card-header fw-semibold">Projetos por valor estimado</div>
+            <div class="card-header fw-semibold"><?= $selectedProject ? 'Valor estimado do projeto' : 'Projetos por valor estimado' ?></div>
             <div class="card-body"><div class="project-bi-chart"><canvas id="projectValueChart"></canvas></div></div>
         </div>
     </div>
@@ -279,11 +311,74 @@ require __DIR__ . '/../app/views/header.php';
     </div>
     <div class="col-xl-3">
         <div class="card h-100">
-            <div class="card-header fw-semibold">Fornecedores mais presentes</div>
+            <div class="card-header fw-semibold"><?= $selectedProject ? 'Fornecedores do projeto' : 'Fornecedores mais presentes' ?></div>
             <div class="card-body"><div class="project-bi-chart"><canvas id="supplierParticipationChart"></canvas></div></div>
         </div>
     </div>
 </div>
+
+<?php if ($selectedProject): ?>
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <span class="fw-semibold"><i class="bi bi-clipboard2-pulse me-2"></i>Analise global do projeto selecionado</span>
+            <span class="badge <?= e(project_status_badge_class($selectedProject['status'] ?? null)) ?>"><?= e(project_status_label($selectedProject['status'] ?? null)) ?></span>
+        </div>
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-sm-6 col-xl-2"><div class="dashboard-mini-stat"><span>Total de itens</span><strong><?= (int) ($projectAlertSummary['total_items'] ?? 0) ?></strong></div></div>
+                <div class="col-sm-6 col-xl-2"><div class="dashboard-mini-stat"><span>Sem orcamento</span><strong><?= (int) ($projectAlertSummary['without_prices'] ?? 0) ?></strong></div></div>
+                <div class="col-sm-6 col-xl-2"><div class="dashboard-mini-stat"><span>&lt; 3 fontes</span><strong><?= (int) ($projectAlertSummary['below_min_quotes'] ?? 0) ?></strong></div></div>
+                <div class="col-sm-6 col-xl-2"><div class="dashboard-mini-stat"><span>Outliers</span><strong><?= (int) ($projectAlertSummary['with_outliers'] ?? 0) ?></strong></div></div>
+                <div class="col-sm-6 col-xl-2"><div class="dashboard-mini-stat"><span>Divergencia</span><strong><?= (int) ($projectAlertSummary['high_variation'] ?? 0) ?></strong></div></div>
+                <div class="col-sm-6 col-xl-2"><div class="dashboard-mini-stat"><span>Atencao</span><strong><?= (int) ($projectAlertSummary['total_attention'] ?? 0) ?></strong></div></div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Item</th>
+                            <th>Quantidade</th>
+                            <th>Fontes</th>
+                            <th>Menor</th>
+                            <th>Maior</th>
+                            <th>Variacao</th>
+                            <th>Achados</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($projectAlerts['items'])): ?>
+                            <tr><td colspan="7" class="text-center text-muted py-4">Nenhuma divergencia relevante encontrada no projeto selecionado.</td></tr>
+                        <?php endif; ?>
+                        <?php foreach ($projectAlerts['items'] as $alertItem): ?>
+                            <tr>
+                                <td>
+                                    <strong><?= e(($alertItem['tracking_code'] ?? '-') . ' - ' . ($alertItem['item_name'] ?? '-')) ?></strong>
+                                    <?php if ((int) ($alertItem['licitation_number'] ?? 0) > 0): ?>
+                                        <div class="small text-muted">Item <?= (int) $alertItem['licitation_number'] ?> da licitacao</div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($alertItem['outlier_sources'])): ?>
+                                        <div class="small text-danger">Fonte(s): <?= e(implode(', ', $alertItem['outlier_sources'])) ?></div>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?= number_format((float) ($alertItem['total_quantity'] ?? 0), 2, ',', '.') ?></td>
+                                <td><?= (int) ($alertItem['source_count'] ?? 0) ?></td>
+                                <td><?= e(project_bi_money($alertItem['min_unit_price'] !== null ? (float) $alertItem['min_unit_price'] : null)) ?></td>
+                                <td><?= e(project_bi_money($alertItem['max_unit_price'] !== null ? (float) $alertItem['max_unit_price'] : null)) ?></td>
+                                <td><?= e(project_bi_percent_text($alertItem['coefficient_variation'] !== null ? (float) $alertItem['coefficient_variation'] : null)) ?></td>
+                                <td>
+                                    <?php foreach ($alertItem['alerts'] as $alert): ?>
+                                        <span class="badge text-bg-warning me-1 mb-1"><?= e($alert) ?></span>
+                                    <?php endforeach; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
 
 <div class="row g-4 mb-4">
     <div class="col-xl-8">
@@ -304,7 +399,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card h-100">
             <div class="card-header fw-semibold">Estatistica do item</div>
             <div class="card-body project-bi-stat-grid">
-                <div><span>Fornecedores</span><strong><?= (int) ($priceStats['count'] ?? 0) ?></strong></div>
+                <div><span>Fontes</span><strong><?= (int) ($priceStats['count'] ?? 0) ?></strong></div>
                 <div><span>Media</span><strong><?= e(project_bi_money($priceStats['average'])) ?></strong></div>
                 <div><span>Mediana</span><strong><?= e(project_bi_money($priceStats['median'])) ?></strong></div>
                 <div><span>Moda</span><strong><?= e(project_bi_money($priceStats['mode'])) ?></strong></div>
@@ -341,7 +436,7 @@ require __DIR__ . '/../app/views/header.php';
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Fornecedor</th>
+                            <th>Fornecedor/Fonte</th>
                             <th>Cotacoes</th>
                             <th>Media</th>
                             <th>Menor</th>
@@ -351,7 +446,7 @@ require __DIR__ . '/../app/views/header.php';
                     </thead>
                     <tbody>
                         <?php if (!$itemSupplierPrices): ?>
-                            <tr><td colspan="6" class="text-center text-muted py-4">Nenhum preco de fornecedor para o item selecionado.</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted py-4">Nenhum preco para o item selecionado.</td></tr>
                         <?php endif; ?>
                         <?php foreach ($itemSupplierPrices as $row): ?>
                             <tr>
@@ -382,7 +477,7 @@ require __DIR__ . '/../app/views/header.php';
 </div>
 
 <div class="card">
-    <div class="card-header fw-semibold">Projetos filtrados</div>
+    <div class="card-header fw-semibold"><?= $selectedProject ? 'Projeto analisado' : 'Projetos filtrados' ?></div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0 project-bi-project-table">
             <thead class="table-light">

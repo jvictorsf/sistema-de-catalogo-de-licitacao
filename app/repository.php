@@ -7122,53 +7122,104 @@ function restore_item_version(int $versionId): int
     return $itemId;
 }
 
+function project_budget_aggregate_cte_sql(): string
+{
+    return <<<'SQL'
+WITH price_sources AS (
+    SELECT
+        di.id AS demand_item_id,
+        dl.project_id,
+        di.procurement_item_id,
+        'supplier:' || s.id::TEXT AS source_key,
+        s.name AS source_name,
+        s.document AS source_document,
+        q.id AS quote_id,
+        qi.unit_price::NUMERIC AS unit_price
+    FROM demand_items di
+    INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+    INNER JOIN demand_supplier_quote_items qi
+        ON qi.demand_item_id = di.id
+       AND qi.unit_price IS NOT NULL
+    INNER JOIN demand_supplier_quotes q
+        ON q.id = qi.demand_supplier_quote_id
+       AND q.demand_list_id = dl.id
+       AND COALESCE(q.status, 'received') <> 'discarded'
+    INNER JOIN suppliers s ON s.id = q.supplier_id
+
+    UNION ALL
+
+    SELECT
+        target_di.id AS demand_item_id,
+        target_dl.project_id,
+        target_di.procurement_item_id,
+        'historical:' || source_qi.id::TEXT AS source_key,
+        COALESCE(source_s.name, 'Fornecedor historico') || ' (historico)' AS source_name,
+        source_s.document AS source_document,
+        source_q.id AS quote_id,
+        source_qi.unit_price::NUMERIC AS unit_price
+    FROM demand_price_references pr
+    INNER JOIN demand_items target_di ON target_di.id = pr.demand_item_id
+    INNER JOIN demand_lists target_dl ON target_dl.id = target_di.demand_list_id
+    INNER JOIN demand_supplier_quote_items source_qi
+        ON source_qi.id = pr.source_quote_item_id
+       AND source_qi.unit_price IS NOT NULL
+    INNER JOIN demand_supplier_quotes source_q
+        ON source_q.id = source_qi.demand_supplier_quote_id
+       AND COALESCE(source_q.status, 'received') <> 'discarded'
+    LEFT JOIN suppliers source_s ON source_s.id = source_q.supplier_id
+),
+demand_item_budget AS (
+    SELECT
+        di.id AS demand_item_id,
+        dl.project_id,
+        di.procurement_item_id,
+        COALESCE(di.approved_quantity, di.quantity) AS quantity,
+        COALESCE(AVG(ps.unit_price), di.estimated_unit_price, 0) AS calculated_unit_price,
+        COALESCE(di.approved_quantity, di.quantity) * COALESCE(AVG(ps.unit_price), di.estimated_unit_price, 0) AS calculated_total,
+        COUNT(ps.unit_price) AS price_count,
+        AVG(ps.unit_price) AS average_unit_price
+    FROM demand_items di
+    INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+    LEFT JOIN price_sources ps ON ps.demand_item_id = di.id
+    GROUP BY
+        di.id,
+        dl.project_id,
+        di.procurement_item_id,
+        di.approved_quantity,
+        di.quantity,
+        di.estimated_unit_price
+)
+SQL;
+}
 function get_dashboard_summary(): array
 {
-    $summary = [];
+    $sql = project_budget_aggregate_cte_sql() . "
+        SELECT
+            (SELECT COUNT(*) FROM procurement_items) AS total_items,
+            (SELECT COUNT(*) FROM procurement_projects) AS total_projects,
+            (SELECT COUNT(*) FROM demand_lists) AS total_demands,
+            (SELECT COUNT(*) FROM item_kits) AS total_kits,
+            (SELECT COUNT(*) FROM suppliers) AS total_suppliers,
+            (SELECT COUNT(*) FROM suppliers WHERE is_active = TRUE) AS active_suppliers,
+            (SELECT COUNT(*) FROM secretariats) AS total_secretariats,
+            (SELECT COUNT(*) FROM requester_units) AS total_requester_units,
+            COALESCE((SELECT SUM(calculated_total) FROM demand_item_budget), 0) AS total_estimated_value
+    ";
 
-    $summary['total_items'] = (int) db()->query("
-        SELECT COUNT(*) FROM procurement_items
-    ")->fetchColumn();
+    $row = db()->query($sql)->fetch() ?: [];
 
-    $summary['total_projects'] = (int) db()->query("
-        SELECT COUNT(*) FROM procurement_projects
-    ")->fetchColumn();
-
-    $summary['total_demands'] = (int) db()->query("
-        SELECT COUNT(*) FROM demand_lists
-    ")->fetchColumn();
-
-    $summary['total_kits'] = (int) db()->query("
-        SELECT COUNT(*) FROM item_kits
-    ")->fetchColumn();
-
-    $summary['total_suppliers'] = (int) db()->query("
-        SELECT COUNT(*) FROM suppliers
-    ")->fetchColumn();
-
-    $summary['active_suppliers'] = (int) db()->query("
-        SELECT COUNT(*) FROM suppliers WHERE is_active = TRUE
-    ")->fetchColumn();
-
-    $summary['total_secretariats'] = (int) db()->query("
-        SELECT COUNT(*) FROM secretariats
-    ")->fetchColumn();
-
-    $summary['total_requester_units'] = (int) db()->query("
-        SELECT COUNT(*) FROM requester_units
-    ")->fetchColumn();
-
-    $summary['total_estimated_value'] = (float) db()->query("
-        SELECT COALESCE(
-            SUM(COALESCE(approved_quantity, quantity) * COALESCE(estimated_unit_price, 0)),
-            0
-        )
-        FROM demand_items
-    ")->fetchColumn();
-
-    return $summary;
+    return [
+        'total_items' => (int) ($row['total_items'] ?? 0),
+        'total_projects' => (int) ($row['total_projects'] ?? 0),
+        'total_demands' => (int) ($row['total_demands'] ?? 0),
+        'total_kits' => (int) ($row['total_kits'] ?? 0),
+        'total_suppliers' => (int) ($row['total_suppliers'] ?? 0),
+        'active_suppliers' => (int) ($row['active_suppliers'] ?? 0),
+        'total_secretariats' => (int) ($row['total_secretariats'] ?? 0),
+        'total_requester_units' => (int) ($row['total_requester_units'] ?? 0),
+        'total_estimated_value' => (float) ($row['total_estimated_value'] ?? 0),
+    ];
 }
-
 function get_items_by_status(): array
 {
     return db()->query("
@@ -7194,23 +7245,20 @@ function get_items_by_category(): array
 
 function get_project_financial_ranking(): array
 {
-    return db()->query("
+    $sql = project_budget_aggregate_cte_sql() . "
         SELECT
             p.id,
             p.name,
-            COALESCE(
-                SUM(COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)),
-                0
-            ) AS total_estimated_value
+            COALESCE(SUM(dib.calculated_total), 0) AS total_estimated_value
         FROM procurement_projects p
-        LEFT JOIN demand_lists dl ON dl.project_id = p.id
-        LEFT JOIN demand_items di ON di.demand_list_id = dl.id
+        LEFT JOIN demand_item_budget dib ON dib.project_id = p.id
         GROUP BY p.id, p.name
         ORDER BY total_estimated_value DESC, p.name
         LIMIT 10
-    ")->fetchAll();
-}
+    ";
 
+    return db()->query($sql)->fetchAll();
+}
 function get_projects_by_status(): array
 {
     return db()->query("
@@ -7223,31 +7271,36 @@ function get_projects_by_status(): array
 
 function get_recent_projects_for_dashboard(int $limit = 6): array
 {
-    $stmt = db()->prepare("
+    $sql = project_budget_aggregate_cte_sql() . "
+        , project_values AS (
+            SELECT project_id, SUM(calculated_total) AS total_estimated_value
+            FROM demand_item_budget
+            GROUP BY project_id
+        ), project_demands AS (
+            SELECT project_id, COUNT(*) AS demand_count
+            FROM demand_lists
+            GROUP BY project_id
+        )
         SELECT
             p.id,
             p.name,
             p.status,
             p.created_at,
-            COUNT(DISTINCT dl.id) AS demand_count,
-            COALESCE(
-                SUM(COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)),
-                0
-            ) AS total_estimated_value
+            COALESCE(pd.demand_count, 0) AS demand_count,
+            COALESCE(pv.total_estimated_value, 0) AS total_estimated_value
         FROM procurement_projects p
-        LEFT JOIN demand_lists dl ON dl.project_id = p.id
-        LEFT JOIN demand_items di ON di.demand_list_id = dl.id
-        GROUP BY p.id, p.name, p.status, p.created_at
-        ORDER BY p.created_at DESC, p.id DESC
+        LEFT JOIN project_demands pd ON pd.project_id = p.id
+        LEFT JOIN project_values pv ON pv.project_id = p.id
+        ORDER BY p.created_at DESC NULLS LAST, p.id DESC
         LIMIT :limit
-    ");
+    ";
 
+    $stmt = db()->prepare($sql);
     $stmt->bindValue('limit', max(1, $limit), PDO::PARAM_INT);
     $stmt->execute();
 
     return $stmt->fetchAll();
 }
-
 function get_dashboard_annex_attention(int $limit = 8): array
 {
     $summary = [
@@ -7256,28 +7309,98 @@ function get_dashboard_annex_attention(int $limit = 8): array
         'pending' => 0,
     ];
     $items = [];
+    $annexTypes = project_annex_types();
 
-    foreach (get_projects() as $project) {
-        foreach (get_project_annex_statuses((int) $project['id']) as $status) {
-            $statusKey = (string) ($status['status'] ?? 'pending');
+    if (!$annexTypes) {
+        return [
+            'summary' => $summary,
+            'items' => [],
+            'total_attention' => 0,
+        ];
+    }
 
-            if (!isset($summary[$statusKey])) {
-                $summary[$statusKey] = 0;
-            }
+    if (!database_table_exists('project_annex_versions')) {
+        $projects = get_projects();
+        $summary['pending'] = count($projects) * count($annexTypes);
 
-            $summary[$statusKey]++;
-
-            if (in_array($statusKey, ['stale', 'pending'], true)) {
+        foreach ($projects as $project) {
+            foreach ($annexTypes as $label) {
                 $items[] = [
                     'project_id' => (int) $project['id'],
                     'project_name' => (string) $project['name'],
-                    'label' => (string) ($status['label'] ?? ''),
-                    'status' => $statusKey,
-                    'short_hash' => (string) ($status['short_hash'] ?? ''),
-                    'version_number' => $status['version_number'] ?? null,
+                    'label' => $label,
+                    'status' => 'pending',
+                    'short_hash' => '',
+                    'version_number' => null,
                 ];
             }
         }
+
+        return [
+            'summary' => $summary,
+            'items' => array_slice($items, 0, max(1, $limit)),
+            'total_attention' => count($items),
+        ];
+    }
+
+    $values = [];
+    $params = [];
+
+    foreach (array_keys($annexTypes) as $index => $annexType) {
+        $param = 'annex_type_' . $index;
+        $values[] = '(:' . $param . ')';
+        $params[$param] = $annexType;
+    }
+
+    $sql = "
+        WITH annex_types(annex_type) AS (VALUES " . implode(', ', $values) . "),
+        latest_versions AS (
+            SELECT *
+            FROM (
+                SELECT
+                    pav.*,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY pav.project_id, pav.annex_type
+                        ORDER BY pav.version_number DESC NULLS LAST, pav.generated_at DESC NULLS LAST, pav.id DESC
+                    ) AS row_number
+                FROM project_annex_versions pav
+            ) ranked
+            WHERE row_number = 1
+        )
+        SELECT
+            p.id AS project_id,
+            p.name AS project_name,
+            at.annex_type,
+            lv.status,
+            lv.version_number,
+            lv.content_hash
+        FROM procurement_projects p
+        CROSS JOIN annex_types at
+        LEFT JOIN latest_versions lv
+            ON lv.project_id = p.id
+           AND lv.annex_type = at.annex_type
+        ORDER BY p.created_at DESC NULLS LAST, p.id DESC, at.annex_type
+    ";
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    foreach ($stmt->fetchAll() as $row) {
+        $statusKey = empty($row['version_number']) ? 'pending' : ((string) ($row['status'] ?? '') === 'valid' ? 'valid' : 'stale');
+        $summary[$statusKey] = ($summary[$statusKey] ?? 0) + 1;
+
+        if (!in_array($statusKey, ['stale', 'pending'], true)) {
+            continue;
+        }
+
+        $items[] = [
+            'project_id' => (int) $row['project_id'],
+            'project_name' => (string) $row['project_name'],
+            'label' => $annexTypes[(string) $row['annex_type']] ?? (string) $row['annex_type'],
+            'status' => $statusKey,
+            'short_hash' => substr((string) ($row['content_hash'] ?? ''), 0, 12),
+            'version_number' => $row['version_number'] ?? null,
+        ];
     }
 
     usort($items, static function (array $left, array $right): int {
@@ -7297,25 +7420,47 @@ function get_dashboard_annex_attention(int $limit = 8): array
         'total_attention' => count($items),
     ];
 }
-
 function project_bi_project_rows(array $filters = []): array
 {
-    $sql = "
+    $sql = project_budget_aggregate_cte_sql() . "
+        , project_values AS (
+            SELECT
+                project_id,
+                COUNT(DISTINCT procurement_item_id) AS item_count,
+                SUM(calculated_total) AS total_estimated_value,
+                BOOL_OR(price_count > 0) AS uses_supplier_average
+            FROM demand_item_budget
+            GROUP BY project_id
+        ), project_demands AS (
+            SELECT project_id, COUNT(*) AS demand_count
+            FROM demand_lists
+            GROUP BY project_id
+        ), project_quotes AS (
+            SELECT
+                dl.project_id,
+                COUNT(DISTINCT q.supplier_id) AS supplier_count,
+                COUNT(DISTINCT q.id) AS quote_count
+            FROM demand_lists dl
+            INNER JOIN demand_supplier_quotes q
+                ON q.demand_list_id = dl.id
+               AND COALESCE(q.status, 'received') <> 'discarded'
+            GROUP BY dl.project_id
+        )
         SELECT
             p.id,
             p.name,
             p.status,
             p.created_at,
-            COUNT(DISTINCT dl.id) AS demand_count,
-            COUNT(DISTINCT di.procurement_item_id) AS item_count,
-            COUNT(DISTINCT q.supplier_id) AS supplier_count,
-            COUNT(DISTINCT q.id) AS quote_count
+            COALESCE(pd.demand_count, 0) AS demand_count,
+            COALESCE(pv.item_count, 0) AS item_count,
+            COALESCE(pq.supplier_count, 0) AS supplier_count,
+            COALESCE(pq.quote_count, 0) AS quote_count,
+            COALESCE(pv.total_estimated_value, 0) AS total_estimated_value,
+            COALESCE(pv.uses_supplier_average, FALSE) AS uses_supplier_average
         FROM procurement_projects p
-        LEFT JOIN demand_lists dl ON dl.project_id = p.id
-        LEFT JOIN demand_items di ON di.demand_list_id = dl.id
-        LEFT JOIN demand_supplier_quotes q
-            ON q.demand_list_id = dl.id
-           AND COALESCE(q.status, 'received') <> 'discarded'
+        LEFT JOIN project_values pv ON pv.project_id = p.id
+        LEFT JOIN project_demands pd ON pd.project_id = p.id
+        LEFT JOIN project_quotes pq ON pq.project_id = p.id
         WHERE 1 = 1
     ";
     $params = [];
@@ -7334,29 +7479,22 @@ function project_bi_project_rows(array $filters = []): array
         $params['status'] = $status;
     }
 
+    $projectId = (int) ($filters['project_id'] ?? 0);
+
+    if ($projectId > 0) {
+        $sql .= " AND p.id = :project_id";
+        $params['project_id'] = $projectId;
+    }
+
     $sql .= "
-        GROUP BY p.id, p.name, p.status, p.created_at
-        ORDER BY p.created_at DESC NULLS LAST, p.id DESC
+        ORDER BY total_estimated_value DESC, p.created_at DESC NULLS LAST, p.name
     ";
 
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
-    $rows = $stmt->fetchAll();
 
-    foreach ($rows as $index => $row) {
-        $summary = get_project_financial_summary((int) $row['id']);
-        $rows[$index]['total_estimated_value'] = (float) ($summary['total_estimated_value'] ?? 0);
-        $rows[$index]['uses_supplier_average'] = !empty($summary['uses_supplier_average']);
-    }
-
-    usort($rows, static function (array $left, array $right): int {
-        return ((float) $right['total_estimated_value'] <=> (float) $left['total_estimated_value'])
-            ?: strcasecmp((string) $left['name'], (string) $right['name']);
-    });
-
-    return $rows;
+    return $stmt->fetchAll();
 }
-
 function project_bi_status_summary(array $projectRows): array
 {
     $summary = [];
@@ -7436,32 +7574,26 @@ function project_bi_item_supplier_prices(int $projectId, int $procurementItemId)
         return [];
     }
 
-    $stmt = db()->prepare("
+    $sql = project_budget_aggregate_cte_sql() . "
         SELECT
-            s.id AS supplier_id,
-            s.name AS supplier_name,
-            s.document AS supplier_document,
-            COUNT(DISTINCT q.id) AS quote_count,
-            COUNT(qi.id) AS price_count,
-            AVG(qi.unit_price) AS average_unit_price,
-            MIN(qi.unit_price) AS min_unit_price,
-            MAX(qi.unit_price) AS max_unit_price,
-            STDDEV_POP(qi.unit_price) AS stddev_unit_price,
-            MAX(q.quote_date) AS latest_quote_date
-        FROM demand_supplier_quote_items qi
-        INNER JOIN demand_supplier_quotes q
-            ON q.id = qi.demand_supplier_quote_id
-           AND COALESCE(q.status, 'received') <> 'discarded'
-        INNER JOIN suppliers s ON s.id = q.supplier_id
-        INNER JOIN demand_items di ON di.id = qi.demand_item_id
-        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
-        WHERE dl.project_id = :project_id
-          AND di.procurement_item_id = :procurement_item_id
-          AND qi.unit_price IS NOT NULL
-        GROUP BY s.id, s.name, s.document
-        ORDER BY average_unit_price, s.name
-    ");
+            source_key AS supplier_id,
+            source_name AS supplier_name,
+            source_document AS supplier_document,
+            COUNT(DISTINCT quote_id) AS quote_count,
+            COUNT(*) AS price_count,
+            AVG(unit_price) AS average_unit_price,
+            MIN(unit_price) AS min_unit_price,
+            MAX(unit_price) AS max_unit_price,
+            STDDEV_POP(unit_price) AS stddev_unit_price,
+            NULL AS latest_quote_date
+        FROM price_sources
+        WHERE project_id = :project_id
+          AND procurement_item_id = :procurement_item_id
+        GROUP BY source_key, source_name, source_document
+        ORDER BY average_unit_price, source_name
+    ";
 
+    $stmt = db()->prepare($sql);
     $stmt->execute([
         'project_id' => $projectId,
         'procurement_item_id' => $procurementItemId,
@@ -7470,6 +7602,143 @@ function project_bi_item_supplier_prices(int $projectId, int $procurementItemId)
     return $stmt->fetchAll();
 }
 
+function project_bi_project_item_alerts(int $projectId, int $limit = 12): array
+{
+    if ($projectId <= 0) {
+        return [
+            'summary' => [
+                'total_items' => 0,
+                'without_prices' => 0,
+                'below_min_quotes' => 0,
+                'with_outliers' => 0,
+                'high_variation' => 0,
+                'total_attention' => 0,
+            ],
+            'items' => [],
+        ];
+    }
+
+    $trackingCodeSql = item_tracking_code_sql('pi');
+    $sql = project_budget_aggregate_cte_sql() . "
+        SELECT
+            dib.procurement_item_id,
+            {$trackingCodeSql} AS tracking_code,
+            pi.name AS item_name,
+            COALESCE(pli.licitation_number, 0) AS licitation_number,
+            SUM(dib.quantity) AS total_quantity,
+            SUM(dib.calculated_total) AS total_estimated_value,
+            SUM(dib.price_count) AS price_count
+        FROM demand_item_budget dib
+        INNER JOIN procurement_items pi ON pi.id = dib.procurement_item_id
+        LEFT JOIN project_licitation_items pli
+            ON pli.project_id = dib.project_id
+           AND pli.procurement_item_id = dib.procurement_item_id
+        WHERE dib.project_id = :project_id
+        GROUP BY dib.procurement_item_id, {$trackingCodeSql}, pi.name, pli.licitation_number
+        ORDER BY COALESCE(pli.licitation_number, 999999), pi.name
+    ";
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute(['project_id' => $projectId]);
+    $items = $stmt->fetchAll();
+
+    $priceSql = project_budget_aggregate_cte_sql() . "
+        SELECT
+            procurement_item_id,
+            source_key,
+            source_name,
+            AVG(unit_price) AS average_unit_price
+        FROM price_sources
+        WHERE project_id = :project_id
+        GROUP BY procurement_item_id, source_key, source_name
+        ORDER BY procurement_item_id, source_name
+    ";
+
+    $priceStmt = db()->prepare($priceSql);
+    $priceStmt->execute(['project_id' => $projectId]);
+    $pricesByItem = [];
+
+    foreach ($priceStmt->fetchAll() as $priceRow) {
+        $pricesByItem[(int) $priceRow['procurement_item_id']][] = $priceRow;
+    }
+
+    $summary = [
+        'total_items' => count($items),
+        'without_prices' => 0,
+        'below_min_quotes' => 0,
+        'with_outliers' => 0,
+        'high_variation' => 0,
+        'total_attention' => 0,
+    ];
+    $attentionItems = [];
+
+    foreach ($items as $item) {
+        $procurementItemId = (int) $item['procurement_item_id'];
+        $priceRows = $pricesByItem[$procurementItemId] ?? [];
+        $values = array_map(static fn (array $row): float => (float) $row['average_unit_price'], $priceRows);
+        $stats = project_bi_price_statistics($values);
+        $outlierSources = [];
+
+        foreach ($priceRows as $priceRow) {
+            if (project_bi_is_outlier((float) $priceRow['average_unit_price'], $stats)) {
+                $outlierSources[] = (string) $priceRow['source_name'];
+            }
+        }
+
+        $sourceCount = (int) ($stats['count'] ?? 0);
+        $coefficientVariation = $stats['coefficient_variation'] ?? null;
+        $alerts = [];
+        $severity = 0;
+
+        if ($sourceCount === 0) {
+            $alerts[] = 'Sem orcamento';
+            $summary['without_prices']++;
+            $severity = max($severity, 4);
+        } elseif ($sourceCount < 3) {
+            $alerts[] = 'Menos de 3 orcamentos';
+            $summary['below_min_quotes']++;
+            $severity = max($severity, 2);
+        }
+
+        if ($outlierSources) {
+            $alerts[] = 'Possivel outlier';
+            $summary['with_outliers']++;
+            $severity = max($severity, 3);
+        }
+
+        if ($coefficientVariation !== null && (float) $coefficientVariation > 0.25) {
+            $alerts[] = 'Alta divergencia';
+            $summary['high_variation']++;
+            $severity = max($severity, 1);
+        }
+
+        if (!$alerts) {
+            continue;
+        }
+
+        $summary['total_attention']++;
+        $attentionItems[] = array_merge($item, [
+            'source_count' => $sourceCount,
+            'alerts' => $alerts,
+            'severity' => $severity,
+            'outlier_sources' => $outlierSources,
+            'coefficient_variation' => $coefficientVariation,
+            'min_unit_price' => $stats['min'],
+            'max_unit_price' => $stats['max'],
+        ]);
+    }
+
+    usort($attentionItems, static function (array $left, array $right): int {
+        return ((int) $right['severity'] <=> (int) $left['severity'])
+            ?: ((int) ($left['licitation_number'] ?? 999999) <=> (int) ($right['licitation_number'] ?? 999999))
+            ?: strcasecmp((string) $left['item_name'], (string) $right['item_name']);
+    });
+
+    return [
+        'summary' => $summary,
+        'items' => array_slice($attentionItems, 0, max(1, $limit)),
+    ];
+}
 function project_bi_percentile(array $values, float $percentile): ?float
 {
     $values = array_values(array_filter(array_map('floatval', $values), static fn (float $value): bool => $value >= 0));

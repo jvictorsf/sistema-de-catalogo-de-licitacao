@@ -2,6 +2,17 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.4] - 2026-07-07
+
+### Alterado
+- Dashboard passa a calcular valores estimados por agregacao SQL com media dos orcamentos e referencias historicas selecionadas, reduzindo consultas repetidas.
+- Controle de anexos do Dashboard passa a consultar as versoes registradas em `project_annex_versions`, evitando recalculo de hashes de todos os anexos a cada carregamento.
+- Gestao de projetos passa a usar o projeto selecionado como escopo real dos indicadores, graficos, ranking de fornecedores e tabela de projetos.
+
+### Adicionado
+- Gestao de projetos passa a exibir analise global do projeto selecionado, indicando itens sem orcamento, com menos de tres fontes, possiveis outliers e alta divergencia.
+- Teste automatizado para estatisticas e deteccao de outliers usadas no BI.
+
 ## [1.6.3] - 2026-07-07
 
 ### Adicionado
@@ -296,7 +307,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 - Testes para media aritmetica simples, arredondamento monetario e sinalizacao de outliers.
 
 ### Alterado
-- Anexo II padronizado como "Anexo II – Planilha de Pesquisa e Estimativa de Preços".
+- Anexo II padronizado como "Anexo II â€“ Planilha de Pesquisa e Estimativa de PreÃ§os".
 - Calculo do Anexo II passa a usar media aritmetica simples dos precos validos, arredondando o valor unitario estimado antes do total.
 - Anexo II passa a separar quantidade e unidade em colunas distintas.
 - Resumo financeiro do projeto passa a usar o mesmo valor global estimado calculado para o Anexo II.

@@ -63,6 +63,22 @@ if (!function_exists('app_log')) {
             @mkdir($logDir, 0775, true);
         }
 
+        if (!isset($context['uri']) && isset($_SERVER['REQUEST_URI'])) {
+            $context['uri'] = $_SERVER['REQUEST_URI'];
+        }
+
+        if (!isset($context['route']) && isset($_SERVER['SCRIPT_NAME'])) {
+            $context['route'] = basename((string) $_SERVER['SCRIPT_NAME']);
+        }
+
+        if (!isset($context['method']) && isset($_SERVER['REQUEST_METHOD'])) {
+            $context['method'] = $_SERVER['REQUEST_METHOD'];
+        }
+
+        if (!isset($context['user_id']) && session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['auth_user_id'])) {
+            $context['user_id'] = (int) $_SESSION['auth_user_id'];
+        }
+
         $line = sprintf(
             "[%s] %s %s %s\n",
             date('Y-m-d H:i:s'),

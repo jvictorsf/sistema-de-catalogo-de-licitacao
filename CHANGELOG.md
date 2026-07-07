@@ -2,6 +2,19 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.3] - 2026-07-07
+
+### Adicionado
+- Pagina administrativa de diagnostico do ambiente com status do PostgreSQL, versao do PHP, extensoes, configuracoes principais e permissao de escrita no storage.
+- Pagina administrativa de logs lendo `storage/logs`, com filtros por data, nivel, usuario, rota, arquivo e mensagem.
+- Suite automatizada em PHP puro com runner `php tests/run.php`, cobrindo autenticacao, repository, medias, relatorios, bloqueio de projeto fechado, hash de documentos, importacao/exportacao e logs.
+- Logs novos passam a registrar automaticamente rota, URI, metodo e usuario autenticado quando disponiveis.
+
+### Corrigido
+- Criacao do primeiro administrador deixa de falhar por chamada a funcao inexistente `auth_pg_bool`.
+- Schema separa corretamente o `setval` de `app_users` e `categories` em comandos distintos.
+- Menu administrativo passa a filtrar grupos e itens conforme permissoes do usuario autenticado.
+
 ## [1.6.2] - 2026-07-06
 
 ### Adicionado
@@ -19,6 +32,7 @@ Todas as alteracoes relevantes deste sistema serao registradas aqui.
 ### Seguranca
 - Rotas administrativas validam permissao no servidor, inclusive em acesso direto por URL.
 - O sistema impede desativar o proprio usuario e impede deixar a aplicacao sem administrador ativo.
+
 ## [1.6.1] - 2026-07-06
 
 ### Adicionado

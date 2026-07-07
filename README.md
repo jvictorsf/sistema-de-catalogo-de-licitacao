@@ -157,3 +157,12 @@ server {
 3. Importar `database/schema.sql`.
 4. Configurar o Nginx com `public/` como raiz.
 5. Garantir permissao de escrita para `public/uploads/` e `storage/`.
+
+## Testes
+Execute a suite automatizada em PHP puro com:
+
+```bash
+php tests/run.php
+```
+
+Os testes cobrem autenticacao, permissoes, calculos de medias, dados de relatorios, bloqueio de projeto fechado, hash de documentos, importacao/exportacao e leitura de logs.

@@ -101,6 +101,7 @@ $navGroups = [
                 'href' => '/collaborators.php',
                 'label' => 'Colaboradores',
                 'icon' => 'bi-people',
+                'permission' => 'requesters.manage',
                 'active' => ['collaborators.php', 'collaborator_form.php'],
             ],
             [
@@ -143,6 +144,20 @@ $navGroups = [
                 'icon' => 'bi-database',
                 'permission' => 'system.manage_data',
                 'active' => ['data.php'],
+            ],
+            [
+                'href' => '/environment_diagnostics.php',
+                'label' => 'Diagnostico',
+                'icon' => 'bi-activity',
+                'permission' => 'system.view_diagnostics',
+                'active' => ['environment_diagnostics.php'],
+            ],
+            [
+                'href' => '/system_logs.php',
+                'label' => 'Logs',
+                'icon' => 'bi-terminal',
+                'permission' => 'system.view_logs',
+                'active' => ['system_logs.php'],
             ],
             [
                 'href' => '/document_hash_validate.php',
@@ -189,7 +204,13 @@ $navGroups = [
             <div class="collapse navbar-collapse" id="mainNavbar">
                 <div class="navbar-nav ms-auto">
                     <?php foreach ($primaryNavItems as $navItem): ?>
-                        <?php $active = in_array($currentPage, $navItem['active'], true); ?>
+                        <?php
+                            if (!empty($navItem['permission']) && !auth_can((string) $navItem['permission'])) {
+                                continue;
+                            }
+
+                            $active = in_array($currentPage, $navItem['active'], true);
+                        ?>
                         <a
                             href="<?= e($navItem['href']) ?>"
                             class="nav-link d-flex align-items-center gap-2 <?= $active ? 'active' : '' ?>"
@@ -201,16 +222,24 @@ $navGroups = [
 
                     <?php foreach ($navGroups as $navGroup): ?>
                         <?php
+                            $visibleItems = array_values(array_filter(
+                                $navGroup['items'],
+                                static fn (array $navItem): bool => empty($navItem['permission']) || auth_can((string) $navItem['permission'])
+                            ));
+
+                            if (!$visibleItems) {
+                                continue;
+                            }
+
                             $groupActive = false;
 
-                            foreach ($navGroup['items'] as $navItem) {
+                            foreach ($visibleItems as $navItem) {
                                 if (in_array($currentPage, $navItem['active'], true)) {
                                     $groupActive = true;
                                     break;
                                 }
                             }
                         ?>
-
                         <div class="nav-item dropdown">
                             <a
                                 href="#"
@@ -224,7 +253,7 @@ $navGroups = [
                             </a>
 
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <?php foreach ($navGroup['items'] as $navItem): ?>
+                                <?php foreach ($visibleItems as $navItem): ?>
                                     <?php $active = in_array($currentPage, $navItem['active'], true); ?>
                                     <li>
                                         <a
@@ -268,7 +297,8 @@ $navGroups = [
                                 </li>
                             </ul>
                         </div>
-                    <?php endif; ?>                </div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </nav>

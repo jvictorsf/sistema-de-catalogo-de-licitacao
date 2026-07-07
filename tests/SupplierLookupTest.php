@@ -16,7 +16,7 @@ $cepAddress = supplier_lookup_address_from_data([
     'neighborhood' => 'Centro',
 ]);
 
-assert_same_value('Rua das Flores, Centro', $cepAddress, 'Endereco do CEP deve aceitar street e neighborhood.');
+assert_same_value('RUA DAS FLORES, CENTRO', $cepAddress, 'Endereco do CEP deve aceitar street e neighborhood.');
 
 $cnpjAddress = supplier_lookup_address_from_data([
     'descricao_tipo_de_logradouro' => 'Avenida',
@@ -25,8 +25,8 @@ $cnpjAddress = supplier_lookup_address_from_data([
     'bairro' => 'Bela Vista',
 ]);
 
-assert_same_value('Avenida Paulista, 100, Bela Vista', $cnpjAddress, 'Endereco do CNPJ deve montar tipo, rua, numero e bairro.');
-assert_same_value('Sao Paulo', supplier_lookup_city_from_data(['city' => 'Sao Paulo']), 'Cidade deve aceitar o campo city.');
+assert_same_value('AVENIDA PAULISTA, 100, BELA VISTA', $cnpjAddress, 'Endereco do CNPJ deve montar tipo, rua, numero e bairro.');
+assert_same_value('SAO PAULO', supplier_lookup_city_from_data(['city' => 'SAO PAULO']), 'Cidade deve aceitar o campo city.');
 assert_same_value('SP', supplier_lookup_state_from_data(['state' => 'SP']), 'UF deve aceitar o campo state.');
 
 echo "SupplierLookupTest: OK\n";

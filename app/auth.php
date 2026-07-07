@@ -2,8 +2,20 @@
 
 declare(strict_types=1);
 
-function auth_auth_pg_bool(mixed $value): string
+function auth_pg_bool(mixed $value): string
 {
+    if (is_string($value)) {
+        $normalized = strtolower(trim($value));
+
+        if (in_array($normalized, ['1', 'true', 't', 'yes', 'on'], true)) {
+            return 'true';
+        }
+
+        if (in_array($normalized, ['0', 'false', 'f', 'no', 'off', ''], true)) {
+            return 'false';
+        }
+    }
+
     return $value ? 'true' : 'false';
 }
 
@@ -105,6 +117,8 @@ function auth_permission_labels(): array
     return [
         'system.manage_users' => 'Gerenciar usuarios e perfis',
         'system.manage_data' => 'Exportar/importar dados do sistema',
+        'system.view_diagnostics' => 'Visualizar diagnostico do ambiente',
+        'system.view_logs' => 'Visualizar logs da aplicacao',
         'catalog.manage' => 'Gerenciar catalogo, kits e biblioteca',
         'projects.manage' => 'Gerenciar projetos, demandas, lotes e DOD',
         'budgets.manage' => 'Gerenciar orcamentos e banco de precos',
@@ -251,6 +265,8 @@ function auth_route_required_permission(string $page): ?string
     $permissions = [
         'system.manage_users' => ['users.php', 'user_form.php', 'user_toggle.php'],
         'system.manage_data' => ['data.php', 'export_json.php', 'import_json.php', 'import_template_json.php'],
+        'system.view_diagnostics' => ['environment_diagnostics.php'],
+        'system.view_logs' => ['system_logs.php'],
         'catalog.manage' => [
             'ai_suggest.php', 'item_form.php', 'item_delete.php', 'item_duplicate.php', 'item_image_delete.php',
             'item_image_primary.php', 'item_version_create.php', 'item_version_restore.php', 'category_form.php',

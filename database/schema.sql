@@ -2846,7 +2846,8 @@ FROM demand_supplier_quotes
 WHERE attachment_path IS NOT NULL
   AND attachment_path <> ''
 ON CONFLICT (demand_supplier_quote_id, attachment_path) DO NOTHING;
-SELECT setval(pg_get_serial_sequence('app_users', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM app_users), 0), 1), COALESCE((SELECT MAX(id) FROM app_users), 0) > 0);SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
+SELECT setval(pg_get_serial_sequence('app_users', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM app_users), 0), 1), COALESCE((SELECT MAX(id) FROM app_users), 0) > 0);
+SELECT setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM categories), 0), 1), COALESCE((SELECT MAX(id) FROM categories), 0) > 0);
 SELECT setval(pg_get_serial_sequence('unit_types', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM unit_types), 0), 1), COALESCE((SELECT MAX(id) FROM unit_types), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_items), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('procurement_item_images', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM procurement_item_images), 0), 1), COALESCE((SELECT MAX(id) FROM procurement_item_images), 0) > 0);

@@ -2,6 +2,10 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.10] - 2026-07-08
+
+### Documentacao
+- `docs/features.md` foi revisado para remover funcionalidades ja implementadas e registrar novas sugestoes consultivas com prompts de solicitacao futura.
 ## [1.6.9] - 2026-07-08
 
 ### Alterado

@@ -1,170 +1,175 @@
 # Possiveis Melhorias e Features
 
-Este arquivo registra ideias consultivas para evolucao do Catalogo de Licitacao. Cada item possui um prompt sugerido para facilitar pedidos futuros ao Codex.
+Este arquivo registra ideias consultivas ainda nao implementadas para evolucao do Sistema Interno de Compras e Licitacoes. Cada item possui um prompt sugerido para facilitar pedidos futuros ao Codex.
 
-## Governanca e Acesso
+## Como usar este arquivo
 
-### Controle de usuarios e permissoes
-- Objetivo: criar perfis como administrador, tecnico, solicitante, consulta e auditor.
-- Prompt sugerido: `Implemente controle de usuarios e permissoes no Catalogo de Licitacao, com perfis administrador, tecnico, solicitante, consulta e auditor. Atualize banco, telas, menus e bloqueios de acesso. Gere changelog e valide com php -l.`
+- Use os prompts como ponto de partida e ajuste o escopo conforme a prioridade do momento.
+- Antes de implementar, confirme se a feature ainda nao foi entregue em versoes recentes do `CHANGELOG.md`.
+- Para features com impacto em banco, pedir sempre schema, README, changelog, testes e orientacoes de migracao.
+
+## Governanca, Auditoria e Seguranca
+
+### Auditoria granular de alteracoes
+- Objetivo: registrar antes/depois de alteracoes relevantes em itens, fornecedores, projetos, demandas, orcamentos, documentos e configuracoes, alem dos eventos de status ja existentes.
+- Prompt sugerido: `Implemente auditoria granular de alteracoes no sistema, registrando usuario, data, IP, rota, entidade, acao, dados anteriores e dados novos para itens, fornecedores, projetos, demandas, orcamentos e documentos. Crie tela administrativa com filtros e atualize schema, testes, README e changelog.`
 
 ### Login integrado ao AD/LDAP
-- Objetivo: autenticar usuarios com credenciais institucionais.
-- Prompt sugerido: `Adicione autenticacao via AD/LDAP ao sistema, mantendo fallback local para administrador. Configure por .env, documente no README e crie tela de login/logout segura.`
+- Objetivo: permitir autenticacao com credenciais institucionais, mantendo fallback local para contingencia.
+- Prompt sugerido: `Adicione autenticacao via AD/LDAP ao sistema, configuravel por .env, mantendo fallback local para administrador. Valide conexao, bind, grupos/perfis, logs de falha, README e testes de configuracao.`
 
-### Auditoria de alteracoes
-- Objetivo: registrar usuario, data, tabela, acao e dados alterados.
-- Prompt sugerido: `Crie auditoria de alteracoes para projetos, demandas, itens, fornecedores, orcamentos e anexos, registrando usuario, IP, data, acao e antes/depois quando aplicavel.`
+### Perfil Solicitante externo controlado
+- Objetivo: permitir que unidades administrativas preencham ou confirmem demandas sem acesso amplo ao sistema.
+- Prompt sugerido: `Crie perfil Solicitante com acesso restrito somente as demandas da propria unidade administrativa, permitindo preencher, revisar, assinar e acompanhar demandas sem visualizar projetos de outras unidades.`
 
-### Historico de status do projeto
-- Objetivo: manter trilha formal de mudancas de status.
-- Prompt sugerido: `Adicione historico de status do projeto, com data, usuario, status anterior, novo status e justificativa quando for fechamento ou retificacao.`
+### Politica de retencao e expurgo de evidencias
+- Objetivo: controlar prazo de guarda de documentos pessoais, assinaturas, logs e anexos sensiveis.
+- Prompt sugerido: `Implemente politica de retencao de dados e evidencias, com classificacao de arquivos, prazo de guarda, bloqueio de exclusao indevida, relatorio de documentos sensiveis e rotina administrativa de expurgo controlado.`
 
-### Workflow de retificacao com justificativa obrigatoria
-- Objetivo: exigir motivo quando um projeto fechado entra em retificacao.
-- Prompt sugerido: `Ao alterar projeto de Fechado para Retificacao, exija justificativa obrigatoria, registre no historico e mostre aviso no projeto e nos anexos gerados durante a retificacao.`
+### Trilhas de aprovacao por perfil
+- Objetivo: exigir aprovacao por responsavel tecnico, requisitante, gestor e autoridade competente conforme etapa do processo.
+- Prompt sugerido: `Crie trilhas de aprovacao configuraveis por modalidade do projeto, com etapas, responsaveis, prazos, justificativas, bloqueios de edicao e historico auditavel.`
 
-## Demandas e Aprovacoes
+## Fluxos de Compra Direta e Licitacao
 
-### Fluxo de aprovacao de demandas
-- Objetivo: permitir que setores enviem demandas para revisao tecnica antes da consolidacao.
-- Prompt sugerido: `Crie fluxo de aprovacao para demandas, com status rascunho, enviada, em analise, aprovada, recusada e ajustes solicitados. Bloqueie edicoes conforme o status.`
+### Workflow completo de demandas
+- Objetivo: transformar demandas em fluxo formal com rascunho, envio, analise tecnica, ajustes, aprovacao e consolidacao.
+- Prompt sugerido: `Implemente workflow completo de demandas com status rascunho, enviada, em analise, ajustes solicitados, aprovada e consolidada. Bloqueie edicoes por status, registre historico e crie relatorios de pendencias por unidade e secretaria.`
 
-### Relatorio de demandas pendentes por unidade
-- Objetivo: identificar unidades que ainda nao finalizaram suas demandas.
-- Prompt sugerido: `Crie relatorio de demandas pendentes por unidade e secretaria, com filtros por projeto, status e responsavel, exportavel em PDF, Word e Excel.`
+### Geracao de Estudo Tecnico Preliminar simplificado
+- Objetivo: gerar ETP simplificado a partir dos dados do projeto, demandas, justificativas, riscos, impactos e pesquisa de precos.
+- Prompt sugerido: `Crie geracao de ETP simplificado para compra direta e licitacao, reaproveitando dados do projeto, demandas, DOD, itens, justificativas, impactos ambientais e pesquisa de precos. Permita editar topicos, exportar Word/PDF e versionar com hash.`
 
-### Divergencia entre quantidade solicitada e aprovada
-- Objetivo: evidenciar cortes ou ajustes de quantidade.
-- Prompt sugerido: `Adicione relatorio de divergencia entre quantidade solicitada e aprovada, agrupado por secretaria, unidade e item, com justificativa quando existir.`
+### Termo de Referencia preliminar
+- Objetivo: montar documento base com objeto, justificativa, itens, criterios de aceitacao, prazos, obrigacoes e estimativa de precos.
+- Prompt sugerido: `Implemente Termo de Referencia preliminar gerado a partir do projeto, com topicos editaveis, itens consolidados, criterios de aceitacao, requisitos, prazos, obrigacoes, pesquisa de precos, anexos, Word/PDF e controle de versao/hash.`
 
-### Bloqueio de exclusao para registros usados
-- Objetivo: evitar perda de historico quando item, fornecedor ou unidade ja foi usado.
-- Prompt sugerido: `Substitua exclusoes definitivas por inativacao quando registros ja estiverem vinculados a projetos, demandas, orcamentos ou anexos.`
+### Matriz de riscos da contratacao
+- Objetivo: listar riscos administrativos, tecnicos, financeiros, ambientais e operacionais com probabilidade, impacto e mitigacao.
+- Prompt sugerido: `Adicione matriz de riscos por projeto, com riscos padrao por categoria, probabilidade, impacto, nivel, plano de mitigacao, responsavel e exportacao em Word/PDF.`
 
-## Orcamentos e Precos
+### Checklist processual por modalidade
+- Objetivo: acompanhar documentos e etapas obrigatorias para licitacao, compra direta e outras modalidades futuras.
+- Prompt sugerido: `Crie checklist processual configuravel por modalidade, com documentos obrigatorios, responsaveis, prazos, status, anexos vinculados e painel de pendencias do projeto.`
+
+## Orcamentos, Precos e Fornecedores
 
 ### Importacao de planilha preenchida pelo fornecedor
-- Objetivo: permitir importar os precos de Excel enviado ao fornecedor.
-- Prompt sugerido: `Implemente importacao da planilha de orcamento preenchida pelo fornecedor, validando codigo/item, quantidade, unidade, valor unitario e observacoes antes de salvar.`
+- Objetivo: importar automaticamente os valores preenchidos no Excel enviado ao fornecedor.
+- Prompt sugerido: `Implemente importacao da planilha de orcamento preenchida pelo fornecedor, validando codigo do item, quantidade, unidade, marca/modelo, valor unitario, prazo, validade e observacoes antes de salvar no orcamento geral do projeto.`
 
-### Excel com validacao de celulas
-- Objetivo: reduzir erros no preenchimento pelo fornecedor.
-- Prompt sugerido: `Melhore o Excel enviado ao fornecedor com instrucoes, colunas protegidas, validacao de valores numericos e destaque para campos obrigatorios.`
+### Excel do fornecedor com validacao e protecao
+- Objetivo: reduzir erro de preenchimento pelo fornecedor, protegendo colunas fixas e validando valores.
+- Prompt sugerido: `Melhore o Excel enviado ao fornecedor com abas de instrucoes, colunas protegidas, validacao de valores numericos, destaque de campos obrigatorios e mensagens de erro para preenchimento inadequado.`
 
-### Relatorio de itens sem orcamento
-- Objetivo: localizar itens ainda sem pesquisa de preco.
-- Prompt sugerido: `Crie relatorio de itens sem orcamento por projeto, demanda, secretaria, unidade, categoria e lote, com exportacao PDF, Word e Excel.`
+### Rodada de cotacao e controle de convites
+- Objetivo: registrar fornecedores convidados, data de envio, prazo de resposta, retornos e recusas.
+- Prompt sugerido: `Crie modulo de rodada de cotacao por projeto, registrando fornecedores convidados, data de envio, prazo, status de resposta, motivo de recusa, anexos recebidos e alertas de atraso.`
 
-### Relatorio de itens com apenas um fornecedor cotado
-- Objetivo: apoiar saneamento da pesquisa de precos.
-- Prompt sugerido: `Crie relatorio de itens com apenas um fornecedor cotado, indicando item, quantidade, fornecedor, valor e demanda de origem.`
+### Envio de solicitacao por e-mail
+- Objetivo: enviar solicitacoes formais ao fornecedor diretamente pelo sistema com anexos e rastreio.
+- Prompt sugerido: `Implemente envio de solicitacao de orcamento por e-mail pelo sistema, usando SMTP via .env, anexando PDF/Excel, registrando destinatarios, data de envio, status, erro e historico no projeto.`
 
-### Comparativo visual de precos
-- Objetivo: melhorar analise entre fornecedores, medias e historico.
-- Prompt sugerido: `Adicione comparativo visual de precos por item, com menor preco, maior preco, media, fornecedores cotados e referencias historicas selecionadas.`
+### Portal publico restrito para fornecedor responder cotacao
+- Objetivo: permitir que fornecedor acesse link com token e preencha valores sem precisar de usuario interno.
+- Prompt sugerido: `Crie portal de resposta de cotacao por link seguro/token para fornecedores, permitindo preencher valores, anexar proposta, informar validade e assinar declaracao de responsabilidade, com expiracao e registro auditavel.`
 
-### Base de precos avancada
-- Objetivo: consultar historico por periodo, fornecedor, categoria e item.
-- Prompt sugerido: `Evolua a base de precos com filtros por periodo, fornecedor, item, categoria, secretaria e projeto, permitindo selecionar referencias para compor medias.`
+### Curva ABC de itens e fornecedores
+- Objetivo: identificar itens e fornecedores de maior impacto financeiro no projeto ou no periodo.
+- Prompt sugerido: `Adicione analise de Curva ABC por projeto, secretaria, categoria e fornecedor, com graficos, filtros e exportacao, destacando itens de maior impacto financeiro.`
 
-### Relatorio de economicidade
-- Objetivo: comparar valores estimados, menores precos e medias historicas.
-- Prompt sugerido: `Crie relatorio de economicidade por item e por lote, comparando media estimada, menor preco cotado e referencias historicas.`
+### Indice de confiabilidade do fornecedor
+- Objetivo: classificar fornecedores por historico de participacao, respostas, divergencias, documentos e valores discrepantes.
+- Prompt sugerido: `Crie indice de confiabilidade do fornecedor com base em participacoes, respostas, propostas anexadas, valores discrepantes, documentos incompletos e historico de cotacoes, exibindo alertas no cadastro e nos orcamentos.`
 
-## Anexos, Documentos e Validacao
+## Catalogo, Itens e Bibliotecas
 
-### Assinatura digital ou validacao formal
-- Objetivo: dar mais confiabilidade aos documentos emitidos.
-- Prompt sugerido: `Adicione suporte a assinatura digital ou validacao formal dos anexos, mantendo hash, data, versao do documento e responsavel pela emissao.`
+### Biblioteca de especificacoes tecnicas reutilizaveis
+- Objetivo: criar modelos de especificacao por categoria, subcategoria, tipo de unidade ou natureza do item.
+- Prompt sugerido: `Crie biblioteca de especificacoes tecnicas reutilizaveis por categoria, subcategoria, tipo de unidade e natureza produto/servico, com aplicacao automatica no cadastro de item e versionamento dos modelos.`
 
-### QR Code de validacao publica
-- Objetivo: facilitar validacao dos anexos pelo hash.
-- Prompt sugerido: `Inclua QR Code nos anexos apontando para a pagina de validacao de hash, com exibicao do hash completo e dados do documento validado.`
+### Assistente de saneamento de itens duplicados
+- Objetivo: comparar itens semelhantes e orientar unificacao, inativacao ou manutencao separada.
+- Prompt sugerido: `Implemente assistente de saneamento de itens duplicados, comparando nome, codigo, categoria, unidade, especificacao, embalagem e uso em projetos. Permita marcar como duplicado, sugerir item principal e gerar relatorio de saneamento.`
 
-### Comparacao entre versoes de anexos
-- Objetivo: ver o que mudou entre v1, v2, v3.
-- Prompt sugerido: `Crie tela de comparacao entre versoes de anexos, destacando itens adicionados, removidos, alterados, mudancas de quantidade e mudancas de preco.`
+### Classificacao por natureza de despesa e elemento contabil
+- Objetivo: vincular itens a classificacoes orcamentarias para melhorar relatorios administrativos.
+- Prompt sugerido: `Adicione classificacao orcamentaria dos itens por natureza de despesa, elemento, subelemento e fonte quando aplicavel, com filtros, importacao JSON e uso nos relatorios do projeto.`
+
+### Regras de sustentabilidade por categoria
+- Objetivo: aplicar requisitos ambientais padrao conforme categoria do item ou servico.
+- Prompt sugerido: `Crie regras de sustentabilidade por categoria/subcategoria, sugerindo impactos ambientais, criterios de aceitacao e documentacao exigida no cadastro do item e nos documentos do projeto.`
+
+### Validador de especificacao restritiva
+- Objetivo: alertar quando uma especificacao parece direcionar marca/modelo ou restringir competitividade.
+- Prompt sugerido: `Implemente validador de especificacao restritiva, analisando marca/modelo, termos exclusivos, exigencias excessivas e caracteristicas que possam limitar competitividade, com alertas e sugestoes de ajuste.`
+
+## Relatorios, BI e Indicadores
+
+### Painel executivo por periodo
+- Objetivo: consolidar valores, modalidades, secretarias, fornecedores, status e economia por periodo.
+- Prompt sugerido: `Crie painel executivo por periodo com filtros por ano, mes, secretaria, modalidade, status e categoria, exibindo valores estimados, valores vencidos, economia, quantidade de projetos, fornecedores e itens criticos.`
+
+### Relatorio de pendencias administrativas
+- Objetivo: listar tudo que impede fechamento, emissao de anexos ou andamento do projeto.
+- Prompt sugerido: `Crie relatorio de pendencias administrativas do projeto, apontando demandas nao aprovadas, itens sem orcamento, menos de tres cotacoes, documentos ausentes, anexos desatualizados, DOD incompleto e assinaturas pendentes.`
+
+### Monitor de prazos
+- Objetivo: acompanhar validade de orcamentos, prazos de resposta, reaberturas e fechamentos automaticos.
+- Prompt sugerido: `Implemente monitor de prazos com alertas para validade de orcamentos, prazo de resposta de fornecedor, prazo de retificacao/reabertura e documentos proximos do vencimento, com dashboard e filtros.`
+
+### Comparativo anual de precos
+- Objetivo: visualizar evolucao historica de precos por item, fornecedor, categoria e secretaria.
+- Prompt sugerido: `Crie comparativo anual de precos por item, fornecedor, categoria e secretaria, com graficos de tendencia, media movel, maior/menor valor, outliers e exportacao Excel.`
+
+### Relatorio de cobertura de fornecedores
+- Objetivo: identificar categorias com poucos fornecedores cadastrados ou baixa participacao em cotacoes.
+- Prompt sugerido: `Crie relatorio de cobertura de fornecedores por categoria e subcategoria, mostrando quantidade cadastrada, quantidade ativa, participacao em cotacoes, taxa de resposta e lacunas de mercado.`
+
+## Documentos, Assinaturas e Validacao
+
+### QR Code nos documentos gerados
+- Objetivo: facilitar validacao de hash e autenticidade dos anexos e documentos.
+- Prompt sugerido: `Inclua QR Code nos anexos e documentos gerados, apontando para a pagina de validacao de hash, exibindo tipo do documento, projeto, versao, data de emissao e hash completo.`
+
+### Comparador de versoes de documentos
+- Objetivo: mostrar diferencas entre versoes de anexos, DOD, ETP ou termo de referencia.
+- Prompt sugerido: `Crie comparador de versoes de documentos, destacando itens adicionados, removidos, alterados, mudancas de quantidade, preco, texto e responsaveis, com exportacao do comparativo.`
 
 ### Central de documentos do processo
-- Objetivo: organizar anexos, orcamentos, PDFs, atas e comprovantes.
-- Prompt sugerido: `Crie uma central de documentos por projeto, com upload, categorizacao, historico, download e permissao por perfil.`
+- Objetivo: organizar documentos gerados, anexos recebidos, atas, comprovantes, assinaturas e evidencias.
+- Prompt sugerido: `Crie central de documentos por projeto, com upload, categorizacao, origem, responsavel, data, hash, permissao por perfil, busca, download e vinculacao a etapas do checklist processual.`
 
-### Geracao de termo de referencia preliminar
-- Objetivo: gerar um documento base a partir dos itens, justificativas, memoria e precos.
-- Prompt sugerido: `Gere termo de referencia preliminar a partir do projeto, consolidando objeto, justificativa, itens, quantitativos, pesquisa de precos, criterios de aceitacao e observacoes.`
+### Assinatura institucional avancada
+- Objetivo: permitir assinatura por multiplos responsaveis com ordem, status, data e evidencias.
+- Prompt sugerido: `Evolua o modulo de assinaturas para permitir fluxo sequencial ou paralelo, multiplos assinantes, assinatura por token, anexos de comprovacao, hash individual e painel de pendencias.`
 
-## Itens, Catalogo e Bibliotecas
+### Modelos institucionais configuraveis
+- Objetivo: configurar cabecalhos, rodapes, logos, campos e textos padrao por secretaria/departamento.
+- Prompt sugerido: `Crie modelos institucionais configuraveis por secretaria e departamento, permitindo cabecalho, rodape, logos adicionais, CNPJ, endereco, telefone, e-mail, assinatura e campos padrao para documentos.`
 
-### Biblioteca de especificacoes tecnicas
-- Objetivo: reutilizar especificacoes por categoria, subcategoria ou tipo de produto.
-- Prompt sugerido: `Crie biblioteca de especificacoes tecnicas reutilizaveis, vinculada a categoria/subcategoria, com aplicacao automatica no cadastro de item.`
+## Integracoes e Infraestrutura
 
-### Biblioteca de justificativas por tipo de contratacao
-- Objetivo: padronizar textos institucionais.
-- Prompt sugerido: `Evolua a biblioteca de justificativas para separar modelos por tipo de contratacao, categoria, secretaria e natureza do item.`
+### Migracoes incrementais versionadas
+- Objetivo: substituir a evolucao via schema unico por migrations aplicaveis com seguranca em producao.
+- Prompt sugerido: `Organize o banco em migrations incrementais versionadas, mantendo compatibilidade com database/schema.sql, criando tabela de controle, comandos de aplicar/rollback e documentacao de atualizacao segura em producao.`
 
-### Busca global
-- Objetivo: pesquisar item, projeto, fornecedor, demanda, secretaria e unidade em uma unica tela.
-- Prompt sugerido: `Implemente busca global no sistema, pesquisando itens, projetos, demandas, fornecedores, secretarias, unidades e documentos.`
+### Seeds separados e idempotentes
+- Objetivo: separar dados estruturais de schema e permitir atualizacao segura sem duplicar registros.
+- Prompt sugerido: `Separe seeds estruturais do schema em scripts idempotentes para categorias padrao, tipos de unidade, impactos ambientais, status, CNAEs e templates, com documentacao de execucao segura.`
 
-### Itens semelhantes e possiveis duplicidades
-- Objetivo: reduzir duplicidade no catalogo.
-- Prompt sugerido: `Melhore a deteccao de itens semelhantes usando nome, categoria, especificacao, unidade e codigo, com tela para comparar e decidir se deve unir ou manter separado.`
+### Configuracao Nginx e PHP-FPM de exemplo
+- Objetivo: padronizar implantacao em servidor Linux com `public/` como raiz.
+- Prompt sugerido: `Adicione exemplos de configuracao Nginx e PHP-FPM para o sistema, usando public como root, bloqueando app/config/database/storage/.env, configurando uploads, logs, cache de assets e limites de upload.`
 
-### Clonagem seletiva de projetos
-- Objetivo: copiar um projeto antigo escolhendo o que reaproveitar.
-- Prompt sugerido: `Melhore a duplicacao de projeto para permitir escolher se copia demandas, itens, lotes, fornecedores, orcamentos, anexos e numeros de licitacao.`
+### Rotina de backup e restore verificavel
+- Objetivo: garantir recuperacao real do banco, uploads, .env, logs e documentos.
+- Prompt sugerido: `Crie rotina documentada e testavel de backup/restore, incluindo PostgreSQL, storage/uploads, .env, logs e validacao pos-restore com checklist e comandos para producao.`
 
-## Relatorios e Dashboard
+### API interna para integracoes futuras
+- Objetivo: expor dados controlados para portal, painel externo, protocolo ou sistema contabil.
+- Prompt sugerido: `Crie uma API interna autenticada para consultar projetos, demandas, fornecedores, itens, orcamentos, hashes e documentos, com tokens, permissoes, logs e documentacao de endpoints.`
 
-### Pagina central de relatorios do projeto
-- Objetivo: reduzir excesso de opcoes no menu.
-- Prompt sugerido: `Crie uma pagina central de relatorios do projeto, organizada por abas: gerenciais, demandas, orcamentos, anexos por item, anexos por lote e fornecedor.`
-
-### Dashboard por secretaria e unidade
-- Objetivo: acompanhar volumes e valores por estrutura administrativa.
-- Prompt sugerido: `Evolua o dashboard com indicadores por secretaria e unidade, mostrando quantidade de demandas, itens, valor estimado, projetos abertos e projetos fechados.`
-
-### Alertas de anexos desatualizados
-- Objetivo: chamar atencao quando itens, ordem ou precos invalidam anexos.
-- Prompt sugerido: `Adicione alertas visuais no dashboard e no projeto para anexos desatualizados, com botao direto para regenerar cada anexo.`
-
-### Filtros avancados salvos
-- Objetivo: permitir que usuarios mantenham filtros frequentes.
-- Prompt sugerido: `Implemente filtros avancados salvos por usuario nas telas de itens, projetos, fornecedores, demandas e relatorios.`
-
-## Operacao e Infraestrutura
-
-### Log de erros para administrador
-- Objetivo: facilitar suporte sem depender apenas do Nginx/PHP log.
-- Prompt sugerido: `Crie uma tela administrativa de logs da aplicacao, lendo storage/logs, com filtros por data, nivel, usuario, rota e mensagem.`
-
-### Pagina de diagnostico do ambiente
-- Objetivo: verificar banco, storage, extensoes PHP e permissoes.
-- Prompt sugerido: `Crie pagina de diagnostico do ambiente com status do PostgreSQL, permissao de escrita no storage, extensoes PHP, versao do PHP e configuracoes principais.`
-
-### Migracoes incrementais
-- Objetivo: substituir schema unico por historico de migrations.
-- Prompt sugerido: `Organize o schema em migrations incrementais versionadas, mantendo compatibilidade com o schema atual e instrucoes de atualizacao segura para producao.`
-
-### Seeds separados dos dados estruturais
-- Objetivo: evitar confusao entre estrutura e dados iniciais.
-- Prompt sugerido: `Separe seeds estruturais do schema, com scripts idempotentes para unidades, impactos ambientais, status e templates padrao.`
-
-### Testes automatizados
-- Objetivo: proteger relatorios, calculos e bloqueios de projeto fechado.
-- Prompt sugerido: `Adicione testes automatizados para repository, calculo de medias, relatorios, bloqueio de projeto fechado, hash de documentos e importacao/exportacao.`
-
-### Melhorias de performance
-- Objetivo: manter o sistema rapido em projetos grandes.
-- Prompt sugerido: `Analise gargalos de performance em projetos grandes e otimize consultas, indices, paginacao, relatorios e calculos de orcamento.`
-
-### Configuracao Nginx de exemplo
-- Objetivo: facilitar implantacao padronizada.
-- Prompt sugerido: `Adicione arquivo de exemplo de configuracao Nginx para este sistema, usando public como root, PHP-FPM, cache de assets e bloqueio de acesso a app, config, database, storage e .env.`
-
-### Plano de backup e restore testavel
-- Objetivo: documentar e validar recuperacao.
-- Prompt sugerido: `Crie documentacao operacional de backup e restore, incluindo banco PostgreSQL, uploads, .env, storage, logs e validacao pos-restore.`
-
+### Preparacao para migracao Laravel
+- Objetivo: reduzir risco ao migrar futuramente para Laravel, isolando camadas e contratos.
+- Prompt sugerido: `Prepare o sistema para migracao gradual ao Laravel, separando controllers, services, repositories, validadores e views, documentando contratos e criando testes de regressao para fluxos criticos.`

@@ -2,6 +2,15 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.9] - 2026-07-08
+
+### Alterado
+- Orcamento geral do projeto passa a usar busca de fornecedor com dropdown filtravel por nome, CNPJ, contato, e-mail, cidade e porte.
+- Metadados de numero, data e validade do orcamento foram concentrados nos documentos do orcamento, evitando preenchimento duplicado fora da secao.
+
+### Corrigido
+- Salvamento do orcamento geral preserva numero, data e validade informados no primeiro documento mesmo quando nao houver arquivo anexado.
+
 ## [1.6.8] - 2026-07-08
 
 ### Alterado

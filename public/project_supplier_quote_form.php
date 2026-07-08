@@ -103,6 +103,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    foreach ($quoteDocuments as $document) {
+        if (!is_array($document)) {
+            continue;
+        }
+
+        $submittedQuoteNumber = trim((string) ($document['quote_number'] ?? ''));
+        $submittedQuoteDate = trim((string) ($document['quote_date'] ?? ''));
+        $submittedValidityDate = trim((string) ($document['validity_date'] ?? ''));
+
+        if ($submittedQuoteNumber === '' && $submittedQuoteDate === '' && $submittedValidityDate === '') {
+            continue;
+        }
+
+        $quoteDefaults['quote_number'] = $submittedQuoteNumber;
+        $quoteDefaults['quote_date'] = $submittedQuoteDate;
+        $quoteDefaults['validity_date'] = $submittedValidityDate;
+        break;
+    }
+
     $quoteDocuments = normalize_supplier_quote_documents($quoteDocuments);
 
     if ($quoteDocuments) {
@@ -174,6 +193,12 @@ foreach ($suppliers as $supplierOption) {
         $selectedSupplier = $supplierOption;
         break;
     }
+}
+
+$selectedSupplierLabel = '';
+
+if ($selectedSupplier) {
+    $selectedSupplierLabel = trim((string) $selectedSupplier['name'] . (!empty($selectedSupplier['document']) ? ' - ' . format_brazil_document((string) $selectedSupplier['document']) : ''));
 }
 
 foreach ($demands as $demand) {
@@ -397,20 +422,75 @@ require __DIR__ . '/../app/views/header.php';
 
     <div class="row g-3">
         <div class="col-lg-5">
-            <label class="form-label">Fornecedor</label>
-            <select name="supplier_id" id="supplierSelect" class="form-select" required>
-                <option value="">Selecione...</option>
-                <?php foreach ($suppliers as $supplier): ?>
-                    <option value="<?= (int) $supplier['id'] ?>" <?= $selectedSupplierId === (int) $supplier['id'] ? 'selected' : '' ?>>
-                        <?= e($supplier['name']) ?><?= $supplier['document'] ? ' - ' . e(format_brazil_document($supplier['document'])) : '' ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            <label class="form-label" for="supplierSearchInput">Fornecedor</label>
+            <div class="supplier-combobox position-relative" data-supplier-combobox>
+                <input
+                    type="hidden"
+                    name="supplier_id"
+                    id="supplierSelect"
+                    value="<?= $selectedSupplierId > 0 ? (int) $selectedSupplierId : '' ?>">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input
+                        type="search"
+                        id="supplierSearchInput"
+                        class="form-control"
+                        value="<?= e($selectedSupplierLabel) ?>"
+                        data-selected-label="<?= e($selectedSupplierLabel) ?>"
+                        placeholder="Digite nome, CNPJ, contato, e-mail ou cidade"
+                        autocomplete="off"
+                        aria-controls="supplierSearchDropdown"
+                        aria-expanded="false">
+                    <button type="button" class="btn btn-outline-secondary" id="clearSupplierSearch" title="Limpar fornecedor">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="invalid-feedback d-none" id="supplierSearchInvalid">Selecione um fornecedor da lista.</div>
+                <div
+                    class="supplier-search-results list-group d-none"
+                    id="supplierSearchDropdown"
+                    role="listbox">
+                    <?php foreach ($suppliers as $supplier): ?>
+                        <?php
+                        $supplierLabel = trim((string) $supplier['name'] . (!empty($supplier['document']) ? ' - ' . format_brazil_document((string) $supplier['document']) : ''));
+                        $supplierMeta = array_filter([
+                            $supplier['contact_name'] ?? '',
+                            $supplier['email'] ?? '',
+                            trim((string) (($supplier['city'] ?? '') . (($supplier['state'] ?? '') ? ' / ' . $supplier['state'] : ''))),
+                        ], static fn ($value): bool => trim((string) $value) !== '');
+                        $supplierSearch = implode(' ', [
+                            $supplierLabel,
+                            $supplier['contact_name'] ?? '',
+                            $supplier['email'] ?? '',
+                            $supplier['phone'] ?? '',
+                            $supplier['city'] ?? '',
+                            $supplier['state'] ?? '',
+                            $supplier['company_size'] ?? '',
+                        ]);
+                        ?>
+                        <button
+                            type="button"
+                            class="list-group-item list-group-item-action"
+                            data-supplier-option
+                            data-supplier-id="<?= (int) $supplier['id'] ?>"
+                            data-supplier-label="<?= e($supplierLabel) ?>"
+                            data-supplier-search="<?= e($supplierSearch) ?>">
+                            <span class="fw-semibold d-block"><?= e($supplier['name']) ?></span>
+                            <span class="small text-muted d-block">
+                                <?= $supplier['document'] ? e(format_brazil_document((string) $supplier['document'])) : 'Sem documento' ?>
+                                <?= $supplierMeta ? ' - ' . e(implode(' - ', $supplierMeta)) : '' ?>
+                            </span>
+                        </button>
+                    <?php endforeach; ?>
+                    <div class="list-group-item text-muted small d-none" data-supplier-empty>
+                        Nenhum fornecedor encontrado para a busca.
+                    </div>
+                </div>
+            </div>
             <div class="form-text">
-                Ao salvar, cada preço informado será aplicado em todas as demandas que possuem o produto.
+                Ao salvar, cada preco informado sera aplicado em todas as demandas que possuem o produto.
             </div>
         </div>
-
         <?php if ($selectedSupplierId > 0 && $selectedSupplier): ?>
             <div class="col-12">
                 <?php if ($existingQuoteCount > 0): ?>
@@ -459,32 +539,6 @@ require __DIR__ . '/../app/views/header.php';
             </div>
         <?php endif; ?>
 
-        <div class="col-md-3 col-lg-2">
-            <label class="form-label">Nº do orçamento</label>
-            <input type="text" name="quote_number" class="form-control" value="<?= e($quoteDefaults['quote_number']) ?>">
-        </div>
-
-        <div class="col-md-3 col-lg-2">
-            <label class="form-label">Status</label>
-            <select name="status" class="form-select">
-                <?php foreach ($statusOptions as $value => $label): ?>
-                    <option value="<?= e($value) ?>" <?= $quoteDefaults['status'] === $value ? 'selected' : '' ?>>
-                        <?= e($label) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-
-        <div class="col-md-3 col-lg-1">
-            <label class="form-label">Data</label>
-            <input type="date" name="quote_date" class="form-control" value="<?= e($quoteDefaults['quote_date']) ?>">
-        </div>
-
-        <div class="col-md-3 col-lg-2">
-            <label class="form-label">Validade</label>
-            <input type="date" name="validity_date" class="form-control" value="<?= e($quoteDefaults['validity_date']) ?>">
-        </div>
-
         <div class="col-md-6 col-lg-3">
             <label class="form-label">Quem realizou a cotacao</label>
             <input type="text" name="quoted_by" class="form-control" value="<?= e($quoteDefaults['quoted_by']) ?>" placeholder="Contato do fornecedor, se vazio">
@@ -502,9 +556,21 @@ require __DIR__ . '/../app/views/header.php';
                         <h2 class="h6 mb-1">Documentos do orçamento</h2>
                         <div class="small text-muted">Cada documento pode ter número, data, validade e arquivo próprios.</div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="addQuoteDocument">
-                        <i class="bi bi-plus-lg"></i> Adicionar mais um orçamento
-                    </button>
+                    <div class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-end">
+                        <div>
+                            <label class="form-label small mb-1" for="quoteStatus">Status geral</label>
+                            <select name="status" id="quoteStatus" class="form-select form-select-sm">
+                                <?php foreach ($statusOptions as $value => $label): ?>
+                                    <option value="<?= e($value) ?>" <?= $quoteDefaults['status'] === $value ? 'selected' : '' ?>>
+                                        <?= e($label) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="addQuoteDocument">
+                            <i class="bi bi-plus-lg"></i> Adicionar mais um orcamento
+                        </button>
+                    </div>
                 </div>
 
                 <?php if ($existingAttachments): ?>
@@ -720,6 +786,13 @@ require __DIR__ . '/../app/views/header.php';
         const priceInputs = document.querySelectorAll('[data-quote-price-input]');
         const quoteDocumentList = document.getElementById('quoteDocumentList');
         const addQuoteDocumentButton = document.getElementById('addQuoteDocument');
+        const supplierSearchInput = document.getElementById('supplierSearchInput');
+        const supplierDropdown = document.getElementById('supplierSearchDropdown');
+        const supplierClearButton = document.getElementById('clearSupplierSearch');
+        const supplierInvalidFeedback = document.getElementById('supplierSearchInvalid');
+        const supplierOptions = supplierDropdown ? Array.from(supplierDropdown.querySelectorAll('[data-supplier-option]')) : [];
+        const supplierEmptyState = supplierDropdown ? supplierDropdown.querySelector('[data-supplier-empty]') : null;
+        const quoteForm = document.querySelector('.project-quote-form');
 
         function createQuoteDocumentRow(index) {
             const wrapper = document.createElement('div');
@@ -858,17 +931,175 @@ require __DIR__ . '/../app/views/header.php';
 
         updateQuoteTotal();
 
-        if (supplierSelect) {
-            supplierSelect.addEventListener('change', function() {
-                if (!supplierSelect.value || document.querySelector('.alert-danger')) {
+        function normalizeSupplierSearch(value) {
+            return String(value || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase();
+        }
+
+        function showSupplierDropdown() {
+            if (!supplierDropdown || !supplierSearchInput) {
+                return;
+            }
+
+            supplierDropdown.classList.remove('d-none');
+            supplierSearchInput.setAttribute('aria-expanded', 'true');
+        }
+
+        function hideSupplierDropdown() {
+            if (!supplierDropdown || !supplierSearchInput) {
+                return;
+            }
+
+            supplierDropdown.classList.add('d-none');
+            supplierSearchInput.setAttribute('aria-expanded', 'false');
+        }
+
+        function filterSupplierOptions() {
+            if (!supplierDropdown) {
+                return;
+            }
+
+            const query = normalizeSupplierSearch(supplierSearchInput ? supplierSearchInput.value : '');
+            let visibleCount = 0;
+
+            supplierOptions.forEach(function(option) {
+                const haystack = normalizeSupplierSearch(option.dataset.supplierSearch || option.dataset.supplierLabel || option.textContent);
+                const matches = !query || haystack.includes(query);
+
+                option.classList.toggle('d-none', !matches);
+
+                if (matches) {
+                    visibleCount++;
+                }
+            });
+
+            if (supplierEmptyState) {
+                supplierEmptyState.classList.toggle('d-none', visibleCount > 0);
+            }
+        }
+
+        function navigateToSupplier(supplierId) {
+            if (!supplierId || document.querySelector('.alert-danger')) {
+                return;
+            }
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('project_id', '<?= (int) $projectId ?>');
+            url.searchParams.set('supplier_id', supplierId);
+            url.searchParams.delete('global_price_key');
+            window.location.href = url.toString();
+        }
+
+        function selectSupplierOption(option) {
+            if (!supplierSelect || !supplierSearchInput || !option) {
+                return;
+            }
+
+            const supplierId = option.dataset.supplierId || '';
+            const supplierLabel = option.dataset.supplierLabel || option.textContent.trim();
+            const previousSupplierId = supplierSelect.value;
+
+            supplierSelect.value = supplierId;
+            supplierSearchInput.value = supplierLabel;
+            supplierSearchInput.dataset.selectedLabel = supplierLabel;
+            supplierSearchInput.classList.remove('is-invalid');
+
+            if (supplierInvalidFeedback) {
+                supplierInvalidFeedback.classList.add('d-none');
+            }
+
+            hideSupplierDropdown();
+
+            if (supplierId && supplierId !== previousSupplierId) {
+                navigateToSupplier(supplierId);
+            }
+        }
+
+        if (supplierSearchInput && supplierDropdown && supplierSelect) {
+            filterSupplierOptions();
+
+            supplierSearchInput.addEventListener('focus', function() {
+                filterSupplierOptions();
+                showSupplierDropdown();
+            });
+
+            supplierSearchInput.addEventListener('input', function() {
+                if (supplierSearchInput.value !== (supplierSearchInput.dataset.selectedLabel || '')) {
+                    supplierSelect.value = '';
+                }
+
+                supplierSearchInput.classList.remove('is-invalid');
+
+                if (supplierInvalidFeedback) {
+                    supplierInvalidFeedback.classList.add('d-none');
+                }
+
+                filterSupplierOptions();
+                showSupplierDropdown();
+            });
+
+            supplierSearchInput.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    hideSupplierDropdown();
                     return;
                 }
 
-                const url = new URL(window.location.href);
-                url.searchParams.set('project_id', '<?= (int) $projectId ?>');
-                url.searchParams.set('supplier_id', supplierSelect.value);
-                url.searchParams.delete('global_price_key');
-                window.location.href = url.toString();
+                if (event.key !== 'Enter') {
+                    return;
+                }
+
+                const firstVisibleOption = supplierOptions.find(function(option) {
+                    return !option.classList.contains('d-none');
+                });
+
+                if (firstVisibleOption) {
+                    event.preventDefault();
+                    selectSupplierOption(firstVisibleOption);
+                }
+            });
+
+            supplierOptions.forEach(function(option) {
+                option.addEventListener('click', function() {
+                    selectSupplierOption(option);
+                });
+            });
+
+            if (supplierClearButton) {
+                supplierClearButton.addEventListener('click', function() {
+                    supplierSelect.value = '';
+                    supplierSearchInput.value = '';
+                    supplierSearchInput.dataset.selectedLabel = '';
+                    filterSupplierOptions();
+                    showSupplierDropdown();
+                    supplierSearchInput.focus();
+                });
+            }
+
+            document.addEventListener('click', function(event) {
+                if (!event.target.closest('[data-supplier-combobox]')) {
+                    hideSupplierDropdown();
+                }
+            });
+        }
+
+        if (quoteForm && supplierSelect && supplierSearchInput) {
+            quoteForm.addEventListener('submit', function(event) {
+                if (supplierSelect.value) {
+                    return;
+                }
+
+                event.preventDefault();
+                supplierSearchInput.classList.add('is-invalid');
+
+                if (supplierInvalidFeedback) {
+                    supplierInvalidFeedback.classList.remove('d-none');
+                }
+
+                filterSupplierOptions();
+                showSupplierDropdown();
+                supplierSearchInput.focus();
             });
         }
     });

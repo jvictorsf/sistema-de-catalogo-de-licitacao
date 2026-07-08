@@ -399,6 +399,20 @@ pre {
 .cnae-search-results .list-group-item {
     white-space: normal;
 }
+
+.supplier-search-results {
+    left: 0;
+    max-height: 20rem;
+    overflow-y: auto;
+    position: absolute;
+    right: 0;
+    top: calc(100% + .25rem);
+    z-index: 1060;
+}
+
+.supplier-search-results .list-group-item {
+    white-space: normal;
+}
 .supplier-form textarea {
     min-height: 5rem;
 }

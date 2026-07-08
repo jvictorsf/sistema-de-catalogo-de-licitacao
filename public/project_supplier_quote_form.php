@@ -349,6 +349,7 @@ foreach ($projectItems as $procurementItemId => $item) {
 }
 
 $quoteTotal = round($quoteTotal, 2);
+$canEditQuoteValues = $selectedSupplierId > 0 && $selectedSupplier !== null;
 
 uasort($projectItems, static function (array $left, array $right): int {
     return strnatcasecmp(
@@ -666,6 +667,16 @@ require __DIR__ . '/../app/views/header.php';
     <hr class="my-4">
 
     <?php if ($projectItems): ?>
+        <?php if (!$canEditQuoteValues): ?>
+            <div class="alert alert-info d-flex gap-3 align-items-start mb-3">
+                <i class="bi bi-info-circle fs-4"></i>
+                <div>
+                    <div class="fw-semibold">Selecione um fornecedor antes de preencher os valores.</div>
+                    <div class="small mb-0">Os campos de valor unitario ficam bloqueados para evitar perder os dados quando o fornecedor for escolhido e a pagina recarregar.</div>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <div class="d-flex justify-content-between align-items-start gap-3 mb-3 project-quote-summary">
             <div>
                 <h2 class="h5 mb-1">Itens do projeto</h2>
@@ -739,8 +750,10 @@ require __DIR__ . '/../app/views/header.php';
                                     min="0"
                                     step="0.01"
                                     data-quote-price-input
+                                    data-requires-supplier
                                     data-quantity="<?= e((string) (float) $item['total_reference_quantity']) ?>"
-                                    value="<?= e($item['price_value'] !== '' && $item['price_value'] !== null ? number_format((float) $item['price_value'], 2, '.', '') : '') ?>">
+                                    value="<?= e($item['price_value'] !== '' && $item['price_value'] !== null ? number_format((float) $item['price_value'], 2, '.', '') : '') ?>"
+                                    <?= !$canEditQuoteValues ? 'disabled' : '' ?>>
                                 <?php if ($sourceQuoteItemId > 0): ?>
                                     <input type="hidden" name="source_quote_item_ids[<?= $procurementItemId ?>]" value="<?= $sourceQuoteItemId ?>">
                                     <div class="form-text">Valor carregado do banco de precos geral.</div>
@@ -754,8 +767,10 @@ require __DIR__ . '/../app/views/header.php';
                                     type="text"
                                     name="item_notes[<?= $procurementItemId ?>]"
                                     class="form-control form-control-sm"
+                                    data-requires-supplier
                                     value="<?= e($item['note_value']) ?>"
-                                    placeholder="Opcional">
+                                    placeholder="Opcional"
+                                    <?= !$canEditQuoteValues ? 'disabled' : '' ?>>
                                 <?php if ($item['has_mixed_notes']): ?>
                                     <div class="form-text">Observações diferentes cadastradas; preencha para unificar.</div>
                                 <?php endif; ?>
@@ -771,7 +786,7 @@ require __DIR__ . '/../app/views/header.php';
         <a href="/project_show.php?id=<?= (int) $projectId ?>" class="btn btn-outline-secondary">
             Cancelar
         </a>
-        <button class="btn btn-primary" <?= !$suppliers || !$hasDemandItems ? 'disabled' : '' ?>>
+        <button class="btn btn-primary" <?= !$suppliers || !$hasDemandItems || !$canEditQuoteValues ? 'disabled' : '' ?> data-save-project-quote data-base-disabled="<?= !$suppliers || !$hasDemandItems ? '1' : '0' ?>">
             Salvar orçamento geral
         </button>
     </div>
@@ -793,6 +808,8 @@ require __DIR__ . '/../app/views/header.php';
         const supplierOptions = supplierDropdown ? Array.from(supplierDropdown.querySelectorAll('[data-supplier-option]')) : [];
         const supplierEmptyState = supplierDropdown ? supplierDropdown.querySelector('[data-supplier-empty]') : null;
         const quoteForm = document.querySelector('.project-quote-form');
+        const supplierDependentFields = document.querySelectorAll('[data-requires-supplier]');
+        const saveProjectQuoteButton = document.querySelector('[data-save-project-quote]');
 
         function createQuoteDocumentRow(index) {
             const wrapper = document.createElement('div');
@@ -879,6 +896,18 @@ require __DIR__ . '/../app/views/header.php';
             });
         }
 
+        function syncSupplierDependentFields() {
+            const hasSupplier = Boolean(supplierSelect && supplierSelect.value);
+
+            supplierDependentFields.forEach(function(field) {
+                field.disabled = !hasSupplier;
+            });
+
+            if (saveProjectQuoteButton) {
+                saveProjectQuoteButton.disabled = saveProjectQuoteButton.dataset.baseDisabled === '1' || !hasSupplier;
+            }
+        }
+
         function parseMoney(value) {
             const normalized = String(value || '').trim();
 
@@ -930,6 +959,7 @@ require __DIR__ . '/../app/views/header.php';
         });
 
         updateQuoteTotal();
+        syncSupplierDependentFields();
 
         function normalizeSupplierSearch(value) {
             return String(value || '')
@@ -1002,6 +1032,7 @@ require __DIR__ . '/../app/views/header.php';
             const previousSupplierId = supplierSelect.value;
 
             supplierSelect.value = supplierId;
+            syncSupplierDependentFields();
             supplierSearchInput.value = supplierLabel;
             supplierSearchInput.dataset.selectedLabel = supplierLabel;
             supplierSearchInput.classList.remove('is-invalid');
@@ -1028,6 +1059,7 @@ require __DIR__ . '/../app/views/header.php';
             supplierSearchInput.addEventListener('input', function() {
                 if (supplierSearchInput.value !== (supplierSearchInput.dataset.selectedLabel || '')) {
                     supplierSelect.value = '';
+                    syncSupplierDependentFields();
                 }
 
                 supplierSearchInput.classList.remove('is-invalid');
@@ -1069,6 +1101,7 @@ require __DIR__ . '/../app/views/header.php';
             if (supplierClearButton) {
                 supplierClearButton.addEventListener('click', function() {
                     supplierSelect.value = '';
+                    syncSupplierDependentFields();
                     supplierSearchInput.value = '';
                     supplierSearchInput.dataset.selectedLabel = '';
                     filterSupplierOptions();

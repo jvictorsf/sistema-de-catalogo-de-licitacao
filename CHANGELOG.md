@@ -2,6 +2,11 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.11] - 2026-07-08
+
+### Alterado
+- Orcamento geral do projeto passa a bloquear campos de valor unitario e observacao dos itens enquanto nenhum fornecedor estiver selecionado, evitando perda de dados no recarregamento da tela.
+
 ## [1.6.10] - 2026-07-08
 
 ### Documentacao

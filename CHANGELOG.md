@@ -2,6 +2,12 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.8] - 2026-07-08
+
+### Alterado
+- Pagina Dados passa a listar os escopos atuais de importacao/exportacao JSON com descricao, tabelas principais, avisos e atalhos de exportacao/template.
+- Seletores de exportacao e importacao agora exibem ajuda contextual do escopo escolhido.
+
 ## [1.6.7] - 2026-07-07
 
 ### Adicionado

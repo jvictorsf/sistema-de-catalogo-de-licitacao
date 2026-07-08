@@ -19,6 +19,27 @@ if (!function_exists('env_value')) {
     }
 }
 
+if (!function_exists('env_bool')) {
+    function env_bool(string $key, bool $default = false): bool
+    {
+        $value = env_value($key, $default ? 'true' : 'false');
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 't', 'yes', 'y', 'on'], true);
+    }
+}
+
+if (!function_exists('env_int')) {
+    function env_int(string $key, int $default = 0): int
+    {
+        $value = env_value($key, (string) $default);
+
+        return is_numeric($value) ? (int) $value : $default;
+    }
+}
 $envFile = BASE_PATH . '/.env';
 
 if (is_file($envFile)) {
@@ -59,6 +80,28 @@ defined('DB_USER') || define('DB_USER', env_value('DB_USER', 'postgres'));
 defined('DB_PASS') || define('DB_PASS', env_value('DB_PASS', ''));
 
 defined('OPENAI_MODEL') || define('OPENAI_MODEL', env_value('OPENAI_MODEL', 'gpt-4.1-mini'));
+defined('AUTH_LDAP_ENABLED') || define('AUTH_LDAP_ENABLED', env_bool('AUTH_LDAP_ENABLED', false));
+defined('AUTH_LDAP_HOST') || define('AUTH_LDAP_HOST', env_value('AUTH_LDAP_HOST', ''));
+defined('AUTH_LDAP_PORT') || define('AUTH_LDAP_PORT', env_int('AUTH_LDAP_PORT', 389));
+defined('AUTH_LDAP_USE_SSL') || define('AUTH_LDAP_USE_SSL', env_bool('AUTH_LDAP_USE_SSL', false));
+defined('AUTH_LDAP_USE_TLS') || define('AUTH_LDAP_USE_TLS', env_bool('AUTH_LDAP_USE_TLS', false));
+defined('AUTH_LDAP_TIMEOUT') || define('AUTH_LDAP_TIMEOUT', env_int('AUTH_LDAP_TIMEOUT', 5));
+defined('AUTH_LDAP_BASE_DN') || define('AUTH_LDAP_BASE_DN', env_value('AUTH_LDAP_BASE_DN', ''));
+defined('AUTH_LDAP_BIND_DN') || define('AUTH_LDAP_BIND_DN', env_value('AUTH_LDAP_BIND_DN', ''));
+defined('AUTH_LDAP_BIND_PASSWORD') || define('AUTH_LDAP_BIND_PASSWORD', env_value('AUTH_LDAP_BIND_PASSWORD', ''));
+defined('AUTH_LDAP_USER_FILTER') || define('AUTH_LDAP_USER_FILTER', env_value('AUTH_LDAP_USER_FILTER', '(|(sAMAccountName={login})(userPrincipalName={login})(mail={login}))'));
+defined('AUTH_LDAP_ACCOUNT_SUFFIX') || define('AUTH_LDAP_ACCOUNT_SUFFIX', env_value('AUTH_LDAP_ACCOUNT_SUFFIX', ''));
+defined('AUTH_LDAP_DOMAIN') || define('AUTH_LDAP_DOMAIN', env_value('AUTH_LDAP_DOMAIN', ''));
+defined('AUTH_LDAP_AUTO_CREATE') || define('AUTH_LDAP_AUTO_CREATE', env_bool('AUTH_LDAP_AUTO_CREATE', true));
+defined('AUTH_LDAP_SYNC_PROFILE') || define('AUTH_LDAP_SYNC_PROFILE', env_bool('AUTH_LDAP_SYNC_PROFILE', true));
+defined('AUTH_LDAP_SYNC_ROLE') || define('AUTH_LDAP_SYNC_ROLE', env_bool('AUTH_LDAP_SYNC_ROLE', true));
+defined('AUTH_LDAP_DEFAULT_ROLE') || define('AUTH_LDAP_DEFAULT_ROLE', env_value('AUTH_LDAP_DEFAULT_ROLE', 'viewer'));
+defined('AUTH_LDAP_LOCAL_FALLBACK') || define('AUTH_LDAP_LOCAL_FALLBACK', env_bool('AUTH_LDAP_LOCAL_FALLBACK', true));
+defined('AUTH_LDAP_FALLBACK_EMAIL_DOMAIN') || define('AUTH_LDAP_FALLBACK_EMAIL_DOMAIN', env_value('AUTH_LDAP_FALLBACK_EMAIL_DOMAIN', 'ldap.local'));
+defined('AUTH_LDAP_ADMIN_GROUPS') || define('AUTH_LDAP_ADMIN_GROUPS', env_value('AUTH_LDAP_ADMIN_GROUPS', ''));
+defined('AUTH_LDAP_MANAGER_GROUPS') || define('AUTH_LDAP_MANAGER_GROUPS', env_value('AUTH_LDAP_MANAGER_GROUPS', ''));
+defined('AUTH_LDAP_OPERATOR_GROUPS') || define('AUTH_LDAP_OPERATOR_GROUPS', env_value('AUTH_LDAP_OPERATOR_GROUPS', ''));
+defined('AUTH_LDAP_VIEWER_GROUPS') || define('AUTH_LDAP_VIEWER_GROUPS', env_value('AUTH_LDAP_VIEWER_GROUPS', ''));
 
 if (!function_exists('app_log')) {
     function app_log(string $level, string $message, array $context = []): void

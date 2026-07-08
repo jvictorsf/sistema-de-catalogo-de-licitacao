@@ -2,6 +2,22 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.12] - 2026-07-08
+
+### Adicionado
+- Autenticacao via AD/LDAP configuravel por `.env`, com busca por `sAMAccountName`, UPN ou e-mail e mapeamento de grupos para perfis do sistema.
+- Espelhamento automatico de usuarios LDAP em `app_users`, mantendo permissoes locais, auditoria e fallback administrativo local.
+- Diagnostico LDAP em `/environment_diagnostics.php`, com validacao de extensao PHP, host, porta, bind de servico e busca opcional por login.
+
+### Alterado
+- Login passa a tentar LDAP quando habilitado e, se configurado, cair para autenticacao local do administrador.
+- README e `.env.example` passam a documentar as variaveis LDAP, grupos/perfis e validacao operacional.
+
+### Seguranca
+- Falhas de autenticacao LDAP/local passam a ser registradas em `storage/logs/app.log` sem expor senhas.
+
+### Testes
+- Suite de autenticacao passa a cobrir configuracao LDAP, escape de filtro, normalizacao de usuario e mapeamento de grupos para perfis.
 ## [1.6.11] - 2026-07-08
 
 ### Alterado

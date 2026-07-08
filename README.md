@@ -28,7 +28,7 @@ Departamento solicitante
 
 ## Dependencias
 - PHP 8.x
-- Extensoes PHP `pdo_pgsql`, `mbstring`, `fileinfo` e `curl`
+- Extensoes PHP `pdo_pgsql`, `mbstring`, `fileinfo`, `curl` e `ldap` quando AD/LDAP estiver habilitado
 - PostgreSQL 13+
 - Nginx
 - Bootstrap Icons via CDN
@@ -77,6 +77,37 @@ Depois, restaurar `public/uploads/`, `storage/` e o brasao municipal, se houver.
 - Os impactos ambientais dos itens sao armazenados como lista estruturada.
 - As sugestoes de IA sao apoio inicial e precisam de revisao tecnica antes de uso em processo administrativo, compra direta ou licitatorio.
 
+## Autenticacao AD/LDAP
+O sistema permite autenticacao hibrida: primeiro tenta AD/LDAP quando `AUTH_LDAP_ENABLED=true`; se falhar e `AUTH_LDAP_LOCAL_FALLBACK=true`, permite o login local do administrador cadastrado em `/setup_admin.php`.
+
+Configuracao principal no `.env`:
+
+```env
+AUTH_LDAP_ENABLED=true
+AUTH_LDAP_HOST=athena.esturvo.intra
+AUTH_LDAP_PORT=389
+AUTH_LDAP_USE_SSL=false
+AUTH_LDAP_USE_TLS=false
+AUTH_LDAP_BASE_DN="DC=esturvo,DC=intra"
+AUTH_LDAP_BIND_DN="CN=usuario-servico,OU=Usuarios,DC=esturvo,DC=intra"
+AUTH_LDAP_BIND_PASSWORD="senha-do-bind"
+AUTH_LDAP_USER_FILTER="(|(sAMAccountName={login})(userPrincipalName={login})(mail={login}))"
+AUTH_LDAP_ACCOUNT_SUFFIX="@esturvo.intra"
+AUTH_LDAP_DOMAIN=ESTURVO
+AUTH_LDAP_AUTO_CREATE=true
+AUTH_LDAP_SYNC_PROFILE=true
+AUTH_LDAP_SYNC_ROLE=true
+AUTH_LDAP_DEFAULT_ROLE=viewer
+AUTH_LDAP_LOCAL_FALLBACK=true
+AUTH_LDAP_ADMIN_GROUPS="Catalogo Licitacao Admins"
+AUTH_LDAP_MANAGER_GROUPS="Catalogo Licitacao Gestores"
+AUTH_LDAP_OPERATOR_GROUPS="Catalogo Licitacao Operadores"
+AUTH_LDAP_VIEWER_GROUPS="Catalogo Licitacao Consulta"
+```
+
+Usuarios autenticados pelo AD/LDAP sao espelhados em `app_users` com senha local aleatoria, preservando permissoes, auditoria e fallback administrativo. O mapeamento de perfil segue a ordem Administrador, Gestor, Operador e Consulta; se nenhum grupo bater, usa `AUTH_LDAP_DEFAULT_ROLE`.
+
+Use `/environment_diagnostics.php` para validar extensao PHP `ldap`, host, porta, bind de servico e busca por login. Falhas de autenticacao sao registradas em `storage/logs/app.log` sem gravar senha.
 ## Padrao de Especificacao Tecnica
 Novos itens usam o seguinte JSON base:
 

@@ -7,6 +7,10 @@ require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/system_tools.php';
 
 $diagnostics = app_environment_diagnostics();
+$ldapLogin = trim((string) ($_GET['ldap_login'] ?? ''));
+$ldap = function_exists('auth_ldap_diagnostic')
+    ? auth_ldap_diagnostic($ldapLogin !== '' ? $ldapLogin : null)
+    : ($diagnostics['ldap'] ?? null);
 $postgres = $diagnostics['postgresql'];
 $missingExtensions = array_values(array_filter($diagnostics['extensions'], static fn (array $extension): bool => !$extension['loaded']));
 $pathProblems = array_values(array_filter($diagnostics['paths'], static function (array $path): bool {
@@ -98,6 +102,16 @@ require __DIR__ . '/../app/views/header.php';
     <div class="col-md-6 col-xl-3">
         <div class="card h-100">
             <div class="card-body">
+                <div class="text-muted small">AD/LDAP</div>
+                <div class="fs-5 fw-semibold"><?= $ldap && !empty($ldap['enabled']) ? e((string) $ldap['message']) : 'Desabilitado' ?></div>
+                <div class="small text-muted"><?= $ldap ? e((string) ($ldap['host'] ?: 'Sem host configurado')) : '-' ?></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
                 <div class="text-muted small">Storage</div>
                 <div class="fs-5 fw-semibold"><?= count($pathProblems) === 0 ? 'Escrita OK' : count($pathProblems) . ' problema(s)' ?></div>
                 <div class="small text-muted">storage, logs, uploads e confirmacoes</div>
@@ -141,6 +155,55 @@ require __DIR__ . '/../app/views/header.php';
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold"><i class="bi bi-person-badge me-2"></i>AD/LDAP</div>
+            <div class="card-body">
+                <?php if (!$ldap): ?>
+                    <p class="text-muted mb-0">Diagnostico LDAP indisponivel.</p>
+                <?php else: ?>
+                    <dl class="row mb-3">
+                        <dt class="col-sm-4">Status</dt>
+                        <dd class="col-sm-8"><span class="badge <?= diagnostics_badge((bool) $ldap['ok']) ?>"><?= e((string) $ldap['message']) ?></span></dd>
+                        <dt class="col-sm-4">Servidor</dt>
+                        <dd class="col-sm-8"><?= e((string) ($ldap['host'] ?: '-')) ?><?= !empty($ldap['port']) ? ':' . e((string) $ldap['port']) : '' ?></dd>
+                        <dt class="col-sm-4">Base DN</dt>
+                        <dd class="col-sm-8 text-break"><?= e((string) ($ldap['base_dn'] ?: '-')) ?></dd>
+                        <dt class="col-sm-4">Extensao PHP</dt>
+                        <dd class="col-sm-8"><span class="badge <?= diagnostics_badge((bool) $ldap['extension_loaded']) ?>"><?= diagnostics_status_text((bool) $ldap['extension_loaded']) ?></span></dd>
+                        <dt class="col-sm-4">Bind de servico</dt>
+                        <dd class="col-sm-8"><?= !empty($ldap['bind_configured']) ? 'Configurado' : 'Nao configurado' ?></dd>
+                        <dt class="col-sm-4">Perfil padrao</dt>
+                        <dd class="col-sm-8"><?= e(auth_role_label((string) $ldap['default_role'])) ?></dd>
+                        <dt class="col-sm-4">Fallback local</dt>
+                        <dd class="col-sm-8"><?= !empty($ldap['local_fallback']) ? 'Ativo' : 'Inativo' ?></dd>
+                    </dl>
+
+                    <form method="get" class="row g-2 align-items-end">
+                        <div class="col-sm-8">
+                            <label for="ldap_login" class="form-label">Testar busca por login</label>
+                            <input type="text" class="form-control" id="ldap_login" name="ldap_login" value="<?= e($ldapLogin) ?>" placeholder="usuario ou usuario@dominio">
+                        </div>
+                        <div class="col-sm-4">
+                            <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-search me-2"></i>Testar</button>
+                        </div>
+                    </form>
+
+                    <?php if (!empty($ldap['search'])): ?>
+                        <div class="alert <?= !empty($ldap['search']['ok']) ? 'alert-success' : 'alert-warning' ?> mt-3 mb-0">
+                            <div class="fw-semibold"><?= e((string) $ldap['search']['message']) ?></div>
+                            <?php if (!empty($ldap['search']['ok'])): ?>
+                                <div class="small mt-1">
+                                    <?= e((string) $ldap['search']['name']) ?> - <?= e((string) $ldap['search']['email']) ?> - <?= e(auth_role_label((string) $ldap['search']['role'])) ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>

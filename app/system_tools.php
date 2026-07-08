@@ -7,7 +7,13 @@ require_once __DIR__ . '/helpers.php';
 
 function app_required_php_extensions(): array
 {
-    return ['pdo', 'pdo_pgsql', 'mbstring', 'fileinfo', 'curl', 'json', 'openssl', 'session'];
+    $extensions = ['pdo', 'pdo_pgsql', 'mbstring', 'fileinfo', 'curl', 'json', 'openssl', 'session'];
+
+    if (defined('AUTH_LDAP_ENABLED') && AUTH_LDAP_ENABLED) {
+        $extensions[] = 'ldap';
+    }
+
+    return $extensions;
 }
 
 function app_path_status(string $label, string $path, bool $writeTest = false): array
@@ -121,7 +127,16 @@ function app_environment_diagnostics(): array
             'DB_USER' => DB_USER,
             'MUNICIPAL_LOGO_PATH' => MUNICIPAL_LOGO_PATH,
             'OPENAI_MODEL' => OPENAI_MODEL,
+            'AUTH_LDAP_ENABLED' => defined('AUTH_LDAP_ENABLED') && AUTH_LDAP_ENABLED ? 'true' : 'false',
+            'AUTH_LDAP_HOST' => defined('AUTH_LDAP_HOST') ? AUTH_LDAP_HOST : '',
+            'AUTH_LDAP_PORT' => defined('AUTH_LDAP_PORT') ? (string) AUTH_LDAP_PORT : '',
+            'AUTH_LDAP_BASE_DN' => defined('AUTH_LDAP_BASE_DN') ? AUTH_LDAP_BASE_DN : '',
+            'AUTH_LDAP_USER_FILTER' => defined('AUTH_LDAP_USER_FILTER') ? AUTH_LDAP_USER_FILTER : '',
+            'AUTH_LDAP_DEFAULT_ROLE' => defined('AUTH_LDAP_DEFAULT_ROLE') ? AUTH_LDAP_DEFAULT_ROLE : '',
+            'AUTH_LDAP_AUTO_CREATE' => defined('AUTH_LDAP_AUTO_CREATE') && AUTH_LDAP_AUTO_CREATE ? 'true' : 'false',
+            'AUTH_LDAP_LOCAL_FALLBACK' => defined('AUTH_LDAP_LOCAL_FALLBACK') && AUTH_LDAP_LOCAL_FALLBACK ? 'true' : 'false',
         ],
+        'ldap' => function_exists('auth_ldap_diagnostic') ? auth_ldap_diagnostic() : null,
     ];
 }
 

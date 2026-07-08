@@ -301,7 +301,7 @@ function auth_route_required_permission(string $page): ?string
     return null;
 }
 
-function auth_attempt(string $login, string $password): bool
+function auth_attempt_local(string $login, string $password): bool
 {
     if (!auth_schema_available()) {
         return false;
@@ -495,6 +495,8 @@ function auth_change_current_password(string $currentPassword, string $newPasswo
         'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
     ]);
 }
+
+require_once __DIR__ . '/auth_ldap.php';
 
 function auth_boot(): void
 {

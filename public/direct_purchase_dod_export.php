@@ -71,7 +71,6 @@ $sections = direct_purchase_dod_enabled_sections(direct_purchase_dod_apply_auto_
 $entityName = trim((string) ($header['entity_name'] ?? '')) ?: APP_NAME;
 $title = trim((string) ($header['title'] ?? '')) ?: 'Documento de Oficialização de Demanda (DOD)';
 $filename = 'dod-compra-direta-projeto-' . $id . '.doc';
-$showPageNumbers = !empty($footer['show_page_numbers']);
 $signatures = direct_purchase_dod_normalize_signatures($footer['signatures'] ?? [], $footer);
 $additionalLogoPaths = direct_purchase_dod_normalize_logo_paths($header['additional_logo_paths'] ?? []);
 
@@ -106,7 +105,7 @@ if ($format === 'word') {
         .header-entity { font-size: 16px; }
         .header-state, .header-secretariat, .header-department { font-size: 13px; }
         .stripes { width: 100%; margin-top: 10px; }
-        .stripe { height: 3px; width: 100%; }
+        .stripe { height: 3px; width: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .stripe-red { background: #ff0000; }
         .stripe-blue { background: #0070c0; }
         .stripe-yellow { background: #ffff00; }
@@ -119,6 +118,14 @@ if ($format === 'word') {
         .section p { margin: 0 0 8px; line-height: 1.55; text-align: justify; }
         .section ul, .section ol { margin: 0 0 10px 22px; padding: 0; }
         .section li { margin: 0 0 5px; line-height: 1.55; text-align: justify; }
+        .rich-text-content h1 { font-size: 17px; margin: 16px 0 8px; }
+        .rich-text-content h2 { font-size: 15px; margin: 14px 0 8px; text-transform: none; }
+        .rich-text-content h3 { font-size: 14px; margin: 12px 0 7px; }
+        .rich-text-content blockquote { border-left: 3px solid #9ca3af; color: #374151; margin: 10px 0; padding-left: 10px; }
+        .rich-text-content a { color: #075db8; text-decoration: underline; }
+        .rich-text-content table { border-collapse: collapse; margin: 10px 0; table-layout: fixed; width: 100%; }
+        .rich-text-content th, .rich-text-content td { border: 1px solid #6b7280; padding: 6px; text-align: left; vertical-align: top; }
+        .rich-text-content th { background: #e5e7eb; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .empty { color: #6b7280; font-style: italic; }
         .issue-place { margin-top: 28px; text-align: right; font-size: 13px; }
         .footer-meta { margin-top: 18px; font-size: 13px; }
@@ -130,17 +137,18 @@ if ($format === 'word') {
         .official-footer { margin-top: 42px; text-align: center; font-size: 12px; color: #111827; }
         .official-footer .stripes { margin-bottom: 8px; }
         .official-footer p { margin: 2px 0; }
-        .page-number-note { margin-top: 8px; text-align: left; color: #4b5563; font-size: 11px; }
         @media print {
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             body { background: #fff; }
             .toolbar { display: none; }
             .page { width: auto; margin: 0; padding: 0; box-shadow: none; }
             .section, .signature { break-inside: avoid; }
+            .stripe { background: transparent !important; border-top: 3px solid transparent; height: 0; }
+            .stripe-red { border-top-color: #ff0000 !important; }
+            .stripe-blue { border-top-color: #0070c0 !important; }
+            .stripe-yellow { border-top-color: #ffff00 !important; }
         }
         @page { margin: 18mm; }
-        <?php if ($showPageNumbers): ?>
-        @page { @bottom-left { content: "Página " counter(page) " de " counter(pages); font-size: 10px; color: #4b5563; } }
-        <?php endif; ?>
     </style>
 </head>
 <body>
@@ -247,9 +255,6 @@ if ($format === 'word') {
         <?php endif; ?>
         <?php if (!empty($footer['email'])): ?>
             <p>E-mail: <?= e($footer['email']) ?></p>
-        <?php endif; ?>
-        <?php if ($showPageNumbers): ?>
-            <div class="page-number-note">Página x de y</div>
         <?php endif; ?>
     </footer>
 </main>

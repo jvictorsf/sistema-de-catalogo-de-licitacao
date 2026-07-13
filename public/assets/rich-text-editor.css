@@ -1,0 +1,246 @@
+.rich-text-editor-component {
+    width: 100%;
+}
+
+.rich-text-editor-toolbar {
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #ced4da;
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    padding: .45rem;
+}
+
+.rich-text-editor-group {
+    align-items: center;
+    border-right: 1px solid #dbe2ea;
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: .2rem;
+    padding-right: .35rem;
+}
+
+.rich-text-editor-group:last-child {
+    border-right: 0;
+    padding-right: 0;
+}
+
+.rich-text-editor-button {
+    align-items: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    color: #334155;
+    display: inline-flex;
+    flex: 0 0 34px;
+    font-size: 1rem;
+    height: 34px;
+    justify-content: center;
+    padding: 0;
+    width: 34px;
+}
+
+.rich-text-editor-button:hover:not(:disabled) {
+    background: #e9eef5;
+    border-color: #cbd5e1;
+}
+
+.rich-text-editor-button:focus-visible,
+.rich-text-editor-select:focus-visible {
+    outline: 3px solid rgba(13, 110, 253, .25);
+    outline-offset: 1px;
+}
+
+.rich-text-editor-button.is-active {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+
+.rich-text-editor-button:disabled {
+    cursor: not-allowed;
+    opacity: .4;
+}
+
+.rich-text-editor-unlink-icon {
+    position: relative;
+}
+
+.rich-text-editor-unlink-icon::after {
+    background: currentColor;
+    content: '';
+    height: 1px;
+    left: .1rem;
+    position: absolute;
+    top: .5rem;
+    transform: rotate(-45deg);
+    width: .8rem;
+}
+
+.rich-text-editor-select {
+    background-color: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    color: #334155;
+    font-size: .875rem;
+    height: 34px;
+    max-width: 13rem;
+    padding: 0 1.9rem 0 .55rem;
+}
+
+.rich-text-editor-surface {
+    background: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 0 0 6px 6px;
+    overflow-x: auto;
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+
+.rich-text-editor-surface:focus-within {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .25);
+    position: relative;
+    z-index: 1;
+}
+
+.rich-text-editor-surface .tiptap {
+    min-height: 11rem;
+    outline: 0;
+    overflow-wrap: anywhere;
+    padding: .8rem .9rem;
+}
+
+.rich-text-editor-surface .tiptap > :first-child {
+    margin-top: 0;
+}
+
+.rich-text-editor-surface .tiptap > :last-child {
+    margin-bottom: 0;
+}
+
+.rich-text-editor-surface .tiptap h1,
+.rich-text-editor-surface .tiptap h2,
+.rich-text-editor-surface .tiptap h3 {
+    color: #1f2937;
+    line-height: 1.3;
+    margin: 1rem 0 .55rem;
+}
+
+.rich-text-editor-surface .tiptap h1 {
+    font-size: 1.55rem;
+}
+
+.rich-text-editor-surface .tiptap h2 {
+    font-size: 1.3rem;
+}
+
+.rich-text-editor-surface .tiptap h3 {
+    font-size: 1.1rem;
+}
+
+.rich-text-editor-surface .tiptap p,
+.rich-text-editor-surface .tiptap ul,
+.rich-text-editor-surface .tiptap ol,
+.rich-text-editor-surface .tiptap blockquote {
+    margin: 0 0 .75rem;
+}
+
+.rich-text-editor-surface .tiptap ul,
+.rich-text-editor-surface .tiptap ol {
+    padding-left: 1.5rem;
+}
+
+.rich-text-editor-surface .tiptap blockquote {
+    border-left: 3px solid #94a3b8;
+    color: #475569;
+    padding-left: .8rem;
+}
+
+.rich-text-editor-surface .tiptap a {
+    color: #0d6efd;
+    text-decoration: underline;
+}
+
+.rich-text-editor-surface .tableWrapper {
+    margin: .75rem 0;
+    overflow-x: auto;
+}
+
+.rich-text-editor-surface table {
+    border-collapse: collapse;
+    min-width: 32rem;
+    table-layout: fixed;
+    width: 100%;
+}
+
+.rich-text-editor-surface th,
+.rich-text-editor-surface td {
+    border: 1px solid #94a3b8;
+    min-width: 6rem;
+    padding: .45rem .55rem;
+    position: relative;
+    vertical-align: top;
+}
+
+.rich-text-editor-surface th {
+    background: #eef2f7;
+    font-weight: 700;
+}
+
+.rich-text-editor-surface .selectedCell::after {
+    background: rgba(13, 110, 253, .12);
+    bottom: 0;
+    content: '';
+    left: 0;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+    top: 0;
+}
+
+.rich-text-editor-meta {
+    color: #64748b;
+    display: flex;
+    font-size: .78rem;
+    justify-content: flex-end;
+    min-height: 1.35rem;
+    padding-top: .25rem;
+}
+
+.rich-text-editor-component .invalid-feedback {
+    margin-top: .35rem;
+}
+
+.rich-text-editor-component.is-invalid .rich-text-editor-surface {
+    border-color: #dc3545;
+}
+
+.rich-text-editor-component.is-invalid .invalid-feedback {
+    display: block;
+}
+
+@media (max-width: 575.98px) {
+    .rich-text-editor-toolbar {
+        align-items: stretch;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        padding-bottom: .55rem;
+    }
+
+    .rich-text-editor-group {
+        border-right: 1px solid #dbe2ea;
+    }
+
+    .rich-text-editor-select {
+        max-width: 10.5rem;
+    }
+
+    .rich-text-editor-surface .tiptap {
+        min-height: 13rem;
+        padding: .75rem;
+    }
+}

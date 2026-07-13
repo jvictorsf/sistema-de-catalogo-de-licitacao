@@ -28,10 +28,11 @@ Departamento solicitante
 
 ## Dependencias
 - PHP 8.x
-- Extensoes PHP `pdo_pgsql`, `mbstring`, `fileinfo`, `curl` e `ldap` quando AD/LDAP estiver habilitado
+- Extensoes PHP `pdo_pgsql`, `mbstring`, `fileinfo`, `curl`, `dom` e `ldap` quando AD/LDAP estiver habilitado
 - PostgreSQL 13+
 - Nginx
 - Bootstrap Icons via CDN
+- TipTap 3 via `esm.sh` para edicao de textos ricos; os navegadores clientes precisam de acesso HTTPS ao CDN
 - OpenAI API opcional para sugestao assistida de itens e apoio textual ao DOD
 - Acesso HTTPS a BrasilAPI opcional para consulta de CNPJ de fornecedores
 

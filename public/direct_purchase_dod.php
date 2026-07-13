@@ -6,6 +6,9 @@ require_once __DIR__ . '/../app/config.php';
 require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';
 require_once __DIR__ . '/../app/demand_confirmations.php';
+require_once __DIR__ . '/../app/views/components/rich_text_editor.php';
+
+request_rich_text_editor_assets();
 
 $id = (int) ($_GET['id'] ?? $_POST['project_id'] ?? 0);
 $project = find_project($id);
@@ -294,11 +297,24 @@ require __DIR__ . '/../app/views/header.php';
                             <?php if ($isAutoSection): ?>
                                 <div class="form-text mb-2">Este conteúdo é gerado na exportação a partir das demandas, orçamento geral e impactos dos itens.</div>
                             <?php endif; ?>
-                            <textarea
-                                name="sections[<?= (int) $sectionIndex ?>][content]"
-                                rows="6"
-                                class="form-control <?= $isAutoSection ? 'bg-light' : '' ?>"
-                                <?= $isAutoSection ? 'readonly' : 'data-rich-editor' ?>><?= e($section['content'] ?? '') ?></textarea>
+                            <?php if ($isAutoSection): ?>
+                                <textarea
+                                    name="sections[<?= (int) $sectionIndex ?>][content]"
+                                    rows="6"
+                                    class="form-control bg-light"
+                                    readonly><?= e($section['content'] ?? '') ?></textarea>
+                            <?php else: ?>
+                                <?= render_rich_text_editor(
+                                    'sections[' . (int) $sectionIndex . '][content]',
+                                    (string) ($section['content'] ?? ''),
+                                    [
+                                        'id' => 'dod-section-content-' . (int) $sectionIndex,
+                                        'rows' => 7,
+                                        'max_length' => 50000,
+                                        'aria_label' => 'Texto do tópico ' . (string) ($section['title'] ?? ''),
+                                    ]
+                                ) ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -350,13 +366,6 @@ require __DIR__ . '/../app/views/header.php';
             <div class="col-md-8">
                 <label class="form-label">E-mail</label>
                 <input type="email" name="footer[email]" class="form-control" value="<?= e($footer['email'] ?? '') ?>">
-            </div>
-            <div class="col-md-4 d-flex align-items-end">
-                <input type="hidden" name="footer[show_page_numbers]" value="0">
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input" type="checkbox" name="footer[show_page_numbers]" value="1" <?= !empty($footer['show_page_numbers']) ? 'checked' : '' ?>>
-                    <label class="form-check-label">Exibir numeração de páginas</label>
-                </div>
             </div>
         </div>
 
@@ -430,61 +439,6 @@ require __DIR__ . '/../app/views/header.php';
         const signatureList = document.querySelector('[data-signature-list]');
         const addSignatureButton = document.querySelector('[data-add-signature]');
         const collaboratorOptionsHtml = <?= json_encode($collaboratorOptionsHtml, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
-
-        function insertAroundSelection(textarea, before, after, placeholder) {
-            const start = textarea.selectionStart || 0;
-            const end = textarea.selectionEnd || 0;
-            const selected = textarea.value.slice(start, end) || placeholder;
-            const next = before + selected + after;
-            textarea.setRangeText(next, start, end, 'select');
-            textarea.focus();
-        }
-
-        function insertList(textarea, ordered) {
-            const start = textarea.selectionStart || 0;
-            const end = textarea.selectionEnd || 0;
-            const selected = textarea.value.slice(start, end).trim();
-            const lines = selected !== '' ? selected.split(/\r?\n/) : ['Item da lista'];
-            const formatted = lines.map(function(line, index) {
-                return (ordered ? (index + 1) + '. ' : '- ') + line.replace(/^\s*([-*]|\d+[.)])\s+/, '');
-            }).join('\n');
-            textarea.setRangeText(formatted, start, end, 'select');
-            textarea.focus();
-        }
-
-        function enhanceRichEditors(scope) {
-            (scope || document).querySelectorAll('[data-rich-editor]:not([data-rich-ready])').forEach(function(textarea) {
-                textarea.dataset.richReady = '1';
-                const toolbar = document.createElement('div');
-                toolbar.className = 'btn-toolbar gap-1 mb-2';
-                toolbar.innerHTML = `
-                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Negrito" data-editor-action="bold"><i class="bi bi-type-bold"></i></button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Itálico" data-editor-action="italic"><i class="bi bi-type-italic"></i></button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Lista" data-editor-action="list"><i class="bi bi-list-ul"></i></button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Lista numerada" data-editor-action="ordered"><i class="bi bi-list-ol"></i></button>`;
-                textarea.parentNode.insertBefore(toolbar, textarea);
-
-                toolbar.addEventListener('click', function(event) {
-                    const button = event.target.closest('[data-editor-action]');
-
-                    if (!button) {
-                        return;
-                    }
-
-                    const action = button.dataset.editorAction;
-
-                    if (action === 'bold') {
-                        insertAroundSelection(textarea, '**', '**', 'texto em negrito');
-                    } else if (action === 'italic') {
-                        insertAroundSelection(textarea, '*', '*', 'texto em itálico');
-                    } else if (action === 'list') {
-                        insertList(textarea, false);
-                    } else if (action === 'ordered') {
-                        insertList(textarea, true);
-                    }
-                });
-            });
-        }
 
         function bindSignatureRemove(scope) {
             (scope || document).querySelectorAll('[data-remove-signature]').forEach(function(button) {
@@ -579,11 +533,10 @@ require __DIR__ . '/../app/views/header.php';
                         </div>
                         <div class="col-12">
                             <label class="form-label">Texto do tópico</label>
-                            <textarea name="sections[${index}][content]" rows="6" class="form-control" data-rich-editor></textarea>
+                            <textarea name="sections[${index}][content]" rows="7" class="form-control" data-rich-editor data-rich-editor-label="Texto do novo tópico" data-rich-max-length="50000"></textarea>
                         </div>
                     </div>`;
                 list.appendChild(wrapper);
-                enhanceRichEditors(wrapper);
             });
         }
 
@@ -632,7 +585,6 @@ require __DIR__ . '/../app/views/header.php';
             });
         }
 
-        enhanceRichEditors(document);
         bindSignatureRemove(document);
         bindSignatureCollaborators(document);
     });

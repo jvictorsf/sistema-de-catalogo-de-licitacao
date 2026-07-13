@@ -1,6 +1,24 @@
 # Changelog
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
+## [1.6.18] - 2026-07-13
+
+### Adicionado
+- Componente reutilizavel de texto rico com TipTap 3, suporte a titulos, paragrafos, negrito, italico, sublinhado, listas, tabelas, alinhamento, links, desfazer/refazer e limpeza de formatacao.
+- Validacao por limite de caracteres, carregamento de HTML existente, integracao automatica aos formularios e comportamento responsivo e acessivel.
+- Saneamento de HTML no servidor para preservar apenas estruturas, links e atributos permitidos antes da persistencia e da exibicao.
+
+### Corrigido
+- Faixas institucionais vermelha, azul e amarela do DOD passam a permanecer visiveis na impressao mesmo quando o navegador nao imprime fundos.
+- Numeracao `Pagina x de y` deixa de ser exibida na pre-visualizacao e na impressao do DOD.
+
+### Alterado
+- Topicos manuais do DOD passam a usar o editor TipTap; topicos automaticos permanecem somente leitura.
+- Exportacao do DOD passa a formatar de forma legivel titulos, listas, links e tabelas produzidos pelo editor.
+
+### Testes
+- Suite cobre saneamento de HTML, conteudo existente, recursos essenciais do editor, ausencia da numeracao e faixas proprias para impressao.
+
 ## [1.6.17] - 2026-07-13
 
 ### Alterado

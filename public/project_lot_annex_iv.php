@@ -17,7 +17,7 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
-$title = 'Anexo IV por lote - Quadro resumido da estimativa de precos';
+$title = project_annex_types()['lot_annex_iv'];
 $annex = get_project_lot_licitation_annex_ii_groups($id);
 $lots = $annex['lots'];
 $globalTotal = (float) $annex['global_total'];
@@ -100,7 +100,7 @@ if (!function_exists('lot_annex_iv_items_text')) {
     <?php endif; ?>>
 <head>
     <meta charset="utf-8">
-    <title><?= e($title) ?> - <?= e($project['name']) ?></title>
+    <title><?= e($title) ?></title>
     <style>
         @page { size: A4 landscape; margin: 10mm; }
         * { box-sizing: border-box; }

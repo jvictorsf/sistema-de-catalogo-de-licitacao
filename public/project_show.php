@@ -251,7 +251,7 @@ require __DIR__ . '/../app/views/header.php';
                 </li>
 
                 <li><hr class="dropdown-divider"></li>
-                <li><h6 class="dropdown-header">Anexo I - Itens por lote e denominacao</h6></li>
+                <li><h6 class="dropdown-header"><?= e(project_annex_types()['lot_annex_i']) ?></h6></li>
                 <li>
                     <a href="/project_lot_annex_i.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
                         PDF institucional
@@ -269,7 +269,7 @@ require __DIR__ . '/../app/views/header.php';
                 </li>
 
                 <li><hr class="dropdown-divider"></li>
-                <li><h6 class="dropdown-header">Anexo II - Pesquisa e estimativa por lote</h6></li>
+                <li><h6 class="dropdown-header"><?= e(project_annex_types()['lot_annex_ii']) ?></h6></li>
                 <li>
                     <a href="/project_lot_annex_ii.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
                         PDF institucional
@@ -287,7 +287,7 @@ require __DIR__ . '/../app/views/header.php';
                 </li>
 
                 <li><hr class="dropdown-divider"></li>
-                <li><h6 class="dropdown-header">Anexo III - Quadro de agrupamento dos lotes</h6></li>
+                <li><h6 class="dropdown-header"><?= e(project_annex_types()['lot_annex_iii']) ?></h6></li>
                 <li>
                     <a href="/project_lot_annex_iii.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
                         PDF institucional
@@ -305,7 +305,7 @@ require __DIR__ . '/../app/views/header.php';
                 </li>
 
                 <li><hr class="dropdown-divider"></li>
-                <li><h6 class="dropdown-header">Anexo IV - Quadro resumido da estimativa por lote</h6></li>
+                <li><h6 class="dropdown-header"><?= e(project_annex_types()['lot_annex_iv']) ?></h6></li>
                 <li>
                     <a href="/project_lot_annex_iv.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
                         PDF institucional

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../app/helpers.php';
+require_once __DIR__ . '/../app/repository.php';
 
 function reports_test_assert_close(float $expected, ?float $actual, string $message): void
 {
@@ -90,4 +91,19 @@ $legacyObservationHtml = licitation_annex_specification_html([
 ]);
 reports_test_assert_contains("ser\u{00E1} meramente ilustrativa", $legacyObservationHtml, 'Anexo deve recuperar observacao padrao antiga.');
 reports_test_assert_not_contains("\u{00C3}", implode(' ', standard_product_item_observations()), 'Novos itens devem usar observacoes padrao em UTF-8.');
+$expectedLotAnnexTitles = [
+    'lot_annex_i' => "Anexo I - Planilha de Itens, Especifica\u{00E7}\u{00F5}es, Quantitativos e Mem\u{00F3}ria de C\u{00E1}lculo por lote",
+    'lot_annex_ii' => "Anexo II - Planilha de Pesquisa e Estimativa de Pre\u{00E7}os por lote",
+    'lot_annex_iii' => 'Anexo III - Quadro de agrupamento dos lotes',
+    'lot_annex_iv' => 'Anexo IV - Quadro resumido da estimativa por lote',
+];
+$annexTypes = project_annex_types();
+
+foreach ($expectedLotAnnexTitles as $annexType => $expectedTitle) {
+    reports_test_assert_same($expectedTitle, $annexTypes[$annexType] ?? null, 'Nome do anexo por lote deve seguir o padrao institucional.');
+    $source = file_get_contents(__DIR__ . '/../public/project_' . $annexType . '.php') ?: '';
+    reports_test_assert_contains('<title><?= e($title) ?></title>', $source, 'Nome sugerido ao salvar nao deve incluir o projeto.');
+    reports_test_assert_not_contains(' - <?= e($project[' . "'name'" . ']) ?>', $source, 'Titulo HTML nao deve concatenar o nome do projeto.');
+}
+
 echo "ReportsTest: OK\n";

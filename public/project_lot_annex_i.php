@@ -17,7 +17,7 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
-$title = "Anexo I por lote - Planilha de itens por denomina\u{00E7}\u{00E3}o";
+$title = project_annex_types()['lot_annex_i'];
 $lots = get_project_lot_licitation_annex_i_groups($id);
 $annexVersion = register_project_annex_version($id, 'lot_annex_i');
 $annexVersionText = !empty($annexVersion['version_number']) ? 'v' . $annexVersion['version_number'] : 'sem versao';
@@ -45,7 +45,7 @@ $issueDateText = annex_issue_date_text($issueDate);
     <?php endif; ?>>
 <head>
     <meta charset="utf-8">
-    <title><?= e($title) ?> - <?= e($project['name']) ?></title>
+    <title><?= e($title) ?></title>
     <style>
         @page { size: A4 landscape; margin: 10mm; }
         * { box-sizing: border-box; }

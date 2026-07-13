@@ -1,6 +1,14 @@
 # Changelog
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
+## [1.6.17] - 2026-07-13
+
+### Alterado
+- Anexos I a IV por lote passam a usar os nomes institucionais padronizados no menu, documento, Word, Excel e validacao de hash.
+- Nome sugerido ao salvar o PDF institucional deixa de concatenar o nome do projeto; a identificacao do projeto permanece dentro do documento.
+
+### Testes
+- Suite passa a validar os quatro nomes por lote e a ausencia do projeto no titulo HTML usado pelo navegador ao salvar.
 
 ## [1.6.16] - 2026-07-13
 

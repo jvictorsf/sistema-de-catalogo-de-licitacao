@@ -2554,10 +2554,10 @@ function project_annex_types(): array
         'annex_i' => 'Anexo I - Planilha de itens, especificacoes, quantitativos e memoria de calculo',
         'annex_ii' => 'Anexo II - Planilha de pesquisa e estimativa de precos',
         'annex_iii' => 'Anexo III - Quadro resumido da estimativa de precos',
-        'lot_annex_i' => 'Anexo I por lote - Planilha de itens por denominacao',
-        'lot_annex_ii' => 'Anexo II por lote - Pesquisa e estimativa de precos por lote',
-        'lot_annex_iii' => 'Anexo III por lote - Quadro resumido por lote',
-        'lot_annex_iv' => 'Anexo IV por lote - Quadro resumido da estimativa de precos',
+        'lot_annex_i' => "Anexo I - Planilha de Itens, Especifica\u{00E7}\u{00F5}es, Quantitativos e Mem\u{00F3}ria de C\u{00E1}lculo por lote",
+        'lot_annex_ii' => "Anexo II - Planilha de Pesquisa e Estimativa de Pre\u{00E7}os por lote",
+        'lot_annex_iii' => 'Anexo III - Quadro de agrupamento dos lotes',
+        'lot_annex_iv' => 'Anexo IV - Quadro resumido da estimativa por lote',
     ];
 }
 

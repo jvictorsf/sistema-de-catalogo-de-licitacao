@@ -1,6 +1,15 @@
 # Changelog
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
+## [1.6.19] - 2026-07-13
+
+### Alterado
+- Anexos I e II, por item e por lote, deixam de exibir o topico de certificados e seus valores.
+- Certificados permanecem disponiveis no cadastro e na consulta comum dos itens.
+
+### Testes
+- Suite de relatorios passa a garantir a ausencia de certificados nas versoes HTML e textuais dos anexos.
+
 ## [1.6.18] - 2026-07-13
 
 ### Adicionado

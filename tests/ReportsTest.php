@@ -68,7 +68,6 @@ foreach ([
     "Descri\u{00E7}\u{00E3}o m\u{00ED}nima",
     "Caracter\u{00ED}sticas m\u{00ED}nimas",
     "Crit\u{00E9}rios de aceita\u{00E7}\u{00E3}o",
-    "Certificados (m\u{00ED}nimos)",
     "Observa\u{00E7}\u{00F5}es",
     'Garantia',
 ] as $sectionLabel) {
@@ -81,6 +80,9 @@ foreach ([
 
 reports_test_assert_contains('<ul>', $specificationHtml, 'Anexo deve renderizar campos multivalorados como lista.');
 reports_test_assert_contains('<li>Caracteristica A</li>', $specificationHtml, 'Anexo deve listar caracteristicas minimas.');
+reports_test_assert_not_contains("Certificados (m\u{00ED}nimos)", $specificationHtml, 'Anexo nao deve exibir o topico de certificados.');
+reports_test_assert_not_contains('Certificado A', $specificationHtml, 'Anexo nao deve exibir certificados cadastrados.');
+reports_test_assert_not_contains('Certificado A', $specificationText, 'Payload textual do anexo nao deve incluir certificados.');
 reports_test_assert_contains("Pre\u{00E7}os conforme proposta.", $specificationHtml, 'Anexo deve reparar mojibake legado.');
 reports_test_assert_not_contains("\u{00C3}", $specificationHtml, 'Anexo nao deve manter marcador de mojibake.');
 reports_test_assert_contains('12 meses', $specificationHtml, 'Anexo deve exibir garantia cadastrada.');

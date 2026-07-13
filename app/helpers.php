@@ -1704,11 +1704,6 @@ function licitation_annex_specification_sections(array $item): array
             'list' => true,
         ],
         [
-            'label' => "Certificados (m\u{00ED}nimos)",
-            'values' => licitation_annex_specification_values($specification['certificados'] ?? null),
-            'list' => true,
-        ],
-        [
             'label' => "Observa\u{00E7}\u{00F5}es",
             'values' => licitation_annex_specification_values($specification['observacoes'] ?? null),
             'list' => true,

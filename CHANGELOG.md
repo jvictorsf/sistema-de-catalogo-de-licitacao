@@ -2,6 +2,18 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.15] - 2026-07-13
+
+### Corrigido
+- Links de assinatura de demanda deixam de depender do acesso direto a um novo arquivo PHP pelo Nginx.
+- Gateway publico pelo index reconhece somente a acao de assinatura acompanhada de token, mantendo a validacao integral da solicitacao.
+
+### Mantido
+- Endpoint direto de assinatura continua aceito para compatibilidade com links ja emitidos.
+
+### Testes
+- Suite passa a validar a geracao do link publico e o bloqueio do gateway quando o token estiver ausente.
+
 ## [1.6.14] - 2026-07-13
 
 ### Corrigido

@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+$publicAction = trim((string) ($_GET['public_action'] ?? $_POST['public_action'] ?? ''));
+$publicToken = trim((string) ($_GET['token'] ?? $_POST['token'] ?? ''));
+
+if ($publicAction === 'demand_confirmation_sign' && $publicToken !== '') {
+    require __DIR__ . '/demand_confirmation_sign.php';
+    exit;
+}
+
 require_once __DIR__ . '/../app/config.php';
 require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';

@@ -196,6 +196,11 @@ server {
 }
 ```
 
+Os links publicos de confirmacao de demanda usam o gateway
+`/?public_action=demand_confirmation_sign&token=...`. Mantenha o `try_files`
+acima para encaminhar essa rota ao `public/index.php`. O endpoint direto
+`/demand_confirmation_sign.php` permanece disponivel para links antigos.
+
 ## Instalacao
 1. Criar o banco PostgreSQL.
 2. Copiar `.env.example` para `.env` e ajustar credenciais.

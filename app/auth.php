@@ -55,9 +55,26 @@ function auth_public_pages(): array
     ];
 }
 
+function auth_is_public_demand_confirmation_request(?string $page = null): bool
+{
+    $page = $page ?? auth_current_page();
+
+    if ($page !== 'index.php') {
+        return false;
+    }
+
+    $action = trim((string) ($_GET['public_action'] ?? $_POST['public_action'] ?? ''));
+    $token = trim((string) ($_GET['token'] ?? $_POST['token'] ?? ''));
+
+    return $action === 'demand_confirmation_sign' && $token !== '';
+}
+
 function auth_is_public_page(?string $page = null): bool
 {
-    return in_array($page ?? auth_current_page(), auth_public_pages(), true);
+    $page = $page ?? auth_current_page();
+
+    return in_array($page, auth_public_pages(), true)
+        || auth_is_public_demand_confirmation_request($page);
 }
 
 function auth_redirect(string $path): never

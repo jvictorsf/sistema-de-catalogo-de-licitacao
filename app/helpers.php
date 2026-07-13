@@ -2811,7 +2811,7 @@ function demand_confirmation_default_statement(): string
 
 function demand_confirmation_token_url(string $token): string
 {
-    return '/demand_confirmation_sign.php?token=' . rawurlencode($token);
+    return '/?public_action=demand_confirmation_sign&token=' . rawurlencode($token);
 }
 
 function demand_confirmation_status_label(?string $status): string

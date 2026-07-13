@@ -119,6 +119,7 @@ $status = $request['effective_status'] ?? demand_confirmation_effective_status($
         </div>
 
         <form method="post" enctype="multipart/form-data" class="card shadow-sm">
+            <input type="hidden" name="public_action" value="demand_confirmation_sign">
             <input type="hidden" name="token" value="<?= e($token) ?>">
             <input type="hidden" name="signature_data" id="signatureData">
 

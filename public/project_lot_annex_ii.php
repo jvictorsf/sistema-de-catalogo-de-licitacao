@@ -17,7 +17,7 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
-$title = 'Anexo II por lote - Pesquisa e estimativa de precos por lote';
+$title = "Anexo II por lote - Pesquisa e estimativa de pre\u{00E7}os por lote";
 $annex = get_project_lot_licitation_annex_ii_groups($id);
 $lots = $annex['lots'];
 $globalTotal = (float) $annex['global_total'];
@@ -98,6 +98,12 @@ if (!function_exists('annex_proposal_date_text')) {
         .number, .money { text-align: right; white-space: nowrap; }
         .muted { color: #6b7280; }
         .wrap { white-space: normal; mso-data-placement: same-cell; }
+        .annex-item-name { display: block; font-weight: 700; margin-bottom: 6px; }
+        .annex-spec-section + .annex-spec-section { margin-top: 6px; }
+        .annex-spec-title { display: block; font-weight: 700; margin-bottom: 2px; }
+        .annex-specification ul { margin: 2px 0 0; padding-left: 16px; }
+        .annex-specification li + li { margin-top: 2px; }
+        .annex-spec-empty { color: #6b7280; }
         .global-total { margin-top: 18px; width: 45%; }
         .global-total th { background: #111827; color: #fff; }
         @media print { .print-actions { display: none; } }
@@ -111,9 +117,9 @@ if (!function_exists('annex_proposal_date_text')) {
 
 <div class="header">
     <?= render_municipal_logo() ?>
-    <h1>Prefeitura Municipal de Espirito Santo do Turvo</h1>
+    <h1>Prefeitura Municipal de Esp&iacute;rito Santo do Turvo</h1>
     <h2><?= e($title) ?></h2>
-    <p>Projeto: <?= e($project['name']) ?> | Emissao: <?= e($issueDateText) ?> | Versao do documento: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
+    <p>Projeto: <?= e($project['name']) ?> | Emiss&atilde;o: <?= e($issueDateText) ?> | Vers&atilde;o do documento: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
 </div>
 
 <?php if (!$lots): ?>
@@ -142,7 +148,7 @@ if (!function_exists('annex_proposal_date_text')) {
         ?>
 
         <div class="supplier-title">
-            <?= $suppliers ? 'Fornecedores consultados' : 'Itens sem cotacao de fornecedor' ?>
+            <?= $suppliers ? 'Fornecedores consultados' : 'Itens sem cota&ccedil;&atilde;o de fornecedor' ?>
         </div>
 
         <?php if ($suppliers): ?>
@@ -152,8 +158,8 @@ if (!function_exists('annex_proposal_date_text')) {
                         <th style="width: 6%;">Fornecedor</th>
                         <th style="width: 8%;">Data da proposta</th>
                         <th style="width: 11%;">CNPJ</th>
-                        <th style="width: 18%;">Razao social</th>
-                        <th style="width: 22%;">Endereco</th>
+                        <th style="width: 18%;">Raz&atilde;o social</th>
+                        <th style="width: 22%;">Endere&ccedil;o</th>
                         <th style="width: 12%;">Contato</th>
                         <th style="width: 13%;">E-mail</th>
                         <th style="width: 10%;">Telefone</th>
@@ -180,14 +186,14 @@ if (!function_exists('annex_proposal_date_text')) {
             <thead>
                 <tr>
                     <th style="width: 5%;">Lote</th>
-                    <th style="width: 10%;">Denominacao</th>
+                    <th style="width: 10%;">Denomina&ccedil;&atilde;o</th>
                     <th style="width: 5%;">Item</th>
-                    <th style="width: 24%;">Descricao e especificacao tecnica</th>
+                    <th style="width: 24%;">Descri&ccedil;&atilde;o e especifica&ccedil;&atilde;o t&eacute;cnica</th>
                     <th style="width: 9%;">Unidade</th>
                     <th style="width: 7%;">Quantidade estimada</th>
-                    <th style="width: 15%;">Memoria / justificativa do quantitativo</th>
+                    <th style="width: 15%;">Mem&oacute;ria / justificativa do quantitativo</th>
                     <th style="width: 13%;">Valores dos fornecedores</th>
-                    <th style="width: 6%;">Valor unitario estimado</th>
+                    <th style="width: 6%;">Valor unit&aacute;rio estimado</th>
                     <th style="width: 6%;">Valor total estimado</th>
                 </tr>
             </thead>
@@ -197,14 +203,16 @@ if (!function_exists('annex_proposal_date_text')) {
                         $quantity = (float) ($item['annex_quantity'] ?? 0);
                         $estimatedUnitPrice = $item['estimated_unit_price'];
                         $estimatedTotal = $item['estimated_total'];
-                        $description = trim(($item['item_name'] ?? '-') . "\n" . licitation_annex_specification_text($item));
                         $demandMemory = licitation_annex_demand_memory_text($item['demand_memory'] ?? []);
                     ?>
                     <tr>
                         <td class="number"><?= e($lotNumberText) ?></td>
                         <td class="wrap"><?= e($lot['name'] ?? '-') ?></td>
                         <td class="number"><?= (int) $item['sequence'] ?></td>
-                        <td class="wrap"><?= nl2br(e($description)) ?></td>
+                        <td class="wrap">
+                            <strong class="annex-item-name"><?= e($item['item_name'] ?? '-') ?></strong>
+                            <?= licitation_annex_specification_html($item) ?>
+                        </td>
                         <td class="wrap"><?= e(licitation_annex_unit_text($item)) ?></td>
                         <td class="number" <?= $isExcel ? 'x:num="' . e((string) $quantity) . '"' : '' ?>>
                             <?= e(format_decimal_quantity($quantity)) ?>

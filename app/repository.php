@@ -3408,6 +3408,7 @@ function project_annex_payload(int $projectId, string $annexType): array
                         'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
                         'item_name' => (string) ($item['item_name'] ?? ''),
                         'unit' => licitation_annex_unit_text($item),
+                        'specification' => licitation_annex_specification_text($item),
                         'quantity' => (float) ($item['annex_quantity'] ?? 0),
                         'supplier_prices' => $item['supplier_prices'] ?? [],
                         'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
@@ -3493,6 +3494,7 @@ function project_annex_payload(int $projectId, string $annexType): array
                         'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
                         'item_name' => (string) ($item['item_name'] ?? ''),
                         'unit' => licitation_annex_unit_text($item),
+                        'specification' => licitation_annex_specification_text($item),
                         'quantity' => (float) ($item['annex_quantity'] ?? 0),
                         'supplier_prices' => $item['supplier_prices'] ?? [],
                         'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
@@ -5312,6 +5314,7 @@ function get_project_consolidated_items(int $projectId): array
             s.name AS subcategory_name,
             pi.specification,
             pi.justification,
+            pi.warranty,
             pi.environmental_impacts,
             ut.name AS unit_type_name,
             ut.abbreviation AS unit_type_abbreviation,
@@ -5341,6 +5344,7 @@ function get_project_consolidated_items(int $projectId): array
             s.name,
             pi.specification,
             pi.justification,
+            pi.warranty,
             pi.environmental_impacts,
             ut.name,
             ut.abbreviation,

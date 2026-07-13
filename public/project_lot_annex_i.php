@@ -17,7 +17,7 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
-$title = 'Anexo I por lote - Planilha de itens por denominacao';
+$title = "Anexo I por lote - Planilha de itens por denomina\u{00E7}\u{00E3}o";
 $lots = get_project_lot_licitation_annex_i_groups($id);
 $annexVersion = register_project_annex_version($id, 'lot_annex_i');
 $annexVersionText = !empty($annexVersion['version_number']) ? 'v' . $annexVersion['version_number'] : 'sem versao';
@@ -69,6 +69,11 @@ $issueDateText = annex_issue_date_text($issueDate);
         .number { text-align: right; white-space: nowrap; }
         .muted { color: #6b7280; }
         .wrap { white-space: normal; mso-data-placement: same-cell; }
+        .annex-spec-section + .annex-spec-section { margin-top: 6px; }
+        .annex-spec-title { display: block; font-weight: 700; margin-bottom: 2px; }
+        .annex-specification ul { margin: 2px 0 0; padding-left: 16px; }
+        .annex-specification li + li { margin-top: 2px; }
+        .annex-spec-empty { color: #6b7280; }
         @media print { .print-actions { display: none; } }
     </style>
 </head>
@@ -80,9 +85,9 @@ $issueDateText = annex_issue_date_text($issueDate);
 
 <div class="header">
     <?= render_municipal_logo() ?>
-    <h1>Prefeitura Municipal de Espirito Santo do Turvo</h1>
+    <h1>Prefeitura Municipal de Esp&iacute;rito Santo do Turvo</h1>
     <h2><?= e($title) ?></h2>
-    <p>Projeto: <?= e($project['name']) ?> | Emissao: <?= e($issueDateText) ?> | Versao do documento: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
+    <p>Projeto: <?= e($project['name']) ?> | Emiss&atilde;o: <?= e($issueDateText) ?> | Vers&atilde;o do documento: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
 </div>
 
 <?php if (!$lots): ?>
@@ -106,23 +111,22 @@ $issueDateText = annex_issue_date_text($issueDate);
             <tr>
                 <th style="width: 5%;">Item</th>
                 <th style="width: 16%;">Nome do item</th>
-                <th style="width: 34%;">Especificacao tecnica</th>
+                <th style="width: 34%;">Especifica&ccedil;&atilde;o t&eacute;cnica</th>
                 <th style="width: 13%;">Unidade</th>
                 <th style="width: 8%;">Quantidade</th>
-                <th style="width: 24%;">Memoria de calculo</th>
+                <th style="width: 24%;">Mem&oacute;ria de c&aacute;lculo</th>
             </tr>
         </thead>
         <tbody>
             <?php foreach ($lot['items'] as $item): ?>
                 <?php
                     $quantity = (float) ($item['annex_quantity'] ?? 0);
-                    $specification = licitation_annex_specification_text($item);
                     $demandMemory = licitation_annex_demand_memory_text($item['demand_memory'] ?? []);
                 ?>
                 <tr>
                     <td class="number"><?= (int) $item['sequence'] ?></td>
                     <td class="wrap"><?= e($item['item_name'] ?? '-') ?></td>
-                    <td class="wrap"><?= nl2br(e($specification)) ?></td>
+                    <td class="wrap"><?= licitation_annex_specification_html($item) ?></td>
                     <td class="wrap"><?= e(licitation_annex_unit_text($item)) ?></td>
                     <td class="number" <?= $isExcel ? 'x:num="' . e((string) $quantity) . '"' : '' ?>>
                         <?= e(format_decimal_quantity($quantity)) ?>

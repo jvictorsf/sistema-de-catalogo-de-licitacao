@@ -2,6 +2,21 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.14] - 2026-07-13
+
+### Corrigido
+- Titulos, cabecalhos e rotulos dos Anexos I e II por item deixam de exibir caracteres corrompidos por conversoes incorretas de Unicode.
+- Textos antigos com mojibake nas especificacoes sao reparados somente durante a apresentacao dos anexos.
+- Modelos padrao de observacoes para produtos e servicos passam a ser gerados corretamente em UTF-8.
+
+### Alterado
+- Anexos I e II por item e por lote passam a apresentar descricao minima, caracteristicas minimas, criterios de aceitacao, certificados minimos, observacoes e garantia em secoes legiveis.
+- Caracteristicas e demais campos multivalorados passam a usar listas nao ordenadas.
+- Garantia passa a integrar a consulta consolidada e as especificacoes dos Anexos II passam a compor o hash documental.
+
+### Testes
+- Suite de relatorios passa a validar secoes, listas, garantia e recuperacao de mojibake nas especificacoes dos anexos.
+
 ## [1.6.13] - 2026-07-13
 
 ### Adicionado

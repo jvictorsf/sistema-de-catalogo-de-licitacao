@@ -17,7 +17,7 @@ if (!$project) {
     exit('Projeto nao encontrado.');
 }
 
-$title = 'Anexo II â€“ Planilha de Pesquisa e Estimativa de PreÃ§os';
+$title = "Anexo II \u{2013} Planilha de Pesquisa e Estimativa de Pre\u{00E7}os";
 $annex = get_project_licitation_annex_ii_groups($id);
 $groups = $annex['groups'];
 $globalTotal = (float) $annex['global_total'];
@@ -222,6 +222,35 @@ if (!function_exists('annex_proposal_date_text')) {
             mso-data-placement: same-cell;
         }
 
+        .annex-item-name {
+            display: block;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .annex-spec-section + .annex-spec-section {
+            margin-top: 6px;
+        }
+
+        .annex-spec-title {
+            display: block;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .annex-specification ul {
+            margin: 2px 0 0;
+            padding-left: 16px;
+        }
+
+        .annex-specification li + li {
+            margin-top: 2px;
+        }
+
+        .annex-spec-empty {
+            color: #6b7280;
+        }
+
         .global-total {
             margin-top: 18px;
             width: 45%;
@@ -248,9 +277,9 @@ if (!function_exists('annex_proposal_date_text')) {
 
 <div class="header">
     <?= render_municipal_logo() ?>
-    <h1>Prefeitura Municipal de EspÃ­rito Santo do Turvo</h1>
+    <h1>Prefeitura Municipal de Esp&iacute;rito Santo do Turvo</h1>
     <h2><?= e($title) ?></h2>
-    <p>Projeto: <?= e($project['name']) ?> | Emissao: <?= e($issueDateText) ?> | Versao do documento: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
+    <p>Projeto: <?= e($project['name']) ?> | Emiss&atilde;o: <?= e($issueDateText) ?> | Vers&atilde;o do documento: <?= e($annexVersionText) ?> | Hash: <?= e($annexHashText) ?></p>
 </div>
 
 <?php if (!$groups): ?>
@@ -280,7 +309,7 @@ if (!function_exists('annex_proposal_date_text')) {
         <?php elseif ($suppliers): ?>
             Grupo <?= $groupIndex + 1 ?> - Fornecedores cotantes: <?= e(implode(', ', $supplierNames)) ?>
         <?php else: ?>
-            Grupo <?= $groupIndex + 1 ?> - Itens sem cotaÃ§Ã£o de fornecedor
+            Grupo <?= $groupIndex + 1 ?> - Itens sem cota&ccedil;&atilde;o de fornecedor
         <?php endif; ?>
     </div>
 
@@ -291,9 +320,9 @@ if (!function_exists('annex_proposal_date_text')) {
                     <th style="width: 6%;">Fornecedor</th>
                     <th style="width: 8%;">Data da proposta</th>
                     <th style="width: 11%;">CNPJ</th>
-                    <th style="width: 16%;">RazÃ£o social</th>
+                    <th style="width: 16%;">Raz&atilde;o social</th>
                     <th style="width: 14%;">Nome fantasia</th>
-                    <th style="width: 22%;">EndereÃ§o</th>
+                    <th style="width: 22%;">Endere&ccedil;o</th>
                     <th style="width: 8%;">Contato</th>
                     <th style="width: 9%;">E-mail</th>
                     <th style="width: 6%;">Telefone</th>
@@ -316,7 +345,7 @@ if (!function_exists('annex_proposal_date_text')) {
                     <?php if (!empty($supplier['source_label'])): ?>
                         <tr>
                             <td></td>
-                            <td colspan="8" class="muted">ReferÃªncia: <?= e($supplier['source_label']) ?></td>
+                            <td colspan="8" class="muted">Refer&ecirc;ncia: <?= e($supplier['source_label']) ?></td>
                         </tr>
                     <?php endif; ?>
                 <?php endforeach; ?>
@@ -328,7 +357,7 @@ if (!function_exists('annex_proposal_date_text')) {
         <thead>
             <tr>
                 <th style="width: 5%;">Item</th>
-                <th style="width: 23%;">DescriÃ§Ã£o do item/produto</th>
+                <th style="width: 23%;">Item / especifica&ccedil;&atilde;o t&eacute;cnica</th>
                 <th style="width: 11%;">Unidade</th>
                 <th style="width: 9%;">Quantidade</th>
                 <?php foreach ($suppliers as $supplierIndex => $supplier): ?>
@@ -337,7 +366,7 @@ if (!function_exists('annex_proposal_date_text')) {
                         <span class="muted"><?= e($supplier['name']) ?></span>
                     </th>
                 <?php endforeach; ?>
-                <th style="width: 12%;">Valor unitÃ¡rio estimado</th>
+                <th style="width: 12%;">Valor unit&aacute;rio estimado</th>
                 <th style="width: 12%;">Valor total</th>
             </tr>
         </thead>
@@ -351,7 +380,10 @@ if (!function_exists('annex_proposal_date_text')) {
                 ?>
                 <tr>
                     <td class="number"><?= (int) $item['sequence'] ?></td>
-                    <td class="wrap"><?= e($item['item_name'] ?? '-') ?></td>
+                    <td class="wrap">
+                        <strong class="annex-item-name"><?= e($item['item_name'] ?? '-') ?></strong>
+                        <?= licitation_annex_specification_html($item) ?>
+                    </td>
                     <td class="wrap">
                         <?= e(licitation_annex_unit_text($item)) ?>
                     </td>

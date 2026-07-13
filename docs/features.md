@@ -118,10 +118,6 @@ Este arquivo registra ideias consultivas ainda nao implementadas para evolucao d
 - Objetivo: acompanhar validade de orcamentos, prazos de resposta, reaberturas e fechamentos automaticos.
 - Prompt sugerido: `Implemente monitor de prazos com alertas para validade de orcamentos, prazo de resposta de fornecedor, prazo de retificacao/reabertura e documentos proximos do vencimento, com dashboard e filtros.`
 
-### Comparativo anual de precos
-- Objetivo: visualizar evolucao historica de precos por item, fornecedor, categoria e secretaria.
-- Prompt sugerido: `Crie comparativo anual de precos por item, fornecedor, categoria e secretaria, com graficos de tendencia, media movel, maior/menor valor, outliers e exportacao Excel.`
-
 ### Relatorio de cobertura de fornecedores
 - Objetivo: identificar categorias com poucos fornecedores cadastrados ou baixa participacao em cotacoes.
 - Prompt sugerido: `Crie relatorio de cobertura de fornecedores por categoria e subcategoria, mostrando quantidade cadastrada, quantidade ativa, participacao em cotacoes, taxa de resposta e lacunas de mercado.`

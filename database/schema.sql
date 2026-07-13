@@ -1309,6 +1309,9 @@ ON demand_confirmation_requests (content_hash);
 CREATE INDEX IF NOT EXISTS idx_demand_items_demand_list
 ON demand_items (demand_list_id);
 
+CREATE INDEX IF NOT EXISTS idx_demand_items_procurement_item
+ON demand_items (procurement_item_id);
+
 CREATE INDEX IF NOT EXISTS idx_demand_lists_project
 ON demand_lists (project_id);
 
@@ -1352,6 +1355,9 @@ ON demand_supplier_quotes (demand_list_id, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_demand_supplier_quotes_demand
 ON demand_supplier_quotes (demand_list_id);
 
+CREATE INDEX IF NOT EXISTS idx_demand_supplier_quotes_price_history
+ON demand_supplier_quotes (quote_date, supplier_id, status);
+
 CREATE INDEX IF NOT EXISTS idx_demand_supplier_quote_attachments_quote
 ON demand_supplier_quote_attachments (demand_supplier_quote_id);
 CREATE INDEX IF NOT EXISTS idx_demand_supplier_quote_items_quote
@@ -1362,6 +1368,12 @@ ON demand_supplier_quote_items (demand_item_id);
 
 CREATE INDEX IF NOT EXISTS idx_demand_supplier_quote_items_reused_from
 ON demand_supplier_quote_items (reused_from_quote_item_id);
+
+CREATE INDEX IF NOT EXISTS idx_procurement_items_category
+ON procurement_items (category_id);
+
+CREATE INDEX IF NOT EXISTS idx_procurement_items_subcategory
+ON procurement_items (subcategory_id);
 
 CREATE INDEX IF NOT EXISTS idx_demand_price_references_demand_item
 ON demand_price_references (demand_item_id);

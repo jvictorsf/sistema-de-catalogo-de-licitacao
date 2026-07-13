@@ -18,7 +18,7 @@ $primaryNavItems = [
         'label' => 'Gestao de projetos',
         'icon' => 'bi-graph-up-arrow',
         'permission' => 'bi.view',
-        'active' => ['project_bi.php'],
+        'active' => ['project_bi.php', 'annual_price_comparison.php', 'annual_price_comparison_export.php'],
     ],
     [
         'href' => '/',

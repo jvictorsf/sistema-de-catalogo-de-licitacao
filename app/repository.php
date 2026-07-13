@@ -7876,6 +7876,491 @@ function project_bi_is_outlier(float $value, array $stats): bool
 
     return false;
 }
+function project_bi_price_comparison_dimensions(): array
+{
+    return [
+        'item' => 'Item',
+        'supplier' => 'Fornecedor',
+        'category' => 'Categoria',
+        'secretariat' => 'Secretaria',
+    ];
+}
+
+function project_bi_normalize_price_comparison_filters(array $input): array
+{
+    $currentYear = (int) date('Y');
+    $minimumYear = 2000;
+    $maximumYear = $currentYear + 1;
+    $yearFrom = max($minimumYear, min($maximumYear, (int) ($input['year_from'] ?? ($currentYear - 2))));
+    $yearTo = max($minimumYear, min($maximumYear, (int) ($input['year_to'] ?? $currentYear)));
+
+    if ($yearFrom > $yearTo) {
+        [$yearFrom, $yearTo] = [$yearTo, $yearFrom];
+    }
+
+    $dimension = (string) ($input['dimension'] ?? 'item');
+
+    if (!array_key_exists($dimension, project_bi_price_comparison_dimensions())) {
+        $dimension = 'item';
+    }
+
+    return [
+        'year_from' => $yearFrom,
+        'year_to' => $yearTo,
+        'dimension' => $dimension,
+        'item_id' => max(0, (int) ($input['item_id'] ?? 0)),
+        'supplier_id' => max(0, (int) ($input['supplier_id'] ?? 0)),
+        'category_id' => max(0, (int) ($input['category_id'] ?? 0)),
+        'secretariat_id' => max(0, (int) ($input['secretariat_id'] ?? 0)),
+    ];
+}
+
+function project_bi_price_comparison_options(): array
+{
+    $itemTrackingCodeSql = item_tracking_code_sql('pi');
+    $items = db()->query("
+        SELECT DISTINCT pi.id, {$itemTrackingCodeSql} AS tracking_code, pi.name
+        FROM demand_supplier_quote_items qi
+        INNER JOIN demand_supplier_quotes q
+            ON q.id = qi.demand_supplier_quote_id
+           AND COALESCE(q.status, 'received') <> 'discarded'
+        INNER JOIN demand_items di ON di.id = qi.demand_item_id
+        INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
+        WHERE qi.unit_price IS NOT NULL
+        ORDER BY pi.name, pi.id
+    ")->fetchAll();
+
+    $suppliers = db()->query("
+        SELECT DISTINCT s.id, s.name, s.document
+        FROM demand_supplier_quote_items qi
+        INNER JOIN demand_supplier_quotes q
+            ON q.id = qi.demand_supplier_quote_id
+           AND COALESCE(q.status, 'received') <> 'discarded'
+        INNER JOIN suppliers s ON s.id = q.supplier_id
+        WHERE qi.unit_price IS NOT NULL
+        ORDER BY s.name, s.id
+    ")->fetchAll();
+
+    $categories = db()->query("
+        SELECT DISTINCT c.id, c.name, parent.name AS parent_name
+        FROM categories c
+        LEFT JOIN categories parent ON parent.id = c.parent_id
+        INNER JOIN procurement_items pi
+            ON pi.category_id = c.id OR pi.subcategory_id = c.id
+        INNER JOIN demand_items di ON di.procurement_item_id = pi.id
+        INNER JOIN demand_supplier_quote_items qi
+            ON qi.demand_item_id = di.id AND qi.unit_price IS NOT NULL
+        INNER JOIN demand_supplier_quotes q
+            ON q.id = qi.demand_supplier_quote_id
+           AND COALESCE(q.status, 'received') <> 'discarded'
+        ORDER BY parent.name NULLS FIRST, c.name, c.id
+    ")->fetchAll();
+
+    $secretariats = db()->query("
+        SELECT DISTINCT sec.id, sec.name
+        FROM demand_supplier_quote_items qi
+        INNER JOIN demand_supplier_quotes q
+            ON q.id = qi.demand_supplier_quote_id
+           AND COALESCE(q.status, 'received') <> 'discarded'
+        INNER JOIN demand_items di ON di.id = qi.demand_item_id
+        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+        LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
+        INNER JOIN secretariats sec
+            ON sec.id = COALESCE(dl.secretariat_id, ru.secretariat_id)
+        WHERE qi.unit_price IS NOT NULL
+        ORDER BY sec.name, sec.id
+    ")->fetchAll();
+
+    $yearRow = db()->query("
+        SELECT
+            MIN(EXTRACT(YEAR FROM COALESCE(q.quote_date, q.created_at::DATE)))::INTEGER AS minimum_year,
+            MAX(EXTRACT(YEAR FROM COALESCE(q.quote_date, q.created_at::DATE)))::INTEGER AS maximum_year
+        FROM demand_supplier_quote_items qi
+        INNER JOIN demand_supplier_quotes q
+            ON q.id = qi.demand_supplier_quote_id
+           AND COALESCE(q.status, 'received') <> 'discarded'
+        WHERE qi.unit_price IS NOT NULL
+    ")->fetch() ?: [];
+    $currentYear = (int) date('Y');
+
+    return [
+        'items' => $items,
+        'suppliers' => $suppliers,
+        'categories' => $categories,
+        'secretariats' => $secretariats,
+        'minimum_year' => (int) ($yearRow['minimum_year'] ?? ($currentYear - 2)),
+        'maximum_year' => (int) ($yearRow['maximum_year'] ?? $currentYear),
+    ];
+}
+
+function project_bi_annual_price_rows(array $inputFilters = []): array
+{
+    $filters = project_bi_normalize_price_comparison_filters($inputFilters);
+    $trackingCodeSql = item_tracking_code_sql('pi');
+    $sql = "
+        SELECT
+            qi.id AS quote_item_id,
+            q.id AS quote_id,
+            COALESCE(q.quote_date, q.created_at::DATE) AS price_date,
+            q.quote_number,
+            qi.unit_price::NUMERIC AS unit_price,
+            pi.id AS item_id,
+            {$trackingCodeSql} AS tracking_code,
+            pi.name AS item_name,
+            s.id AS supplier_id,
+            s.name AS supplier_name,
+            s.document AS supplier_document,
+            COALESCE(subcategory.id, category.id, 0) AS category_id,
+            COALESCE(subcategory.name, category.name, 'Sem categoria') AS category_name,
+            COALESCE(sec.id, 0) AS secretariat_id,
+            COALESCE(sec.name, 'Sem secretaria') AS secretariat_name,
+            p.id AS project_id,
+            p.name AS project_name,
+            MD5(CONCAT_WS(
+                '|',
+                COALESCE(source_dl.project_id, dl.project_id)::TEXT,
+                COALESCE(source_q.supplier_id, q.supplier_id)::TEXT,
+                di.procurement_item_id::TEXT,
+                COALESCE(source_q.quote_number, q.quote_number, ''),
+                COALESCE(source_q.quote_date, source_q.created_at::DATE, q.quote_date, q.created_at::DATE)::TEXT,
+                qi.unit_price::TEXT
+            )) AS observation_key
+        FROM demand_supplier_quote_items qi
+        INNER JOIN demand_supplier_quotes q
+            ON q.id = qi.demand_supplier_quote_id
+           AND COALESCE(q.status, 'received') <> 'discarded'
+        INNER JOIN suppliers s ON s.id = q.supplier_id
+        INNER JOIN demand_items di ON di.id = qi.demand_item_id
+        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+        INNER JOIN procurement_projects p ON p.id = dl.project_id
+        INNER JOIN procurement_items pi ON pi.id = di.procurement_item_id
+        LEFT JOIN categories category ON category.id = pi.category_id
+        LEFT JOIN categories subcategory ON subcategory.id = pi.subcategory_id
+        LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
+        LEFT JOIN secretariats sec
+            ON sec.id = COALESCE(dl.secretariat_id, ru.secretariat_id)
+        LEFT JOIN demand_supplier_quote_items source_qi
+            ON source_qi.id = qi.reused_from_quote_item_id
+        LEFT JOIN demand_supplier_quotes source_q
+            ON source_q.id = source_qi.demand_supplier_quote_id
+        LEFT JOIN demand_items source_di ON source_di.id = source_qi.demand_item_id
+        LEFT JOIN demand_lists source_dl ON source_dl.id = source_di.demand_list_id
+        WHERE qi.unit_price IS NOT NULL
+          AND COALESCE(q.quote_date, q.created_at::DATE) >= MAKE_DATE(CAST(:year_from AS INTEGER), 1, 1)
+          AND COALESCE(q.quote_date, q.created_at::DATE) < MAKE_DATE(CAST(:year_to AS INTEGER) + 1, 1, 1)
+    ";
+    $params = [
+        'year_from' => $filters['year_from'],
+        'year_to' => $filters['year_to'],
+    ];
+
+    if ($filters['item_id'] > 0) {
+        $sql .= " AND pi.id = :item_id";
+        $params['item_id'] = $filters['item_id'];
+    }
+
+    if ($filters['supplier_id'] > 0) {
+        $sql .= " AND s.id = :supplier_id";
+        $params['supplier_id'] = $filters['supplier_id'];
+    }
+
+    if ($filters['category_id'] > 0) {
+        $sql .= " AND (pi.category_id = :category_id OR pi.subcategory_id = :category_id)";
+        $params['category_id'] = $filters['category_id'];
+    }
+
+    if ($filters['secretariat_id'] > 0) {
+        $sql .= " AND COALESCE(dl.secretariat_id, ru.secretariat_id) = :secretariat_id";
+        $params['secretariat_id'] = $filters['secretariat_id'];
+    }
+
+    $sql .= " ORDER BY price_date, pi.name, s.name, q.id, qi.id";
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    return $stmt->fetchAll();
+}
+
+function project_bi_moving_average(array $values, int $window = 3): array
+{
+    $values = array_values($values);
+    $window = max(1, $window);
+    $result = [];
+
+    foreach ($values as $index => $value) {
+        $slice = array_slice($values, max(0, $index - $window + 1), $window);
+        $numericValues = array_values(array_filter(
+            $slice,
+            static fn (mixed $candidate): bool => $candidate !== null && is_numeric($candidate)
+        ));
+        $result[] = $numericValues
+            ? array_sum(array_map('floatval', $numericValues)) / count($numericValues)
+            : null;
+    }
+
+    return $result;
+}
+
+function project_bi_price_comparison_dimension_value(array $row, string $dimension): array
+{
+    return match ($dimension) {
+        'supplier' => [
+            'key' => 'supplier:' . (int) ($row['supplier_id'] ?? 0),
+            'id' => (int) ($row['supplier_id'] ?? 0),
+            'label' => (string) ($row['supplier_name'] ?? 'Sem fornecedor'),
+        ],
+        'category' => [
+            'key' => 'category:' . (int) ($row['category_id'] ?? 0),
+            'id' => (int) ($row['category_id'] ?? 0),
+            'label' => (string) ($row['category_name'] ?? 'Sem categoria'),
+        ],
+        'secretariat' => [
+            'key' => 'secretariat:' . (int) ($row['secretariat_id'] ?? 0),
+            'id' => (int) ($row['secretariat_id'] ?? 0),
+            'label' => (string) ($row['secretariat_name'] ?? 'Sem secretaria'),
+        ],
+        default => [
+            'key' => 'item:' . (int) ($row['item_id'] ?? 0),
+            'id' => (int) ($row['item_id'] ?? 0),
+            'label' => trim((string) ($row['tracking_code'] ?? '')) !== ''
+                ? (string) $row['tracking_code'] . ' - ' . (string) ($row['item_name'] ?? 'Item')
+                : (string) ($row['item_name'] ?? 'Item'),
+        ],
+    };
+}
+function project_bi_build_price_comparison(array $sourceRows, array $inputFilters = []): array
+{
+    $filters = project_bi_normalize_price_comparison_filters($inputFilters);
+    $dimension = $filters['dimension'];
+    $rows = [];
+    $seen = [];
+
+    foreach ($sourceRows as $row) {
+        $date = trim((string) ($row['price_date'] ?? ''));
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            continue;
+        }
+
+        $canonicalObservationKey = trim((string) ($row['observation_key'] ?? 'quote-item:' . ($row['quote_item_id'] ?? '')));
+        $observationKey = $canonicalObservationKey;
+
+        if ($dimension === 'secretariat') {
+            $observationKey .= '|secretariat:' . (int) ($row['secretariat_id'] ?? 0);
+        }
+
+        if (isset($seen[$observationKey])) {
+            continue;
+        }
+
+        $seen[$observationKey] = true;
+        $dimensionValue = project_bi_price_comparison_dimension_value($row, $dimension);
+        $row['year'] = (int) substr($date, 0, 4);
+        $row['month_key'] = substr($date, 0, 7);
+        $row['unit_price'] = (float) ($row['unit_price'] ?? 0);
+        $row['dimension_key'] = $dimensionValue['key'];
+        $row['dimension_id'] = $dimensionValue['id'];
+        $row['dimension_label'] = $dimensionValue['label'];
+        $row['canonical_observation_key'] = $canonicalObservationKey;
+        $row['is_outlier'] = false;
+        $rows[] = $row;
+    }
+
+    $valuesByItemYear = [];
+    $seenForStats = [];
+
+    foreach ($rows as $row) {
+        $itemYearKey = (int) ($row['item_id'] ?? 0) . '|' . (int) $row['year'];
+        $canonicalKey = (string) ($row['canonical_observation_key'] ?? '');
+        $statsKey = $itemYearKey . '|' . $canonicalKey;
+
+        if (isset($seenForStats[$statsKey])) {
+            continue;
+        }
+
+        $seenForStats[$statsKey] = true;
+        $valuesByItemYear[$itemYearKey][] = (float) $row['unit_price'];
+    }
+
+    $statsByItemYear = [];
+
+    foreach ($valuesByItemYear as $key => $values) {
+        $statsByItemYear[$key] = project_bi_price_statistics($values);
+    }
+
+    foreach ($rows as $index => $row) {
+        $itemYearKey = (int) ($row['item_id'] ?? 0) . '|' . (int) $row['year'];
+        $rows[$index]['is_outlier'] = project_bi_is_outlier(
+            (float) $row['unit_price'],
+            $statsByItemYear[$itemYearKey] ?? []
+        );
+    }
+
+    $monthBuckets = [];
+    $annualBuckets = [];
+    $groupBuckets = [];
+    $groupCounts = [];
+
+    foreach ($rows as $row) {
+        $monthBuckets[$row['month_key']][] = $row;
+        $annualBuckets[(int) $row['year']][] = $row;
+        $groupYearKey = $row['dimension_key'] . '|' . (int) $row['year'];
+
+        if (!isset($groupBuckets[$groupYearKey])) {
+            $groupBuckets[$groupYearKey] = [
+                'dimension_key' => $row['dimension_key'],
+                'dimension_id' => $row['dimension_id'],
+                'dimension_label' => $row['dimension_label'],
+                'year' => (int) $row['year'],
+                'rows' => [],
+            ];
+        }
+
+        $groupBuckets[$groupYearKey]['rows'][] = $row;
+        $groupCounts[$row['dimension_key']] = ($groupCounts[$row['dimension_key']] ?? 0) + 1;
+    }
+
+    $monthly = [];
+
+    for ($year = $filters['year_from']; $year <= $filters['year_to']; $year++) {
+        for ($month = 1; $month <= 12; $month++) {
+            $monthKey = sprintf('%04d-%02d', $year, $month);
+            $bucketRows = $monthBuckets[$monthKey] ?? [];
+            $stats = project_bi_price_statistics(array_map(
+                static fn (array $row): float => (float) $row['unit_price'],
+                $bucketRows
+            ));
+            $outlierRows = array_values(array_filter(
+                $bucketRows,
+                static fn (array $row): bool => !empty($row['is_outlier'])
+            ));
+            $outlierValues = array_map(
+                static fn (array $row): float => (float) $row['unit_price'],
+                $outlierRows
+            );
+
+            $monthly[] = [
+                'month_key' => $monthKey,
+                'label' => sprintf('%02d/%04d', $month, $year),
+                'count' => count($bucketRows),
+                'average' => $stats['average'],
+                'min' => $stats['min'],
+                'max' => $stats['max'],
+                'outlier_count' => count($outlierRows),
+                'outlier_average' => $outlierValues ? array_sum($outlierValues) / count($outlierValues) : null,
+            ];
+        }
+    }
+
+    $movingAverages = project_bi_moving_average(array_column($monthly, 'average'), 3);
+
+    foreach ($monthly as $index => $row) {
+        $monthly[$index]['moving_average'] = $movingAverages[$index];
+    }
+
+    $annual = [];
+
+    for ($year = $filters['year_from']; $year <= $filters['year_to']; $year++) {
+        $bucketRows = $annualBuckets[$year] ?? [];
+        $stats = project_bi_price_statistics(array_map(
+            static fn (array $row): float => (float) $row['unit_price'],
+            $bucketRows
+        ));
+        $annual[] = array_merge($stats, [
+            'year' => $year,
+            'outlier_count' => count(array_filter(
+                $bucketRows,
+                static fn (array $row): bool => !empty($row['is_outlier'])
+            )),
+        ]);
+    }
+
+    $groups = [];
+
+    foreach ($groupBuckets as $bucket) {
+        $bucketRows = $bucket['rows'];
+        $stats = project_bi_price_statistics(array_map(
+            static fn (array $row): float => (float) $row['unit_price'],
+            $bucketRows
+        ));
+        $groups[] = array_merge($stats, [
+            'dimension_key' => $bucket['dimension_key'],
+            'dimension_id' => $bucket['dimension_id'],
+            'dimension_label' => $bucket['dimension_label'],
+            'year' => $bucket['year'],
+            'outlier_count' => count(array_filter(
+                $bucketRows,
+                static fn (array $row): bool => !empty($row['is_outlier'])
+            )),
+        ]);
+    }
+
+    usort($groups, static function (array $left, array $right): int {
+        return ((int) $right['year'] <=> (int) $left['year'])
+            ?: strcasecmp((string) $left['dimension_label'], (string) $right['dimension_label']);
+    });
+
+    arsort($groupCounts);
+    $topGroupKeys = array_slice(array_keys($groupCounts), 0, 6);
+    $groupLookup = [];
+    $groupLabels = [];
+
+    foreach ($groups as $group) {
+        $groupLookup[$group['dimension_key']][(int) $group['year']] = $group['average'];
+        $groupLabels[$group['dimension_key']] = $group['dimension_label'];
+    }
+
+    $years = range($filters['year_from'], $filters['year_to']);
+    $groupSeries = [];
+
+    foreach ($topGroupKeys as $groupKey) {
+        $groupSeries[] = [
+            'key' => $groupKey,
+            'label' => $groupLabels[$groupKey] ?? $groupKey,
+            'values' => array_map(
+                static fn (int $year): ?float => isset($groupLookup[$groupKey][$year])
+                    ? (float) $groupLookup[$groupKey][$year]
+                    : null,
+                $years
+            ),
+        ];
+    }
+
+    usort($rows, static function (array $left, array $right): int {
+        return strcmp((string) $right['price_date'], (string) $left['price_date'])
+            ?: strcasecmp((string) $left['item_name'], (string) $right['item_name'])
+            ?: strcasecmp((string) $left['supplier_name'], (string) $right['supplier_name']);
+    });
+
+    $summaryStats = project_bi_price_statistics(array_map(
+        static fn (array $row): float => (float) $row['unit_price'],
+        $rows
+    ));
+    $uniqueCount = static function (array $rows, string $key): int {
+        $values = array_map(static fn (array $row): int => (int) ($row[$key] ?? 0), $rows);
+        return count(array_filter(array_unique($values), static fn (int $value): bool => $value > 0));
+    };
+
+    return [
+        'filters' => $filters,
+        'summary' => array_merge($summaryStats, [
+            'outlier_count' => count(array_filter(
+                $rows,
+                static fn (array $row): bool => !empty($row['is_outlier'])
+            )),
+            'item_count' => $uniqueCount($rows, 'item_id'),
+            'supplier_count' => $uniqueCount($rows, 'supplier_id'),
+            'category_count' => $uniqueCount($rows, 'category_id'),
+            'secretariat_count' => $uniqueCount($rows, 'secretariat_id'),
+        ]),
+        'years' => $years,
+        'monthly' => $monthly,
+        'annual' => $annual,
+        'groups' => $groups,
+        'group_series' => $groupSeries,
+        'rows' => $rows,
+    ];
+}
 function catalog_json_scopes(): array
 {
     return [

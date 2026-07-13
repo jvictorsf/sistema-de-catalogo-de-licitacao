@@ -2,6 +2,23 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.13] - 2026-07-13
+
+### Adicionado
+- Comparativo anual de precos em /annual_price_comparison.php, com filtros por periodo, item, fornecedor, categoria e secretaria.
+- Graficos de tendencia mensal, media movel de tres meses, resumo anual e evolucao das principais series por dimensao.
+- Indicadores de media, mediana, moda, menor/maior valor, desvio padrao, coeficiente de variacao e outliers.
+- Exportacao Excel do conjunto filtrado, incluindo resumo anual, serie mensal, agrupamentos e observacoes detalhadas.
+
+### Alterado
+- Gestao de Projetos passa a oferecer acesso direto ao comparativo anual sob a permissao bi.view.
+- Historico deduplica copias e reaproveitamentos do mesmo orcamento para evitar distorcao estatistica.
+- Schema recebe indices para consultas historicas por data, fornecedor, item e categoria.
+
+### Testes
+- Suite do BI passa a cobrir filtros, deduplicacao, agrupamento anual, media movel e identificacao de outliers por item/ano.
+
+
 ## [1.6.12] - 2026-07-08
 
 ### Adicionado

@@ -734,3 +734,7 @@ pre {
 .project-bi-project-table {
     min-width: 980px;
 }
+
+.price-comparison-table {
+    min-width: 1100px;
+}

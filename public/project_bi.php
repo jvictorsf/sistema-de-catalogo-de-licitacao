@@ -200,6 +200,9 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 
     <div class="page-actions d-flex gap-2 flex-wrap justify-content-end">
+        <a href="/annual_price_comparison.php" class="btn btn-success">
+            <i class="bi bi-calendar3"></i>Comparativo anual
+        </a>
         <a href="/projects.php" class="btn btn-outline-primary">
             <i class="bi bi-folder2-open"></i>Projetos
         </a>

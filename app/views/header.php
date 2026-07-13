@@ -21,6 +21,13 @@ $primaryNavItems = [
         'active' => ['project_bi.php', 'annual_price_comparison.php', 'annual_price_comparison_export.php'],
     ],
     [
+        'href' => '/signature_pending.php',
+        'label' => 'Assinaturas',
+        'icon' => 'bi-pen',
+        'permission' => 'confirmations.manage',
+        'active' => ['signature_pending.php', 'demand_confirmation_form.php', 'demand_confirmation_file.php'],
+    ],
+    [
         'href' => '/',
         'label' => 'Itens',
         'icon' => 'bi-box-seam',
@@ -35,7 +42,6 @@ $primaryNavItems = [
             'project_form.php',
             'project_show.php',
             'demand_show.php',
-            'demand_confirmation_form.php',
             'project_report.php',
             'project_demand_report.php',
             'project_export_word.php',

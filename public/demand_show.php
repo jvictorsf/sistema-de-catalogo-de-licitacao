@@ -120,77 +120,84 @@ require __DIR__ . '/../app/views/header.php';
 </div>
 
 <div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <div class="fw-semibold">
-            Confirmacao formal da demanda
+    <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+        <div>
+            <div class="fw-semibold">Assinaturas da demanda</div>
+            <div class="small text-muted">Fluxos, etapas, evidências privadas e hashes individuais.</div>
         </div>
-        <?php if (!$projectLocked): ?>
-            <a href="/demand_confirmation_form.php?demand_id=<?= (int) $demand['id'] ?>" class="btn btn-sm btn-primary">
-                <i class="bi bi-link-45deg"></i>Novo link
-            </a>
-        <?php endif; ?>
+        <div class="d-flex gap-2">
+            <a href="/signature_pending.php" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-check"></i>Pendências</a>
+            <?php if (!$projectLocked): ?>
+                <a href="/demand_confirmation_form.php?demand_id=<?= (int) $demand['id'] ?>" class="btn btn-sm btn-primary"><i class="bi bi-pen"></i>Novo fluxo</a>
+            <?php endif; ?>
+        </div>
     </div>
 
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th>Responsavel</th>
-                    <th>Status</th>
-                    <th>Validade/assinatura</th>
-                    <th>Hash</th>
-                    <th class="text-end">Acoes</th>
+                    <th>Assinante</th>
+                    <th>Fluxo</th>
+                    <th>Situação e prazo</th>
+                    <th>Evidências e hash</th>
+                    <th class="text-end">Ações</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (!$confirmationRequests): ?>
-                    <tr>
-                        <td colspan="5" class="text-center text-muted py-4">
-                            Nenhuma confirmacao solicitada para esta demanda.
-                        </td>
-                    </tr>
+                    <tr><td colspan="5" class="text-center text-muted py-4">Nenhuma assinatura solicitada para esta demanda.</td></tr>
                 <?php endif; ?>
 
                 <?php foreach ($confirmationRequests as $confirmationRequest): ?>
-                    <?php $confirmationStatus = $confirmationRequest['effective_status'] ?? $confirmationRequest['status'] ?? 'pending'; ?>
+                    <?php
+                        $confirmationStatus = $confirmationRequest['effective_status'] ?? $confirmationRequest['status'] ?? 'pending';
+                        $attachments = get_demand_confirmation_attachments((int) $confirmationRequest['id']);
+                    ?>
                     <tr>
                         <td>
                             <strong><?= e($confirmationRequest['requester_name'] ?? '-') ?></strong>
-                            <?php if (!empty($confirmationRequest['requester_role'])): ?>
-                                <div class="small text-muted"><?= e($confirmationRequest['requester_role']) ?></div>
-                            <?php endif; ?>
+                            <?php if (!empty($confirmationRequest['requester_role'])): ?><div class="small text-muted"><?= e($confirmationRequest['requester_role']) ?></div><?php endif; ?>
                         </td>
                         <td>
-                            <span class="badge <?= e(demand_confirmation_status_badge_class($confirmationStatus)) ?>">
-                                <?= e(demand_confirmation_status_label($confirmationStatus)) ?>
-                            </span>
+                            <div><?= e($confirmationRequest['flow_title'] ?? 'Assinatura individual') ?></div>
+                            <div class="small text-muted">
+                                <?= e(demand_signature_flow_mode_label($confirmationRequest['flow_mode'] ?? null)) ?>
+                                · etapa <?= (int) ($confirmationRequest['signer_order'] ?? 1) ?>/<?= (int) ($confirmationRequest['flow_signer_count'] ?? 1) ?>
+                            </div>
                         </td>
                         <td>
-                            <?php if (!empty($confirmationRequest['signed_at'])): ?>
-                                Assinada em <?= date('d/m/Y H:i', strtotime((string) $confirmationRequest['signed_at'])) ?>
-                            <?php elseif (!empty($confirmationRequest['expires_at'])): ?>
-                                Expira em <?= date('d/m/Y H:i', strtotime((string) $confirmationRequest['expires_at'])) ?>
-                            <?php else: ?>
-                                -
-                            <?php endif; ?>
+                            <span class="badge <?= e(demand_confirmation_status_badge_class($confirmationStatus)) ?>"><?= e(demand_confirmation_status_label($confirmationStatus)) ?></span>
+                            <div class="small text-muted mt-1">
+                                <?php if (!empty($confirmationRequest['signed_at'])): ?>Assinada em <?= date('d/m/Y H:i', strtotime((string) $confirmationRequest['signed_at'])) ?>
+                                <?php elseif (!empty($confirmationRequest['expires_at'])): ?>Expira em <?= date('d/m/Y H:i', strtotime((string) $confirmationRequest['expires_at'])) ?>
+                                <?php else: ?>Sem prazo<?php endif; ?>
+                            </div>
                         </td>
-                        <td class="text-break small">
+                        <td>
+                            <?php if (!empty($confirmationRequest['signature_path'])): ?>
+                                <div class="d-flex flex-wrap gap-1 mb-2">
+                                    <a href="<?= e(demand_confirmation_file_url((int) $confirmationRequest['id'], 'signature')) ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pen"></i>Assinatura</a>
+                                    <?php foreach ($attachments as $attachment): ?>
+                                        <a href="<?= e(demand_confirmation_file_url((int) $confirmationRequest['id'], 'attachment', (int) $attachment['id'])) ?>" class="btn btn-sm btn-outline-secondary" title="<?= e($attachment['original_name'] ?? 'Comprovante') ?>"><i class="bi bi-paperclip"></i><?= e('Arquivo ' . (int) $attachment['id']) ?></a>
+                                    <?php endforeach; ?>
+                                    <?php if (!$attachments && !empty($confirmationRequest['document_photo_path'])): ?>
+                                        <a href="<?= e(demand_confirmation_file_url((int) $confirmationRequest['id'], 'document')) ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-paperclip"></i>Comprovante</a>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
                             <?php if (!empty($confirmationRequest['content_hash'])): ?>
-                                <code><?= e($confirmationRequest['content_hash']) ?></code>
-                            <?php else: ?>
-                                <span class="text-muted">Gerado apos assinatura</span>
-                            <?php endif; ?>
+                                <code class="small d-block text-break" title="<?= e($confirmationRequest['content_hash']) ?>"><?= e(substr((string) $confirmationRequest['content_hash'], 0, 20)) ?>…</code>
+                            <?php else: ?><span class="small text-muted">Hash gerado após a assinatura</span><?php endif; ?>
                         </td>
                         <td class="text-end">
-                            <?php if (!$projectLocked && $confirmationStatus === 'pending'): ?>
-                                <form action="/demand_confirmation_revoke.php" method="post" class="d-inline" onsubmit="return confirm('Revogar este link de assinatura?')">
+                            <?php if (!$projectLocked && in_array($confirmationStatus, ['pending', 'waiting'], true)): ?>
+                                <form action="/demand_confirmation_revoke.php" method="post" class="d-inline" onsubmit="return confirm('Revogar todo este fluxo de assinatura?')">
                                     <input type="hidden" name="id" value="<?= (int) $confirmationRequest['id'] ?>">
                                     <input type="hidden" name="demand_id" value="<?= (int) $demand['id'] ?>">
-                                    <button class="btn btn-sm btn-outline-danger">Revogar</button>
+                                    <button class="btn btn-sm btn-outline-danger" title="Revogar fluxo"><i class="bi bi-x-circle"></i></button>
                                 </form>
-                            <?php else: ?>
-                                <span class="text-muted">Somente consulta</span>
-                            <?php endif; ?>
+                            <?php else: ?><span class="small text-muted">Consulta</span><?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -198,7 +205,6 @@ require __DIR__ . '/../app/views/header.php';
         </table>
     </div>
 </div>
-
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <div class="fw-semibold">

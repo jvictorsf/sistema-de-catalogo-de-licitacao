@@ -662,6 +662,34 @@ function find_document_hash_records(string $hash): array
         }
     }
 
+    if (database_table_exists('demand_confirmation_requests')) {
+        $stmt = db()->prepare("
+            SELECT
+                'demand_confirmation' AS record_type,
+                p.id AS project_id,
+                p.name AS project_name,
+                p.status AS project_status,
+                dl.name AS demand_name,
+                dcr.requester_name,
+                dcr.requester_role,
+                dcr.content_hash,
+                dcr.signed_at AS generated_at,
+                'valid' AS status
+            FROM demand_confirmation_requests dcr
+            INNER JOIN demand_lists dl ON dl.id = dcr.demand_list_id
+            INNER JOIN procurement_projects p ON p.id = dl.project_id
+            WHERE dcr.content_hash IS NOT NULL
+              AND lower(dcr.content_hash) {$operator} :hash
+            ORDER BY dcr.signed_at DESC
+            LIMIT 20
+        ");
+        $stmt->execute(['hash' => $needle]);
+
+        foreach ($stmt->fetchAll() as $record) {
+            $record['annex_label'] = 'Confirmacao da demanda - ' . ($record['requester_name'] ?? 'assinante');
+            $records[] = $record;
+        }
+    }
     if (database_table_exists('project_status_events')) {
         $stmt = db()->prepare("
             SELECT

@@ -2,6 +2,28 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.16] - 2026-07-13
+
+### Adicionado
+- Fluxos de assinatura paralelos ou sequenciais, com ate 20 assinantes, ordem de etapas e links individuais por token.
+- Painel administrativo de pendencias com pesquisa e filtros por projeto, secretaria, situacao e tipo de fluxo.
+- Multiplos comprovantes por assinatura, armazenados de forma privada com metadados e hash SHA-256.
+- Endpoint autenticado para download de assinatura e evidencias por usuarios com permissao de confirmacoes.
+- Validacao do hash individual da assinatura na pagina central de autenticidade documental.
+
+### Alterado
+- Login passa a usar o mesmo brasao municipal definido por `MUNICIPAL_LOGO_PATH`.
+- Demanda passa a exibir fluxo, etapa, prazo, evidencias e hash individual de cada assinante.
+- Fluxo sequencial libera automaticamente o proximo assinante depois da conclusao da etapa anterior.
+- `database/schema.sql` passa a criar, de forma idempotente, `demand_signature_flows` e `demand_confirmation_attachments`.
+
+### Seguranca
+- Cada assinatura incorpora ao hash o snapshot da demanda, os dados declarados, a assinatura desenhada e os hashes de todos os comprovantes.
+- Evidencias permanecem fora do diretorio publico e sao servidas com bloqueio de cache e controle de permissao.
+
+### Testes
+- Suite cobre modos de fluxo, ordem de liberacao, expiracao, integridade do hash, schema, rotas privadas e uso do brasao municipal no login.
+
 ## [1.6.15] - 2026-07-13
 
 ### Corrigido

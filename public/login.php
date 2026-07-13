@@ -13,6 +13,7 @@ $errors = [];
 $schemaAvailable = auth_schema_available();
 $needsSetup = $schemaAvailable && auth_user_count() === 0;
 $return = trim((string) ($_GET['return'] ?? $_POST['return'] ?? '/dashboard.php'));
+$loginLogoPath = trim((string) (defined('MUNICIPAL_LOGO_PATH') ? MUNICIPAL_LOGO_PATH : ''));
 
 if ($return === '' || !str_starts_with($return, '/') || str_starts_with($return, '//')) {
     $return = '/dashboard.php';
@@ -51,6 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaAvailable && !$needsSetup) {
         body { min-height: 100vh; background: #eef2f7; }
         .auth-shell { min-height: 100vh; display: grid; place-items: center; padding: 1.5rem; }
         .auth-card { width: 100%; max-width: 430px; }
+        .auth-brand-mark { align-items: center; display: flex; flex: 0 0 76px; height: 76px; justify-content: center; }
+        .auth-brand-mark .auth-logo { height: 72px !important; margin: 0 !important; max-width: 72px; object-fit: contain; width: auto !important; }
     </style>
 </head>
 <body>
@@ -58,8 +61,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaAvailable && !$needsSetup) {
     <div class="auth-card card shadow-sm border-0">
         <div class="card-body p-4">
             <div class="d-flex align-items-center gap-3 mb-4">
-                <div class="rounded bg-primary-subtle text-primary p-3"><i class="bi bi-shield-lock fs-3"></i></div>
-                <div>
+                <div class="auth-brand-mark">
+                    <?php if ($loginLogoPath !== ''): ?>
+                        <img src="<?= e($loginLogoPath) ?>" class="auth-logo" alt="Brasão do município" onerror="this.hidden=true;this.nextElementSibling.hidden=false">
+                        <div class="rounded bg-primary-subtle text-primary p-3" hidden><i class="bi bi-building fs-3"></i></div>
+                    <?php else: ?>
+                        <div class="rounded bg-primary-subtle text-primary p-3"><i class="bi bi-building fs-3"></i></div>
+                    <?php endif; ?>
+                </div>                <div>
                     <h1 class="h4 mb-0">Acesso ao sistema</h1>
                     <div class="text-muted small"><?= e(APP_NAME) ?></div>
                 </div>

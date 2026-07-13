@@ -346,8 +346,24 @@ CREATE TABLE IF NOT EXISTS demand_lists (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS demand_signature_flows (
+    id SERIAL PRIMARY KEY,
+    demand_list_id INTEGER NOT NULL REFERENCES demand_lists(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    mode VARCHAR(20) NOT NULL DEFAULT 'parallel',
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    statement_text TEXT NOT NULL,
+    expires_at TIMESTAMP NULL,
+    completed_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_demand_signature_flows_mode CHECK (mode IN ('parallel', 'sequential'))
+);
 CREATE TABLE IF NOT EXISTS demand_confirmation_requests (
     id SERIAL PRIMARY KEY,
+    flow_id INTEGER NULL REFERENCES demand_signature_flows(id) ON DELETE CASCADE,
+    signer_order INTEGER NOT NULL DEFAULT 1,
+    activated_at TIMESTAMP NULL,
     demand_list_id INTEGER NOT NULL REFERENCES demand_lists(id) ON DELETE CASCADE,
     collaborator_id INTEGER NULL REFERENCES collaborators(id) ON DELETE SET NULL,
     token_hash CHAR(64) NOT NULL UNIQUE,
@@ -368,6 +384,17 @@ CREATE TABLE IF NOT EXISTS demand_confirmation_requests (
     signer_user_agent TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS demand_confirmation_attachments (
+    id SERIAL PRIMARY KEY,
+    demand_confirmation_request_id INTEGER NOT NULL REFERENCES demand_confirmation_requests(id) ON DELETE CASCADE,
+    kind VARCHAR(30) NOT NULL DEFAULT 'evidence',
+    original_name VARCHAR(255),
+    stored_path VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(150),
+    file_size BIGINT NOT NULL DEFAULT 0,
+    file_hash CHAR(64) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS demand_items (
     id SERIAL PRIMARY KEY,
@@ -820,6 +847,15 @@ ADD COLUMN IF NOT EXISTS signer_ip VARCHAR(100);
 ALTER TABLE demand_confirmation_requests
 ADD COLUMN IF NOT EXISTS signer_user_agent TEXT;
 
+ALTER TABLE demand_confirmation_requests
+ADD COLUMN IF NOT EXISTS flow_id INTEGER NULL REFERENCES demand_signature_flows(id) ON DELETE CASCADE;
+
+ALTER TABLE demand_confirmation_requests
+ADD COLUMN IF NOT EXISTS signer_order INTEGER NOT NULL DEFAULT 1;
+
+ALTER TABLE demand_confirmation_requests
+ADD COLUMN IF NOT EXISTS activated_at TIMESTAMP NULL;
+
 
 ALTER TABLE demand_lists
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
@@ -1008,6 +1044,11 @@ BEFORE UPDATE ON collaborators
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 
+DROP TRIGGER IF EXISTS trg_touch_updated_at_demand_signature_flows ON demand_signature_flows;
+CREATE TRIGGER trg_touch_updated_at_demand_signature_flows
+BEFORE UPDATE ON demand_signature_flows
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
 DROP TRIGGER IF EXISTS trg_touch_updated_at_demand_confirmation_requests ON demand_confirmation_requests;
 CREATE TRIGGER trg_touch_updated_at_demand_confirmation_requests
 BEFORE UPDATE ON demand_confirmation_requests
@@ -1295,6 +1336,17 @@ ON collaborators (lower(document_number));
 CREATE INDEX IF NOT EXISTS idx_collaborators_requester_unit
 ON collaborators (requester_unit_id);
 
+CREATE INDEX IF NOT EXISTS idx_demand_signature_flows_demand
+ON demand_signature_flows (demand_list_id);
+
+CREATE INDEX IF NOT EXISTS idx_demand_signature_flows_status
+ON demand_signature_flows (status);
+
+CREATE INDEX IF NOT EXISTS idx_demand_confirmation_requests_flow_order
+ON demand_confirmation_requests (flow_id, signer_order);
+
+CREATE INDEX IF NOT EXISTS idx_demand_confirmation_attachments_request
+ON demand_confirmation_attachments (demand_confirmation_request_id);
 CREATE INDEX IF NOT EXISTS idx_demand_confirmation_requests_demand
 ON demand_confirmation_requests (demand_list_id);
 
@@ -2918,7 +2970,9 @@ SELECT setval(pg_get_serial_sequence('requester_units', 'id'), GREATEST(COALESCE
 SELECT setval(pg_get_serial_sequence('collaborators', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM collaborators), 0), 1), COALESCE((SELECT MAX(id) FROM collaborators), 0) > 0);
 SELECT setval(pg_get_serial_sequence('suppliers', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM suppliers), 0), 1), COALESCE((SELECT MAX(id) FROM suppliers), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_lists', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_lists), 0), 1), COALESCE((SELECT MAX(id) FROM demand_lists), 0) > 0);
+SELECT setval(pg_get_serial_sequence('demand_signature_flows', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_signature_flows), 0), 1), COALESCE((SELECT MAX(id) FROM demand_signature_flows), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_confirmation_requests', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_confirmation_requests), 0), 1), COALESCE((SELECT MAX(id) FROM demand_confirmation_requests), 0) > 0);
+SELECT setval(pg_get_serial_sequence('demand_confirmation_attachments', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_confirmation_attachments), 0), 1), COALESCE((SELECT MAX(id) FROM demand_confirmation_attachments), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_items), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_supplier_quotes', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quotes), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_supplier_quote_items', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0), 1), COALESCE((SELECT MAX(id) FROM demand_supplier_quote_items), 0) > 0);

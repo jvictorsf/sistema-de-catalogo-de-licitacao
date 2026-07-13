@@ -136,10 +136,6 @@ Este arquivo registra ideias consultivas ainda nao implementadas para evolucao d
 - Objetivo: organizar documentos gerados, anexos recebidos, atas, comprovantes, assinaturas e evidencias.
 - Prompt sugerido: `Crie central de documentos por projeto, com upload, categorizacao, origem, responsavel, data, hash, permissao por perfil, busca, download e vinculacao a etapas do checklist processual.`
 
-### Assinatura institucional avancada
-- Objetivo: permitir assinatura por multiplos responsaveis com ordem, status, data e evidencias.
-- Prompt sugerido: `Evolua o modulo de assinaturas para permitir fluxo sequencial ou paralelo, multiplos assinantes, assinatura por token, anexos de comprovacao, hash individual e painel de pendencias.`
-
 ### Modelos institucionais configuraveis
 - Objetivo: configurar cabecalhos, rodapes, logos, campos e textos padrao por secretaria/departamento.
 - Prompt sugerido: `Crie modelos institucionais configuraveis por secretaria e departamento, permitindo cabecalho, rodape, logos adicionais, CNPJ, endereco, telefone, e-mail, assinatura e campos padrao para documentos.`

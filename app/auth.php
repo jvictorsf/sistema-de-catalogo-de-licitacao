@@ -141,7 +141,7 @@ function auth_permission_labels(): array
         'budgets.manage' => 'Gerenciar orcamentos e banco de precos',
         'suppliers.manage' => 'Gerenciar fornecedores',
         'requesters.manage' => 'Gerenciar secretarias, unidades e colaboradores',
-        'confirmations.manage' => 'Solicitar e revogar confirmacoes formais',
+        'confirmations.manage' => 'Gerenciar fluxos e evidencias de assinaturas',
         'reports.view' => 'Visualizar relatorios e exportacoes',
         'bi.view' => 'Visualizar gestao de projetos/BI',
         'hashes.view' => 'Validar hashes de documentos',
@@ -304,7 +304,7 @@ function auth_route_required_permission(string $page): ?string
         ],
         'suppliers.manage' => ['suppliers.php', 'supplier_form.php', 'supplier_delete.php', 'supplier_cnpj_lookup.php', 'supplier_cep_lookup.php', 'cnae_lookup.php'],
         'requesters.manage' => ['requester_units.php', 'requester_unit_form.php', 'requester_unit_delete.php', 'secretariat_form.php', 'secretariat_delete.php', 'collaborators.php', 'collaborator_form.php', 'collaborator_toggle.php'],
-        'confirmations.manage' => ['demand_confirmation_form.php', 'demand_confirmation_revoke.php'],
+        'confirmations.manage' => ['demand_confirmation_form.php', 'demand_confirmation_revoke.php', 'demand_confirmation_file.php', 'signature_pending.php'],
         'bi.view' => ['project_bi.php', 'annual_price_comparison.php', 'annual_price_comparison_export.php'],
         'hashes.view' => ['document_hash_validate.php'],
     ];

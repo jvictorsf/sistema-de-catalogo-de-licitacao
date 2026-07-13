@@ -19,7 +19,7 @@ require __DIR__ . '/../app/views/header.php';
     <div class="page-title">
         <h1 class="h3 mb-1">Validacao de documentos</h1>
         <p class="text-muted mb-0">
-            Consulte a autenticidade de anexos e fechamentos pelo hash gerado pelo sistema.
+            Consulte a autenticidade de anexos, assinaturas e fechamentos pelo hash gerado pelo sistema.
         </p>
     </div>
 </div>
@@ -86,7 +86,7 @@ require __DIR__ . '/../app/views/header.php';
                         <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
                             <div>
                                 <div class="text-muted small">
-                                    <?= match ($recordType) { 'project_closure' => 'Hash atual do projeto', 'project_status_event' => 'Evento de status do projeto', default => 'Anexo de licitacao' } ?>
+                                    <?= match ($recordType) { 'project_closure' => 'Hash atual do projeto', 'project_status_event' => 'Evento de status do projeto', 'demand_confirmation' => 'Assinatura individual de demanda', default => 'Anexo de licitacao' } ?>
                                 </div>
                                 <h2 class="h5 mb-0"><?= e($record['annex_label'] ?? '-') ?></h2>
                             </div>
@@ -125,7 +125,16 @@ require __DIR__ . '/../app/views/header.php';
                                     <dd class="col-sm-8"><?= date('d/m/Y', strtotime((string) $record['correction_deadline'])) ?></dd>
                                 <?php endif; ?>
                             <?php endif; ?>
-                            <?php if ($recordType === 'annex'): ?>
+                            <?php if ($recordType === 'demand_confirmation'): ?>
+                                <dt class="col-sm-4">Demanda</dt>
+                                <dd class="col-sm-8"><?= e($record['demand_name'] ?? '-') ?></dd>
+
+                                <dt class="col-sm-4">Assinante</dt>
+                                <dd class="col-sm-8">
+                                    <?= e($record['requester_name'] ?? '-') ?>
+                                    <?php if (!empty($record['requester_role'])): ?><div class="small text-muted"><?= e($record['requester_role']) ?></div><?php endif; ?>
+                                </dd>
+                            <?php endif; ?>                            <?php if ($recordType === 'annex'): ?>
                                 <dt class="col-sm-4">Versao</dt>
                                 <dd class="col-sm-8">
                                     <?= !empty($record['version_number']) ? 'v' . e((string) $record['version_number']) : '-' ?>

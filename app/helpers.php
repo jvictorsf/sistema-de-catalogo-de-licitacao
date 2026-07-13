@@ -2799,11 +2799,12 @@ function demand_confirmation_file_path(string $filename): string
     return demand_confirmation_storage_dir() . '/' . basename($filename);
 }
 
-function demand_confirmation_file_url(int $requestId, string $kind): string
+function demand_confirmation_file_url(int $requestId, string $kind, int $attachmentId = 0): string
 {
-    return '/demand_confirmation_file.php?id=' . $requestId . '&kind=' . rawurlencode($kind);
-}
+    $url = '/demand_confirmation_file.php?id=' . $requestId . '&kind=' . rawurlencode($kind);
 
+    return $attachmentId > 0 ? $url . '&attachment_id=' . $attachmentId : $url;
+}
 function demand_confirmation_default_statement(): string
 {
     return 'Declaro, para os fins administrativos cabiveis, que conferi os itens, quantidades e informacoes da demanda apresentada e confirmo que correspondem a necessidade do setor/unidade requisitante.';
@@ -2818,22 +2819,22 @@ function demand_confirmation_status_label(?string $status): string
 {
     return match ($status) {
         'signed' => 'Assinada',
+        'waiting' => 'Aguardando etapa anterior',
         'revoked' => 'Revogada',
         'expired' => 'Expirada',
         default => 'Pendente',
     };
 }
-
 function demand_confirmation_status_badge_class(?string $status): string
 {
     return match ($status) {
         'signed' => 'text-bg-success',
+        'waiting' => 'text-bg-info',
         'revoked' => 'text-bg-secondary',
         'expired' => 'text-bg-warning',
         default => 'text-bg-primary',
     };
 }
-
 function save_demand_confirmation_signature(string $dataUrl): string
 {
     if (!preg_match('/^data:image\/(png|jpeg);base64,/', $dataUrl, $matches)) {

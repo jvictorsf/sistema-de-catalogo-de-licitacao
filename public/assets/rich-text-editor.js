@@ -7,6 +7,40 @@ import { TableKit } from 'https://esm.sh/@tiptap/extension-table@3';
 
 const editorRegistry = new WeakMap();
 
+function loadEditorDefaults() {
+    const fallback = {
+        default_text_align: 'justify',
+        force_text_alignment: true,
+        font_css: 'Arial, Helvetica, sans-serif',
+        font_size_pt: 12,
+        line_height: 1.5,
+        paragraph_spacing_pt: 6,
+    };
+    const source = document.getElementById('rich-text-editor-defaults');
+
+    if (!source) {
+        return fallback;
+    }
+
+    try {
+        return { ...fallback, ...JSON.parse(source.textContent || '{}') };
+    } catch (error) {
+        console.warn('Não foi possível carregar os padrões do editor.', error);
+        return fallback;
+    }
+}
+
+const editorDefaults = loadEditorDefaults();
+
+function applyEditorDefaults(component) {
+    component.dataset.richForceAlignment = editorDefaults.force_text_alignment ? '1' : '0';
+    component.style.setProperty('--rich-text-align', editorDefaults.default_text_align);
+    component.style.setProperty('--rich-text-font-family', editorDefaults.font_css);
+    component.style.setProperty('--rich-text-font-size', `${editorDefaults.font_size_pt}pt`);
+    component.style.setProperty('--rich-text-line-height', editorDefaults.line_height);
+    component.style.setProperty('--rich-text-paragraph-spacing', `${editorDefaults.paragraph_spacing_pt}pt`);
+}
+
 const button = (command, icon, label) => `
     <button type="button" class="rich-text-editor-button" data-editor-command="${command}" aria-label="${label}" title="${label}" aria-pressed="false">
         <i class="bi ${icon}" aria-hidden="true"></i>
@@ -261,6 +295,7 @@ function initializeEditor(textarea) {
 
     textarea.dataset.richReady = '1';
     const component = ensureComponent(textarea);
+    applyEditorDefaults(component);
     const status = component.querySelector('[data-rich-editor-status]');
     const toolbar = document.createElement('div');
     const surface = document.createElement('div');
@@ -280,7 +315,10 @@ function initializeEditor(textarea) {
         extensions: [
             StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
             Underline,
-            TextAlign.configure({ types: ['heading', 'paragraph'] }),
+            TextAlign.configure({
+                types: ['heading', 'paragraph'],
+                defaultAlignment: editorDefaults.default_text_align,
+            }),
             Link.configure({ openOnClick: false, autolink: true, defaultProtocol: 'https' }),
             TableKit.configure({ table: { resizable: true } }),
         ],

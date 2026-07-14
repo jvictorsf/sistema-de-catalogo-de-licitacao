@@ -107,6 +107,38 @@ dod_test_not_contains($normalizedSections[0]['content'], 'onclick', 'Normalizaca
 $legacyFooter = direct_purchase_dod_normalize_footer(['show_page_numbers' => true]);
 dod_test_assert_true(!array_key_exists('show_page_numbers', $legacyFooter), 'Rodape deve descartar configuracao antiga de numeracao.');
 
+$editorDefaults = rich_text_editor_default_settings();
+dod_test_assert_true($editorDefaults['default_text_align'] === 'justify', 'Editor deve usar alinhamento justificado por padrao.');
+dod_test_assert_true($editorDefaults['font_family'] === 'arial', 'Editor deve usar Arial por padrao.');
+dod_test_assert_true($editorDefaults['show_page_numbers'] === true, 'DOD deve numerar as paginas por padrao.');
+dod_test_assert_true((float) $editorDefaults['page_margin_top_mm'] >= 50, 'Margem superior deve reservar espaco para o cabecalho.');
+dod_test_assert_true((float) $editorDefaults['page_margin_bottom_mm'] >= 25, 'Margem inferior deve reservar espaco para o rodape.');
+
+$normalizedEditorSettings = rich_text_editor_normalize_settings([
+    'default_text_align' => 'left',
+    'force_text_alignment' => '0',
+    'font_family' => 'times_new_roman',
+    'font_size_pt' => '11,5',
+    'line_height' => '1.25',
+    'paragraph_spacing_pt' => '4',
+    'page_margin_top_mm' => '52',
+    'page_margin_right_mm' => '16',
+    'page_margin_bottom_mm' => '30',
+    'page_margin_left_mm' => '16',
+    'show_page_numbers' => '0',
+], true);
+dod_test_assert_true($normalizedEditorSettings['font_size_pt'] === 11.5, 'Editor deve aceitar decimal com virgula.');
+dod_test_assert_true($normalizedEditorSettings['force_text_alignment'] === false, 'Editor deve normalizar aplicacao forcada.');
+dod_test_assert_true($normalizedEditorSettings['show_page_numbers'] === false, 'Editor deve permitir desabilitar numeracao.');
+
+$invalidEditorSettingsFailed = false;
+try {
+    rich_text_editor_normalize_settings(['font_family' => 'comic_sans'], true);
+} catch (InvalidArgumentException) {
+    $invalidEditorSettingsFailed = true;
+}
+dod_test_assert_true($invalidEditorSettingsFailed, 'Editor deve rejeitar fonte fora da lista permitida.');
+
 $editorMarkup = render_rich_text_editor('sections[0][content]', '<p><strong>Existente</strong></p>', [
     'id' => 'editor-test',
     'max_length' => 1200,
@@ -120,8 +152,20 @@ dod_test_contains($editorMarkup, 'data-rich-max-length="1200"', 'Componente deve
 $exportSource = (string) file_get_contents(__DIR__ . '/../public/direct_purchase_dod_export.php');
 $formSource = (string) file_get_contents(__DIR__ . '/../public/direct_purchase_dod.php');
 $editorSource = (string) file_get_contents(__DIR__ . '/../public/assets/rich-text-editor.js');
-dod_test_not_contains($exportSource, 'showPageNumbers', 'Exportador nao deve gerar numeracao de paginas.');
-dod_test_not_contains($exportSource, 'Página x de y', 'Pre-visualizacao nao deve exibir marcador de pagina.');
+$headerSource = (string) file_get_contents(__DIR__ . '/../app/views/header.php');
+$settingsPageSource = (string) file_get_contents(__DIR__ . '/../public/editor_settings.php');
+$schemaSource = (string) file_get_contents(__DIR__ . '/../database/schema.sql');
+dod_test_contains($exportSource, 'counter(page)', 'Impressao do DOD deve exibir pagina atual.');
+dod_test_contains($exportSource, 'counter(pages)', 'Impressao do DOD deve exibir total de paginas.');
+dod_test_contains($exportSource, 'position: fixed', 'Cabecalho e rodape devem ser fixos na impressao multipagina.');
+dod_test_contains($exportSource, 'mso-element: header', 'Word deve registrar cabecalho nativo da secao.');
+dod_test_contains($exportSource, 'mso-element: footer', 'Word deve registrar rodape nativo da secao.');
+dod_test_contains($exportSource, "direct_purchase_dod_export_word_field('PAGE', '1')", 'Word deve usar campo de pagina atual.');
+dod_test_contains($exportSource, "direct_purchase_dod_export_word_field('NUMPAGES', '1')", 'Word deve usar campo de total de paginas.');
+dod_test_contains($exportSource, 'mso-element: field-begin', 'Campo de pagina do Word deve possuir marcador inicial.');
+dod_test_contains($exportSource, 'mso-element: field-end', 'Campo de pagina do Word deve possuir marcador final.');
+dod_test_contains($exportSource, 'direct_purchase_dod_export_header_html', 'Exportador deve reutilizar uma composicao de cabecalho.');
+dod_test_contains($exportSource, 'direct_purchase_dod_export_footer_html', 'Exportador deve reutilizar uma composicao de rodape.');
 dod_test_not_contains($formSource, 'show_page_numbers', 'Formulario nao deve oferecer numeracao de paginas.');
 dod_test_contains($exportSource, 'print-color-adjust: exact', 'Faixas devem preservar cores na impressao.');
 dod_test_contains($exportSource, 'border-top-color: #ff0000', 'Faixa vermelha deve possuir borda imprimivel.');
@@ -132,5 +176,10 @@ dod_test_contains($editorSource, 'toggleUnderline', 'Editor deve oferecer sublin
 dod_test_contains($editorSource, 'insertTable', 'Editor deve oferecer tabelas.');
 dod_test_contains($editorSource, 'setTextAlign', 'Editor deve oferecer alinhamento.');
 dod_test_contains($editorSource, 'unsetAllMarks', 'Editor deve oferecer limpeza de formatacao.');
+dod_test_contains($editorSource, 'defaultAlignment: editorDefaults.default_text_align', 'TipTap deve receber alinhamento padrao administrativo.');
+dod_test_contains($headerSource, 'rich-text-editor-defaults', 'Aplicacao deve expor os padroes globais ao TipTap.');
+dod_test_contains($settingsPageSource, 'auth_require_permission', 'Pagina de configuracoes deve exigir permissao.');
+dod_test_contains($settingsPageSource, 'data-settings-preview', 'Pagina de configuracoes deve oferecer previa dinamica.');
+dod_test_contains($schemaSource, 'CREATE TABLE IF NOT EXISTS rich_text_editor_settings', 'Schema deve persistir configuracoes do editor.');
 
 echo "DirectPurchaseDodTest: OK\n";

@@ -136,6 +136,7 @@ function auth_permission_labels(): array
         'system.manage_data' => 'Exportar/importar dados do sistema',
         'system.view_diagnostics' => 'Visualizar diagnostico do ambiente',
         'system.view_logs' => 'Visualizar logs da aplicacao',
+        'system.manage_editor_settings' => 'Configurar editor de texto e documentos',
         'catalog.manage' => 'Gerenciar catalogo, kits e biblioteca',
         'projects.manage' => 'Gerenciar projetos, demandas, lotes e DOD',
         'budgets.manage' => 'Gerenciar orcamentos e banco de precos',
@@ -284,6 +285,7 @@ function auth_route_required_permission(string $page): ?string
         'system.manage_data' => ['data.php', 'export_json.php', 'import_json.php', 'import_template_json.php'],
         'system.view_diagnostics' => ['environment_diagnostics.php'],
         'system.view_logs' => ['system_logs.php'],
+        'system.manage_editor_settings' => ['editor_settings.php'],
         'catalog.manage' => [
             'ai_suggest.php', 'item_form.php', 'item_delete.php', 'item_duplicate.php', 'item_image_delete.php',
             'item_image_primary.php', 'item_version_create.php', 'item_version_restore.php', 'category_form.php',

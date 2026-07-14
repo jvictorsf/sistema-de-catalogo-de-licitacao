@@ -122,6 +122,11 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 
     <div class="d-flex gap-2 flex-wrap justify-content-end">
+        <?php if (auth_can('system.manage_editor_settings')): ?>
+            <a href="/editor_settings.php" class="btn btn-outline-secondary" title="Configurar padrões do editor e da impressão">
+                <i class="bi bi-file-earmark-font"></i>Padrões
+            </a>
+        <?php endif; ?>
         <a href="/direct_purchase_dod_export.php?id=<?= (int) $project['id'] ?>" target="_blank" class="btn btn-outline-danger">
             <i class="bi bi-filetype-pdf"></i>Visualizar/PDF
         </a>

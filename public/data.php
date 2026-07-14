@@ -14,7 +14,7 @@ $scopeDetails = [
     'all' => [
         'badge' => 'text-bg-dark',
         'icon' => 'bi-archive',
-        'description' => 'Backup operacional em JSON de cadastros, projetos, demandas, orcamentos, DOD, anexos, fornecedores, colaboradores, kits e bibliotecas.',
+        'description' => 'Backup operacional em JSON de cadastros, projetos, demandas, orcamentos, DOD, anexos, fornecedores, colaboradores, configuracoes do editor, kits e bibliotecas.',
         'tables' => 'Todos os escopos abaixo',
         'notes' => 'Nao substitui dump PostgreSQL nem backup dos arquivos gravados em storage/uploads.',
     ],

@@ -166,6 +166,13 @@ $navGroups = [
                 'active' => ['system_logs.php'],
             ],
             [
+                'href' => '/editor_settings.php',
+                'label' => 'Editor e documentos',
+                'icon' => 'bi-file-earmark-font',
+                'permission' => 'system.manage_editor_settings',
+                'active' => ['editor_settings.php'],
+            ],
+            [
                 'href' => '/document_hash_validate.php',
                 'label' => 'Validar hash',
                 'icon' => 'bi-shield-check',
@@ -187,7 +194,29 @@ $navGroups = [
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="/assets/app.css" rel="stylesheet">
     <?php if (function_exists('rich_text_editor_assets_requested') && rich_text_editor_assets_requested()): ?>
+        <?php
+        $richTextEditorSettings = rich_text_editor_resolved_settings();
+        $richTextEditorClientSettings = [
+            'default_text_align' => $richTextEditorSettings['default_text_align'],
+            'force_text_alignment' => $richTextEditorSettings['force_text_alignment'],
+            'font_family' => $richTextEditorSettings['font_family'],
+            'font_css' => rich_text_editor_font_css($richTextEditorSettings),
+            'font_size_pt' => $richTextEditorSettings['font_size_pt'],
+            'line_height' => $richTextEditorSettings['line_height'],
+            'paragraph_spacing_pt' => $richTextEditorSettings['paragraph_spacing_pt'],
+        ];
+        ?>
         <link href='/assets/rich-text-editor.css' rel='stylesheet'>
+        <style>
+            :root {
+                --rich-text-align: <?= e($richTextEditorSettings['default_text_align']) ?>;
+                --rich-text-font-family: <?= e(rich_text_editor_font_css($richTextEditorSettings)) ?>;
+                --rich-text-font-size: <?= e(rich_text_editor_css_number($richTextEditorSettings['font_size_pt'])) ?>pt;
+                --rich-text-line-height: <?= e(rich_text_editor_css_number($richTextEditorSettings['line_height'])) ?>;
+                --rich-text-paragraph-spacing: <?= e(rich_text_editor_css_number($richTextEditorSettings['paragraph_spacing_pt'])) ?>pt;
+            }
+        </style>
+        <script id="rich-text-editor-defaults" type="application/json"><?= json_encode($richTextEditorClientSettings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
     <?php endif; ?>
 </head>
 

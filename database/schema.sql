@@ -464,6 +464,26 @@ ALTER TABLE app_users
 ADD CONSTRAINT ck_app_users_role
 CHECK (role IN ('admin', 'manager', 'operator', 'viewer'));
 
+CREATE TABLE IF NOT EXISTS rich_text_editor_settings (
+    id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    default_text_align VARCHAR(20) NOT NULL DEFAULT 'justify'
+        CHECK (default_text_align IN ('left', 'justify', 'center', 'right')),
+    force_text_alignment BOOLEAN NOT NULL DEFAULT TRUE,
+    font_family VARCHAR(30) NOT NULL DEFAULT 'arial'
+        CHECK (font_family IN ('arial', 'calibri', 'times_new_roman', 'georgia', 'verdana')),
+    font_size_pt NUMERIC(4,1) NOT NULL DEFAULT 12 CHECK (font_size_pt BETWEEN 8 AND 24),
+    line_height NUMERIC(3,2) NOT NULL DEFAULT 1.5 CHECK (line_height BETWEEN 1 AND 2.5),
+    paragraph_spacing_pt NUMERIC(4,1) NOT NULL DEFAULT 6 CHECK (paragraph_spacing_pt BETWEEN 0 AND 24),
+    page_margin_top_mm NUMERIC(4,1) NOT NULL DEFAULT 50 CHECK (page_margin_top_mm BETWEEN 50 AND 80),
+    page_margin_right_mm NUMERIC(4,1) NOT NULL DEFAULT 18 CHECK (page_margin_right_mm BETWEEN 10 AND 40),
+    page_margin_bottom_mm NUMERIC(4,1) NOT NULL DEFAULT 32 CHECK (page_margin_bottom_mm BETWEEN 25 AND 60),
+    page_margin_left_mm NUMERIC(4,1) NOT NULL DEFAULT 18 CHECK (page_margin_left_mm BETWEEN 10 AND 40),
+    show_page_numbers BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_by_user_id INTEGER NULL REFERENCES app_users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -1198,6 +1218,13 @@ CREATE TRIGGER trg_touch_updated_at_app_users
 BEFORE UPDATE ON app_users
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_rich_text_editor_settings ON rich_text_editor_settings;
+CREATE TRIGGER trg_touch_updated_at_rich_text_editor_settings
+BEFORE UPDATE ON rich_text_editor_settings
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
 DROP TRIGGER IF EXISTS trg_touch_updated_at_collaborators ON collaborators;
 CREATE TRIGGER trg_touch_updated_at_collaborators
 BEFORE UPDATE ON collaborators

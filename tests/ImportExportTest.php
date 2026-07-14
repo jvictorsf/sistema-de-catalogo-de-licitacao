@@ -21,6 +21,13 @@ import_test_assert_true(array_key_exists('minimum_validity_months', $template['d
 import_test_assert_true(isset($template['data']['procurement_item_versions'][0]), 'Template de itens deve incluir versoes do item.');
 import_test_assert_true(array_key_exists('change_summary', $template['data']['procurement_item_versions'][0]), 'Template deve incluir auditoria das versoes.');
 
+$allTemplate = catalog_json_import_template('all');
+import_test_assert_true(isset($allTemplate['data']['rich_text_editor_settings'][0]), 'Template geral deve incluir configuracoes do editor.');
+import_test_assert_true(
+    ($allTemplate['data']['rich_text_editor_settings'][0]['default_text_align'] ?? null) === 'justify',
+    'Template geral deve exportar padrao de alinhamento.'
+);
+
 $failed = false;
 try {
     catalog_json_import_template('escopo_invalido');

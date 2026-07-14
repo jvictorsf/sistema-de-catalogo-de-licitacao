@@ -161,6 +161,23 @@ DOD_LOGO_RIGHT_PATH=/assets/municipio-verde-azul.png
 ```
 
 Logos especificas de secretaria ou departamento podem ser adicionadas na propria tela do DOD, uma por linha.
+
+## Padroes do Editor e dos Documentos
+Administradores podem acessar `Administracao > Editor e documentos` ou
+`/editor_settings.php` para configurar os padroes globais do TipTap e do DOD:
+
+- fonte e tamanho;
+- alinhamento padrao e aplicacao obrigatoria a todo o texto;
+- espacamento entre linhas e paragrafos;
+- margens superior, direita, inferior e esquerda;
+- exibicao de `Pagina X de Y`.
+
+As margens superior e inferior possuem limites que reservam espaco para o
+cabecalho e o rodape institucionais. Na impressao/PDF, esses elementos sao
+repetidos em todas as folhas; no Word, sao gerados como cabecalho e rodape da
+secao. Aplique `database/schema.sql` para criar a tabela de configuracao antes
+de salvar os padroes pela primeira vez.
+
 ## Estrutura
 
 ```txt

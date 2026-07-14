@@ -1381,6 +1381,135 @@ function repository_json_array(mixed $value): array
     return [];
 }
 
+function rich_text_editor_settings_table_exists(): bool
+{
+    return database_table_exists('rich_text_editor_settings');
+}
+
+function get_rich_text_editor_settings(): array
+{
+    $defaults = rich_text_editor_default_settings();
+    $result = array_merge($defaults, [
+        'schema_available' => false,
+        'exists' => false,
+        'updated_at' => null,
+        'updated_by_user_name' => null,
+    ]);
+
+    try {
+        if (!rich_text_editor_settings_table_exists()) {
+            return $result;
+        }
+
+        $result['schema_available'] = true;
+        $stmt = db()->query("
+            SELECT
+                settings.*,
+                app_users.name AS updated_by_user_name
+            FROM rich_text_editor_settings settings
+            LEFT JOIN app_users ON app_users.id = settings.updated_by_user_id
+            WHERE settings.id = 1
+        ");
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return $result;
+        }
+
+        return array_merge($result, rich_text_editor_normalize_settings($row), [
+            'exists' => true,
+            'updated_at' => $row['updated_at'] ?? null,
+            'updated_by_user_name' => $row['updated_by_user_name'] ?? null,
+        ]);
+    } catch (Throwable $exception) {
+        log_optional_schema_issue('configuracoes do editor TipTap', $exception);
+
+        return $result;
+    }
+}
+
+function save_rich_text_editor_settings(array $data): array
+{
+    if (!rich_text_editor_settings_table_exists()) {
+        throw new RuntimeException('Configurações do editor indisponíveis. Atualize o schema do banco de dados.');
+    }
+
+    if (function_exists('auth_can') && !auth_can('system.manage_editor_settings')) {
+        throw new RuntimeException('Somente administradores podem alterar as configurações do editor.');
+    }
+
+    $settings = rich_text_editor_normalize_settings($data, true);
+    $currentUser = function_exists('auth_current_user') ? auth_current_user() : null;
+    $stmt = db()->prepare("
+        INSERT INTO rich_text_editor_settings (
+            id,
+            default_text_align,
+            force_text_alignment,
+            font_family,
+            font_size_pt,
+            line_height,
+            paragraph_spacing_pt,
+            page_margin_top_mm,
+            page_margin_right_mm,
+            page_margin_bottom_mm,
+            page_margin_left_mm,
+            show_page_numbers,
+            updated_by_user_id
+        ) VALUES (
+            1,
+            :default_text_align,
+            :force_text_alignment,
+            :font_family,
+            :font_size_pt,
+            :line_height,
+            :paragraph_spacing_pt,
+            :page_margin_top_mm,
+            :page_margin_right_mm,
+            :page_margin_bottom_mm,
+            :page_margin_left_mm,
+            :show_page_numbers,
+            :updated_by_user_id
+        )
+        ON CONFLICT (id) DO UPDATE SET
+            default_text_align = EXCLUDED.default_text_align,
+            force_text_alignment = EXCLUDED.force_text_alignment,
+            font_family = EXCLUDED.font_family,
+            font_size_pt = EXCLUDED.font_size_pt,
+            line_height = EXCLUDED.line_height,
+            paragraph_spacing_pt = EXCLUDED.paragraph_spacing_pt,
+            page_margin_top_mm = EXCLUDED.page_margin_top_mm,
+            page_margin_right_mm = EXCLUDED.page_margin_right_mm,
+            page_margin_bottom_mm = EXCLUDED.page_margin_bottom_mm,
+            page_margin_left_mm = EXCLUDED.page_margin_left_mm,
+            show_page_numbers = EXCLUDED.show_page_numbers,
+            updated_by_user_id = EXCLUDED.updated_by_user_id,
+            updated_at = CURRENT_TIMESTAMP
+    ");
+    $stmt->execute([
+        'default_text_align' => $settings['default_text_align'],
+        'force_text_alignment' => pg_bool($settings['force_text_alignment']),
+        'font_family' => $settings['font_family'],
+        'font_size_pt' => $settings['font_size_pt'],
+        'line_height' => $settings['line_height'],
+        'paragraph_spacing_pt' => $settings['paragraph_spacing_pt'],
+        'page_margin_top_mm' => $settings['page_margin_top_mm'],
+        'page_margin_right_mm' => $settings['page_margin_right_mm'],
+        'page_margin_bottom_mm' => $settings['page_margin_bottom_mm'],
+        'page_margin_left_mm' => $settings['page_margin_left_mm'],
+        'show_page_numbers' => pg_bool($settings['show_page_numbers']),
+        'updated_by_user_id' => $currentUser['id'] ?? null,
+    ]);
+
+    if (function_exists('app_log')) {
+        app_log('info', 'Configurações globais do editor TipTap atualizadas.', [
+            'user_id' => $currentUser['id'] ?? null,
+            'settings' => $settings,
+        ]);
+    }
+
+    return $settings;
+}
+
 function direct_purchase_dod_table_exists(): bool
 {
     return database_table_exists('direct_purchase_dod_documents');
@@ -8691,6 +8820,26 @@ function catalog_json_table_definitions(): array
             'columns' => ['id', 'project_id', 'header', 'footer', 'sections', 'created_at', 'updated_at'],
             'json' => ['header', 'footer', 'sections'],
         ],
+        'rich_text_editor_settings' => [
+            'label' => 'Configurações do editor e documentos',
+            'columns' => [
+                'id',
+                'default_text_align',
+                'force_text_alignment',
+                'font_family',
+                'font_size_pt',
+                'line_height',
+                'paragraph_spacing_pt',
+                'page_margin_top_mm',
+                'page_margin_right_mm',
+                'page_margin_bottom_mm',
+                'page_margin_left_mm',
+                'show_page_numbers',
+                'created_at',
+                'updated_at',
+            ],
+            'json' => [],
+        ],
         'secretariats' => [
             'label' => 'Secretarias',
             'columns' => ['id', 'name', 'is_active', 'created_at', 'updated_at'],
@@ -8981,6 +9130,7 @@ function catalog_json_scope_tables(string $scope): array
             'project_annex_versions',
             'project_status_events',
             'direct_purchase_dod_documents',
+            'rich_text_editor_settings',
             'project_lot_denominations',
             'project_lot_assignments',
             'justification_templates',
@@ -9116,6 +9266,10 @@ function catalog_json_sample_row(string $table, array $columns): array
             ],
             'image_path' => null,
         ]);
+    }
+
+    if ($table === 'rich_text_editor_settings') {
+        return array_merge($row, ['id' => 1], rich_text_editor_default_settings());
     }
 
     if ($table === 'environmental_impact_templates') {

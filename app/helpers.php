@@ -1364,6 +1364,137 @@ function direct_purchase_dod_render_inline_markdown(string $text): string
     return $html;
 }
 
+function rich_text_editor_font_options(): array
+{
+    return [
+        'arial' => ['label' => 'Arial', 'css' => 'Arial, Helvetica, sans-serif'],
+        'calibri' => ['label' => 'Calibri', 'css' => 'Calibri, Arial, sans-serif'],
+        'times_new_roman' => ['label' => 'Times New Roman', 'css' => '"Times New Roman", Times, serif'],
+        'georgia' => ['label' => 'Georgia', 'css' => 'Georgia, "Times New Roman", serif'],
+        'verdana' => ['label' => 'Verdana', 'css' => 'Verdana, Arial, sans-serif'],
+    ];
+}
+
+function rich_text_editor_alignment_options(): array
+{
+    return [
+        'left' => 'Alinhado à esquerda',
+        'justify' => 'Justificado',
+        'center' => 'Centralizado',
+        'right' => 'Alinhado à direita',
+    ];
+}
+
+function rich_text_editor_default_settings(): array
+{
+    return [
+        'default_text_align' => 'justify',
+        'force_text_alignment' => true,
+        'font_family' => 'arial',
+        'font_size_pt' => 12.0,
+        'line_height' => 1.5,
+        'paragraph_spacing_pt' => 6.0,
+        'page_margin_top_mm' => 50.0,
+        'page_margin_right_mm' => 18.0,
+        'page_margin_bottom_mm' => 32.0,
+        'page_margin_left_mm' => 18.0,
+        'show_page_numbers' => true,
+    ];
+}
+
+function rich_text_editor_setting_number(
+    mixed $value,
+    float $default,
+    float $minimum,
+    float $maximum,
+    string $label,
+    bool $strict
+): float {
+    $normalized = str_replace(',', '.', trim((string) $value));
+
+    if ($normalized === '') {
+        return $default;
+    }
+
+    if (!is_numeric($normalized)) {
+        if ($strict) {
+            throw new InvalidArgumentException($label . ' deve ser um número.');
+        }
+
+        return $default;
+    }
+
+    $number = (float) $normalized;
+
+    if ($number < $minimum || $number > $maximum) {
+        if ($strict) {
+            throw new InvalidArgumentException(
+                $label . ' deve ficar entre '
+                . number_format($minimum, 1, ',', '')
+                . ' e '
+                . number_format($maximum, 1, ',', '')
+                . '.'
+            );
+        }
+
+        return $default;
+    }
+
+    return round($number, 2);
+}
+
+function rich_text_editor_normalize_settings(array $settings, bool $strict = false): array
+{
+    $defaults = rich_text_editor_default_settings();
+    $fontOptions = rich_text_editor_font_options();
+    $alignmentOptions = rich_text_editor_alignment_options();
+    $fontFamily = trim((string) ($settings['font_family'] ?? $defaults['font_family']));
+    $textAlign = trim((string) ($settings['default_text_align'] ?? $defaults['default_text_align']));
+
+    if (!isset($fontOptions[$fontFamily])) {
+        if ($strict) {
+            throw new InvalidArgumentException('Selecione uma fonte padrão válida.');
+        }
+
+        $fontFamily = (string) $defaults['font_family'];
+    }
+
+    if (!isset($alignmentOptions[$textAlign])) {
+        if ($strict) {
+            throw new InvalidArgumentException('Selecione um alinhamento padrão válido.');
+        }
+
+        $textAlign = (string) $defaults['default_text_align'];
+    }
+
+    return [
+        'default_text_align' => $textAlign,
+        'force_text_alignment' => boolish($settings['force_text_alignment'] ?? $defaults['force_text_alignment'], true),
+        'font_family' => $fontFamily,
+        'font_size_pt' => rich_text_editor_setting_number($settings['font_size_pt'] ?? null, (float) $defaults['font_size_pt'], 8, 24, 'O tamanho da fonte', $strict),
+        'line_height' => rich_text_editor_setting_number($settings['line_height'] ?? null, (float) $defaults['line_height'], 1, 2.5, 'O espaçamento entre linhas', $strict),
+        'paragraph_spacing_pt' => rich_text_editor_setting_number($settings['paragraph_spacing_pt'] ?? null, (float) $defaults['paragraph_spacing_pt'], 0, 24, 'O espaço entre parágrafos', $strict),
+        'page_margin_top_mm' => rich_text_editor_setting_number($settings['page_margin_top_mm'] ?? null, (float) $defaults['page_margin_top_mm'], 50, 80, 'A margem superior', $strict),
+        'page_margin_right_mm' => rich_text_editor_setting_number($settings['page_margin_right_mm'] ?? null, (float) $defaults['page_margin_right_mm'], 10, 40, 'A margem direita', $strict),
+        'page_margin_bottom_mm' => rich_text_editor_setting_number($settings['page_margin_bottom_mm'] ?? null, (float) $defaults['page_margin_bottom_mm'], 25, 60, 'A margem inferior', $strict),
+        'page_margin_left_mm' => rich_text_editor_setting_number($settings['page_margin_left_mm'] ?? null, (float) $defaults['page_margin_left_mm'], 10, 40, 'A margem esquerda', $strict),
+        'show_page_numbers' => boolish($settings['show_page_numbers'] ?? $defaults['show_page_numbers'], true),
+    ];
+}
+
+function rich_text_editor_font_css(array $settings): string
+{
+    $fontFamily = (string) ($settings['font_family'] ?? rich_text_editor_default_settings()['font_family']);
+
+    return rich_text_editor_font_options()[$fontFamily]['css']
+        ?? rich_text_editor_font_options()['arial']['css'];
+}
+
+function rich_text_editor_css_number(mixed $value, int $precision = 2): string
+{
+    return rtrim(rtrim(number_format((float) $value, $precision, '.', ''), '0'), '.');
+}
+
 function rich_text_contains_html(string $content): bool
 {
     return preg_match('/<(?:p|h[1-3]|strong|b|em|i|u|ul|ol|li|blockquote|br|hr|a|table|thead|tbody|tfoot|tr|th|td)\b/i', $content) === 1;

@@ -12,6 +12,25 @@ function rich_text_editor_assets_requested(): bool
     return !empty($GLOBALS['rich_text_editor_assets_requested']);
 }
 
+function rich_text_editor_resolved_settings(): array
+{
+    static $resolvedSettings = null;
+
+    if (is_array($resolvedSettings)) {
+        return $resolvedSettings;
+    }
+
+    $settings = function_exists('get_rich_text_editor_settings')
+        ? get_rich_text_editor_settings()
+        : (function_exists('rich_text_editor_default_settings') ? rich_text_editor_default_settings() : []);
+
+    $resolvedSettings = function_exists('rich_text_editor_normalize_settings')
+        ? rich_text_editor_normalize_settings($settings)
+        : $settings;
+
+    return $resolvedSettings;
+}
+
 function render_rich_text_editor(string $name, string $value = '', array $options = []): string
 {
     request_rich_text_editor_assets();

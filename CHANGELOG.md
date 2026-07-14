@@ -1,6 +1,25 @@
 # Changelog
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
+## [1.6.21] - 2026-07-13
+
+### Adicionado
+- Pagina administrativa `Editor e documentos` para definir fonte, tamanho, entrelinhas, espaco entre paragrafos, alinhamento, aplicacao forcada do alinhamento, margens de impressao e numeracao.
+- Previa responsiva e atualizada em tempo real das configuracoes do documento.
+- Persistencia global auditavel dos padroes do TipTap e documentos, com permissao exclusiva de administrador e suporte na exportacao/importacao JSON geral.
+
+### Alterado
+- TipTap passa a carregar os padroes administrativos em editores existentes e em topicos adicionados dinamicamente ao DOD.
+- DOD passa a aplicar tipografia, espacamentos, alinhamento e margens definidos pela Administracao.
+- Cabecalho e rodape institucionais do DOD passam a ser repetidos em todas as paginas impressas e nas secoes do Word.
+- Impressao/PDF e Word passam a exibir pagina atual e total de paginas quando a numeracao estiver habilitada.
+
+### Banco de Dados
+- Schema adiciona a tabela singleton `rich_text_editor_settings` e o respectivo gatilho de atualizacao, sem alterar configuracoes ou documentos existentes.
+
+### Testes
+- Suite passa a cobrir normalizacao e limites dos padroes, permissao administrativa, schema, TipTap, exportacao JSON e repeticao/paginacao do DOD em impressao e Word.
+
 ## [1.6.20] - 2026-07-13
 
 ### Adicionado

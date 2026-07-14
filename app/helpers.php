@@ -449,6 +449,226 @@ function item_status_badge_class(?string $status): string
     return $classes[$status ?? ''] ?? 'text-bg-secondary';
 }
 
+function item_supply_classification_options(): array
+{
+    return [
+        'permanent' => [
+            'label' => 'Material permanente',
+            'nature' => 'PERMANENTE',
+            'perishable' => false,
+            'default_warranty_months' => 12,
+            'minimum_warranty_months' => 12,
+        ],
+        'consumption_nonperishable' => [
+            'label' => 'Material de consumo não perecível',
+            'nature' => 'CONSUMO',
+            'perishable' => false,
+            'default_warranty_months' => 3,
+            'minimum_warranty_months' => 3,
+        ],
+        'consumption_perishable' => [
+            'label' => 'Material de consumo perecível',
+            'nature' => 'CONSUMO',
+            'perishable' => true,
+            'default_warranty_months' => 3,
+            'minimum_warranty_months' => 3,
+        ],
+        'service' => [
+            'label' => 'Serviço',
+            'nature' => 'SERVICO',
+            'perishable' => false,
+            'default_warranty_months' => 3,
+            'minimum_warranty_months' => 1,
+        ],
+    ];
+}
+
+function item_supply_classification_key(array $source): string
+{
+    $explicit = strtolower(trim((string) ($source['item_classification'] ?? '')));
+    if (array_key_exists($explicit, item_supply_classification_options())) {
+        return $explicit;
+    }
+
+    $nature = strtoupper(trim((string) ($source['item_nature'] ?? '')));
+
+    return match ($nature) {
+        'PERMANENTE' => 'permanent',
+        'CONSUMO' => boolish($source['is_perishable'] ?? false, false)
+            ? 'consumption_perishable'
+            : 'consumption_nonperishable',
+        'SERVICO' => 'service',
+        default => '',
+    };
+}
+
+function item_supply_conditions_migrated(array $source): bool
+{
+    return item_supply_classification_key($source) !== ''
+        && (int) ($source['warranty_months'] ?? 0) > 0;
+}
+
+function item_supply_classification_label(array $source): string
+{
+    $key = item_supply_classification_key($source);
+
+    return item_supply_classification_options()[$key]['label'] ?? 'Classificação pendente';
+}
+
+function item_supply_classification_badge_class(array $source): string
+{
+    return match (item_supply_classification_key($source)) {
+        'permanent' => 'text-bg-primary',
+        'consumption_nonperishable' => 'text-bg-success',
+        'consumption_perishable' => 'text-bg-warning',
+        'service' => 'text-bg-info',
+        default => 'text-bg-secondary',
+    };
+}
+
+function item_supply_positive_integer(mixed $value): ?int
+{
+    if (is_int($value)) {
+        return $value > 0 ? $value : null;
+    }
+
+    $value = trim((string) $value);
+
+    return preg_match('/^[1-9]\d*$/', $value) === 1 ? (int) $value : null;
+}
+
+function item_supply_months_text(int $months): string
+{
+    return $months . ' (' . direct_purchase_dod_int_to_words_pt_br($months) . ') ' . ($months === 1 ? 'mês' : 'meses');
+}
+
+function item_supply_warranty_text(string $nature, int $months): string
+{
+    $period = item_supply_months_text($months);
+
+    return match ($nature) {
+        'PERMANENTE' => 'Garantia mínima de ' . $period . ' contra defeitos de fabricação, contada a partir do recebimento definitivo, compreendendo reparo ou substituição do produto, sem custos adicionais para a Administração.',
+        'SERVICO' => 'Garantia mínima dos serviços de ' . $period . ', contada a partir do recebimento definitivo, compreendendo a correção de falhas, vícios ou desconformidades sem custos adicionais para a Administração.',
+        default => 'Garantia mínima de ' . $period . ' contra defeitos de fabricação, contada a partir do recebimento definitivo, sem prejuízo da obrigatoriedade de substituição de produtos avariados, defeituosos, divergentes ou em desconformidade com as especificações.',
+    };
+}
+
+function item_supply_validity_text(?int $months): string
+{
+    return $months
+        ? 'O produto deverá possuir prazo de validade remanescente mínimo de ' . item_supply_months_text($months) . ', contado da data da entrega.'
+        : '';
+}
+
+function prepare_item_supply_conditions(
+    array $data,
+    bool $isService = false,
+    bool $allowPermanentValidityException = false
+): array {
+    $classification = $isService ? 'service' : item_supply_classification_key($data);
+    $options = item_supply_classification_options();
+
+    if ($classification === '' || !isset($options[$classification])) {
+        throw new InvalidArgumentException('Selecione a classificação do item.');
+    }
+
+    $option = $options[$classification];
+    $nature = (string) $option['nature'];
+    $isPerishable = (bool) $option['perishable'];
+    $rawWarrantyMonths = trim((string) ($data['warranty_months'] ?? ''));
+    $warrantyMonths = $rawWarrantyMonths === ''
+        ? (int) $option['default_warranty_months']
+        : item_supply_positive_integer($rawWarrantyMonths);
+    $minimumWarranty = (int) $option['minimum_warranty_months'];
+
+    if ($warrantyMonths === null) {
+        throw new InvalidArgumentException('Informe a garantia em meses usando um número inteiro maior que zero.');
+    }
+
+    if ($warrantyMonths < $minimumWarranty) {
+        throw new InvalidArgumentException(
+            'A garantia mínima para ' . mb_strtolower((string) $option['label'], 'UTF-8')
+            . ' é de ' . $minimumWarranty . ' meses.'
+        );
+    }
+
+    $validityRequired = false;
+    $validityMonths = null;
+    $exceptionJustification = trim((string) ($data['validity_exception_justification'] ?? ''));
+
+    if ($classification === 'consumption_perishable') {
+        $validityRequired = true;
+    } elseif ($classification === 'consumption_nonperishable' || $classification === 'permanent') {
+        $validityRequired = boolish($data['minimum_validity_required'] ?? false, false);
+    }
+
+    if ($classification === 'permanent' && $validityRequired) {
+        if (!$allowPermanentValidityException) {
+            throw new InvalidArgumentException('Somente administradores podem exigir validade mínima para material permanente.');
+        }
+
+        if ($exceptionJustification === '') {
+            throw new InvalidArgumentException('Justifique a exigência excepcional de validade para o material permanente.');
+        }
+    } else {
+        $exceptionJustification = '';
+    }
+
+    if ($validityRequired) {
+        $rawValidityMonths = trim((string) ($data['minimum_validity_months'] ?? ''));
+        $validityMonths = $rawValidityMonths === ''
+            ? 12
+            : item_supply_positive_integer($rawValidityMonths);
+
+        if ($validityMonths === null) {
+            throw new InvalidArgumentException('Informe a validade mínima em meses usando um número inteiro maior que zero.');
+        }
+    }
+
+    return [
+        'item_classification' => $classification,
+        'item_nature' => $nature,
+        'is_perishable' => $isPerishable,
+        'warranty_months' => $warrantyMonths,
+        'minimum_validity_required' => $validityRequired,
+        'minimum_validity_months' => $validityMonths,
+        'validity_exception_justification' => $exceptionJustification !== '' ? $exceptionJustification : null,
+        'warranty' => item_supply_warranty_text($nature, $warrantyMonths),
+        'minimum_validity_text' => item_supply_validity_text($validityMonths),
+        'supply_conditions_migrated_at' => trim((string) ($data['supply_conditions_migrated_at'] ?? '')) ?: date('Y-m-d H:i:s'),
+    ];
+}
+
+function item_supply_conditions_snapshot(array $source): array
+{
+    return [
+        'classification' => item_supply_classification_key($source),
+        'classification_label' => item_supply_classification_label($source),
+        'item_nature' => $source['item_nature'] ?? null,
+        'is_perishable' => array_key_exists('is_perishable', $source) ? boolish($source['is_perishable'], false) : null,
+        'warranty_months' => isset($source['warranty_months']) ? (int) $source['warranty_months'] : null,
+        'minimum_validity_required' => boolish($source['minimum_validity_required'] ?? false, false),
+        'minimum_validity_months' => isset($source['minimum_validity_months']) ? (int) $source['minimum_validity_months'] : null,
+        'validity_exception_justification' => $source['validity_exception_justification'] ?? null,
+        'warranty_text' => trim((string) ($source['warranty'] ?? '')),
+        'validity_text' => trim((string) ($source['minimum_validity_text'] ?? '')),
+    ];
+}
+
+function item_legacy_validity_text(array $source): string
+{
+    $specification = item_specification_array_from_value($source['specification'] ?? []);
+
+    foreach (['validade', 'validade_minima', 'prazo_validade', 'prazo_minimo_validade'] as $key) {
+        $values = licitation_annex_specification_values($specification[$key] ?? null);
+        if ($values) {
+            return implode(PHP_EOL, $values);
+        }
+    }
+
+    return '';
+}
+
 function project_process_type_options(): array
 {
     return [
@@ -1682,12 +1902,13 @@ function licitation_annex_specification_sections(array $item): array
 {
     $specification = item_specification_array_from_value($item['specification'] ?? []);
     $warranty = $item['warranty'] ?? null;
+    $minimumValidity = trim((string) ($item['minimum_validity_text'] ?? ''));
 
     if (($warranty === null || trim((string) $warranty) === '') && array_key_exists('garantia', $specification)) {
         $warranty = $specification['garantia'];
     }
 
-    return [
+    $sections = [
         [
             'label' => "Descri\u{00E7}\u{00E3}o m\u{00ED}nima",
             'values' => licitation_annex_specification_values($specification['descricao_minima'] ?? null),
@@ -1714,6 +1935,16 @@ function licitation_annex_specification_sections(array $item): array
             'list' => false,
         ],
     ];
+
+    if ($minimumValidity !== '') {
+        $sections[] = [
+            'label' => "Validade m\u{00ED}nima",
+            'values' => licitation_annex_specification_values($minimumValidity),
+            'list' => false,
+        ];
+    }
+
+    return $sections;
 }
 
 function licitation_annex_specification_text(array $item, string $separator = "\n"): string

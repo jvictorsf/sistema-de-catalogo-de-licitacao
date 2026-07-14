@@ -1,6 +1,29 @@
 # Changelog
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
+## [1.6.20] - 2026-07-13
+
+### Adicionado
+- Secao estruturada de classificacao e condicoes de fornecimento no cadastro de itens, com opcoes para material permanente, consumo nao perecivel e consumo perecivel.
+- Classificacao interna propria para servicos, preservando a separacao entre objetos materiais e execucao de servicos.
+- Garantia minima em meses, validade remanescente opcional ou obrigatoria conforme a classificacao e textos institucionais gerados automaticamente.
+- Previa em tempo real das clausulas de garantia e validade, com selecao visual responsiva e excecao de validade para material permanente restrita a administrador e acompanhada de justificativa.
+- Filtro de classificacao na listagem do catalogo e exibicao dos novos dados no item, nas versoes, nos anexos e nas exportacoes Word, PDF e JSON.
+- Auditoria das condicoes de fornecimento com estado anterior, proximo estado, textos legados, usuario e data da versao.
+
+### Alterado
+- Novos itens e itens editados passam a exigir dados estruturados; itens antigos permanecem inalterados ate a primeira edicao.
+- Textos livres de garantia e validade deixam de ser a fonte oficial depois da migracao e passam a ser preservados somente no historico.
+- Exportacao e importacao JSON passam ao formato 2, incluindo classificacao, perecibilidade, prazos, textos gerados e resumo auditavel das versoes.
+- Copia, restauracao de versoes, demandas e consultas consolidadas passam a preservar as condicoes estruturadas dos itens.
+
+### Banco de Dados
+- Schema adiciona natureza, perecibilidade, garantia em meses, validade minima, justificativa excepcional e marcador de migracao aos itens e suas versoes.
+- Constraints mantem itens legados validos sem alterar seus dados e aplicam os prazos minimos aos registros migrados.
+
+### Testes
+- Suite passa a cobrir valores padrao, limites minimos, bloqueio de decimais e intervalos, perecibilidade, servicos, excecao administrativa, anexos e formato JSON 2.
+
 ## [1.6.19] - 2026-07-13
 
 ### Alterado

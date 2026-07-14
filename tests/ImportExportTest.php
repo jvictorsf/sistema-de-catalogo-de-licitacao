@@ -14,7 +14,12 @@ function import_test_assert_true(bool $condition, string $message): void
 $template = catalog_json_import_template('items');
 import_test_assert_true(($template['scope'] ?? null) === 'items', 'Template de itens deve preservar escopo.');
 import_test_assert_true(isset($template['data']['procurement_items'][0]['specification']), 'Template de itens deve incluir especificacao tecnica.');
+import_test_assert_true(($template['format_version'] ?? 0) === 2, 'Template estruturado de itens deve usar formato 2.');
+import_test_assert_true(($template['data']['procurement_items'][0]['item_nature'] ?? null) === 'PERMANENTE', 'Template deve incluir natureza estruturada.');
+import_test_assert_true(($template['data']['procurement_items'][0]['warranty_months'] ?? null) === 12, 'Template deve incluir garantia em meses.');
+import_test_assert_true(array_key_exists('minimum_validity_months', $template['data']['procurement_items'][0]), 'Template deve incluir validade minima estruturada.');
 import_test_assert_true(isset($template['data']['procurement_item_versions'][0]), 'Template de itens deve incluir versoes do item.');
+import_test_assert_true(array_key_exists('change_summary', $template['data']['procurement_item_versions'][0]), 'Template deve incluir auditoria das versoes.');
 
 $failed = false;
 try {

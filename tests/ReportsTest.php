@@ -60,6 +60,7 @@ $specificationItem = [
         'observacoes' => ["Pre\u{00C3}\u{00A7}os conforme proposta."],
     ],
     'warranty' => '12 meses',
+    'minimum_validity_text' => "O produto deverá possuir prazo de validade remanescente mínimo de 12 (doze) meses, contado da data da entrega.",
 ];
 $specificationHtml = licitation_annex_specification_html($specificationItem);
 $specificationText = licitation_annex_specification_text($specificationItem);
@@ -70,6 +71,7 @@ foreach ([
     "Crit\u{00E9}rios de aceita\u{00E7}\u{00E3}o",
     "Observa\u{00E7}\u{00F5}es",
     'Garantia',
+    "Validade m\u{00ED}nima",
 ] as $sectionLabel) {
     reports_test_assert_contains(
         '<strong class="annex-spec-title">' . $sectionLabel . '</strong>',
@@ -87,6 +89,7 @@ reports_test_assert_contains("Pre\u{00E7}os conforme proposta.", $specificationH
 reports_test_assert_not_contains("\u{00C3}", $specificationHtml, 'Anexo nao deve manter marcador de mojibake.');
 reports_test_assert_contains('12 meses', $specificationHtml, 'Anexo deve exibir garantia cadastrada.');
 reports_test_assert_contains('Garantia:', $specificationText, 'Payload textual deve incluir garantia.');
+reports_test_assert_contains("Validade m\u{00ED}nima:", $specificationText, 'Payload textual deve incluir validade quando aplicável.');
 
 $legacyObservationHtml = licitation_annex_specification_html([
     'specification' => ['observacoes' => [standard_product_item_observations()[0]]],

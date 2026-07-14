@@ -74,6 +74,9 @@ Depois, restaurar `public/uploads/`, `storage/` e o brasao municipal, se houver.
 - A consulta de CNPJ de fornecedores utiliza `https://brasilapi.com.br/api/cnpj/v1/{cnpj}` quando houver acesso externo.
 - Unidades administrativas podem ter uma unidade pai para representar subunidades ou departamentos internos.
 - Itens podem informar conteudo da embalagem e unidade do conteudo, por exemplo pacote com 100 unidades ou caixa com 305 metros.
+- Novos itens e itens editados devem informar classificacao e prazos estruturados. Materiais permanentes usam garantia minima de 12 meses; materiais de consumo usam minimo de 3 meses; pereciveis tambem exigem validade remanescente em meses.
+- Itens antigos permanecem no formato legado ate a primeira edicao. Ao salvar, os textos anteriores ficam no historico e as clausulas passam a ser geradas pelos valores estruturados.
+- Servicos recebem classificacao interna propria e clausula de garantia adequada, sem prazo de validade de produto.
 - Erros da aplicacao sao registrados em `storage/logs/app.log`; erros nativos do PHP ficam em `storage/logs/php-error.log`.
 - Os impactos ambientais dos itens sao armazenados como lista estruturada.
 - As sugestoes de IA sao apoio inicial e precisam de revisao tecnica antes de uso em processo administrativo, compra direta ou licitatorio.

@@ -10,6 +10,8 @@ $id = isset($_GET['id']) ? (int) $_GET['id'] : null;
 $item = $id ? find_item($id) : null;
 $justificationTemplates = get_justification_templates();
 $impactTemplates = get_environmental_impact_templates();
+$currentUser = auth_current_user();
+$canEnablePermanentValidity = ($currentUser['role'] ?? '') === 'admin';
 
 if ($id && !$item) {
     http_response_code(404);
@@ -34,7 +36,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'name' => trim($_POST['name'] ?? ''),
         'specification' => trim($_POST['specification'] ?? '{}'),
         'justification' => trim($_POST['justification'] ?? ''),
-        'warranty' => trim($_POST['warranty'] ?? ''),
+        'item_classification' => trim($_POST['item_classification'] ?? ''),
+        'warranty_months' => trim($_POST['warranty_months'] ?? ''),
+        'minimum_validity_required' => $_POST['minimum_validity_required'] ?? '0',
+        'minimum_validity_months' => trim($_POST['minimum_validity_months'] ?? ''),
+        'validity_exception_justification' => trim($_POST['validity_exception_justification'] ?? ''),
+        'supply_conditions_migrated_at' => trim((string) ($item['supply_conditions_migrated_at'] ?? '')),
         'environmental_impacts' => trim($_POST['environmental_impacts'] ?? ''),
     ];
 
@@ -92,11 +99,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'A especificação precisa estar em JSON válido.';
     }
 
+    $keepsExistingPermanentException = $item
+        && item_supply_classification_key($item) === 'permanent'
+        && boolish($item['minimum_validity_required'] ?? false, false)
+        && $data['item_classification'] === 'permanent'
+        && boolish($data['minimum_validity_required'], false)
+        && (int) $data['minimum_validity_months'] === (int) ($item['minimum_validity_months'] ?? 0)
+        && $data['validity_exception_justification'] === trim((string) ($item['validity_exception_justification'] ?? ''));
+    $data['_allow_permanent_validity_exception'] = $canEnablePermanentValidity || $keepsExistingPermanentException;
+
+    try {
+        $data = array_merge($data, prepare_item_supply_conditions(
+            $data,
+            item_specification_kind_from_data($data) === 'service',
+            $data['_allow_permanent_validity_exception']
+        ));
+    } catch (InvalidArgumentException $exception) {
+        $errors[] = $exception->getMessage();
+    }
+
     if (!$errors) {
         if ($item) {
             create_item_version(
                 (int) $item['id'],
-                'Snapshot automático antes da edição'
+                'Snapshot automático antes da edição',
+                $data
             );
 
             update_item((int) $item['id'], $data);
@@ -123,7 +150,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 require __DIR__ . '/../app/views/header.php';
 
 $currentUnitType = null;
-$currentUnitTypeId = (int) old($item ?? [], 'unit_type_id');
+$formItem = $item ?? [];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($data)) {
+    $formItem = array_merge($formItem, $data);
+}
+
+$currentUnitTypeId = (int) old($formItem, 'unit_type_id');
 
 foreach ($unitTypes as $unitType) {
     if ((int) $unitType['id'] === $currentUnitTypeId) {
@@ -133,14 +165,28 @@ foreach ($unitTypes as $unitType) {
 }
 
 $currentSpecificationKind = item_specification_kind_from_unit_type($currentUnitType);
-$specification = old($item ?? [], 'specification', default_item_specification_json($currentSpecificationKind));
+$specification = old($formItem, 'specification', default_item_specification_json($currentSpecificationKind));
 $productSpecificationTemplate = default_item_specification_json('product');
 $serviceSpecificationTemplate = default_item_specification_json('service');
 $standardObservationTemplates = [
     'product' => standard_item_observations('product'),
     'service' => standard_item_observations('service'),
 ];
-$environmentalImpactItems = environmental_impacts_to_array((string) old($item ?? [], 'environmental_impacts', ''));
+$environmentalImpactItems = environmental_impacts_to_array((string) old($formItem, 'environmental_impacts', ''));
+$currentClassification = trim((string) ($formItem['item_classification'] ?? ''));
+if ($currentClassification === '') {
+    $currentClassification = item_supply_classification_key($formItem);
+}
+$currentWarrantyMonths = (string) ($formItem['warranty_months'] ?? '');
+$currentValidityRequired = boolish($formItem['minimum_validity_required'] ?? false, false);
+$currentValidityMonths = (string) ($formItem['minimum_validity_months'] ?? '');
+$legacySupplyConditions = $item && !item_supply_conditions_migrated($item);
+$legacyWarrantyText = $legacySupplyConditions ? trim((string) ($item['warranty'] ?? '')) : '';
+$legacyValidityText = $legacySupplyConditions ? item_legacy_validity_text($item) : '';
+$itemSupplyMonthWords = [];
+for ($month = 1; $month <= 240; $month++) {
+    $itemSupplyMonthWords[$month] = direct_purchase_dod_int_to_words_pt_br($month);
+}
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -180,7 +226,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
             <select name="category_id" id="category_id" class="form-select">
                 <option value="">Selecione...</option>
                 <?php foreach ($parentCategories as $category): ?>
-                    <option value="<?= (int) $category['id'] ?>" <?= (int) old($item ?? [], 'category_id') === (int) $category['id'] ? 'selected' : '' ?>>
+                    <option value="<?= (int) $category['id'] ?>" <?= (int) old($formItem, 'category_id') === (int) $category['id'] ? 'selected' : '' ?>>
                         <?= e($category['name']) ?>
                     </option>
                 <?php endforeach; ?>
@@ -189,10 +235,10 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
 
         <div class="col-md-6">
             <label class="form-label">Subcategoria</label>
-            <select name="subcategory_id" id="subcategory_id" class="form-select" data-current="<?= (int) old($item ?? [], 'subcategory_id') ?>">
+            <select name="subcategory_id" id="subcategory_id" class="form-select" data-current="<?= (int) old($formItem, 'subcategory_id') ?>">
                 <option value="">Selecione...</option>
                 <?php foreach ($subcategories as $subcategory): ?>
-                    <option value="<?= (int) $subcategory['id'] ?>" data-parent="<?= (int) $subcategory['parent_id'] ?>" <?= (int) old($item ?? [], 'subcategory_id') === (int) $subcategory['id'] ? 'selected' : '' ?>>
+                    <option value="<?= (int) $subcategory['id'] ?>" data-parent="<?= (int) $subcategory['parent_id'] ?>" <?= (int) old($formItem, 'subcategory_id') === (int) $subcategory['id'] ? 'selected' : '' ?>>
                         <?= e($subcategory['name']) ?>
                     </option>
                 <?php endforeach; ?>
@@ -209,7 +255,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
                     <option
                         value="<?= (int) $unitType['id'] ?>"
                         data-spec-kind="<?= e(item_specification_kind_from_unit_type($unitType)) ?>"
-                        <?= (int) old($item ?? [], 'unit_type_id') === (int) $unitType['id'] ? 'selected' : '' ?>>
+                        <?= (int) old($formItem, 'unit_type_id') === (int) $unitType['id'] ? 'selected' : '' ?>>
 
                         <?= e($unitType['name']) ?>
                         <?= $unitType['abbreviation'] ? ' (' . e($unitType['abbreviation']) . ')' : '' ?>
@@ -228,7 +274,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
                 min="0.01"
                 step="0.01"
                 placeholder="Ex.: 100"
-                value="<?= e(old($item ?? [], 'package_content_quantity')) ?>">
+                value="<?= e(old($formItem, 'package_content_quantity')) ?>">
             <div class="form-text">Opcional. Use quando o item for caixa, pacote, rolo etc.</div>
         </div>
 
@@ -241,7 +287,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
                 <?php foreach ($unitTypes as $unitType): ?>
                     <option
                         value="<?= (int) $unitType['id'] ?>"
-                        <?= (int) old($item ?? [], 'package_content_unit_type_id') === (int) $unitType['id'] ? 'selected' : '' ?>>
+                        <?= (int) old($formItem, 'package_content_unit_type_id') === (int) $unitType['id'] ? 'selected' : '' ?>>
 
                         <?= e($unitType['name']) ?>
                         <?= $unitType['abbreviation'] ? ' (' . e($unitType['abbreviation']) . ')' : '' ?>
@@ -256,7 +302,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
             <select name="level" class="form-select" required>
                 <option value="">Selecione...</option>
                 <?php foreach (['A', 'B', 'C'] as $level): ?>
-                    <option value="<?= $level ?>" <?= old($item ?? [], 'level') === $level ? 'selected' : '' ?>>
+                    <option value="<?= $level ?>" <?= old($formItem, 'level') === $level ? 'selected' : '' ?>>
                         <?= $level ?>
                     </option>
                 <?php endforeach; ?>
@@ -279,7 +325,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
                 ?>
 
                 <?php foreach ($statuses as $value => $label): ?>
-                    <option value="<?= e($value) ?>" <?= old($item ?? [], 'status', 'draft') === $value ? 'selected' : '' ?>>
+                    <option value="<?= e($value) ?>" <?= old($formItem, 'status', 'draft') === $value ? 'selected' : '' ?>>
                         <?= e($label) ?>
                     </option>
                 <?php endforeach; ?>
@@ -289,7 +335,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
         <div class="col-md-9">
             <label class="form-label">Nome</label>
             <div class="input-group">
-                <input type="text" name="name" id="item_name" class="form-control" required value="<?= e(old($item ?? [], 'name')) ?>">
+                <input type="text" name="name" id="item_name" class="form-control" required value="<?= e(old($formItem, 'name')) ?>">
                 <!-- <button type="button" id="btnAiSuggest" class="btn btn-outline-primary">
                     Gerar com IA
                 </button> -->
@@ -332,7 +378,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
 
         <div class="col-12">
             <label class="form-label">Justificativa</label>
-            <textarea name="justification" rows="4" class="form-control" required><?= e(old($item ?? [], 'justification')) ?></textarea>
+            <textarea name="justification" rows="4" class="form-control" required><?= e(old($formItem, 'justification')) ?></textarea>
         </div>
 
         <div class="col-12">
@@ -349,13 +395,95 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
             </select>
         </div>
 
-        <div class="col-md-6">
-            <label class="form-label">Garantia</label>
-            <textarea name="warranty" rows="4" class="form-control" placeholder="Ex.: garantia mínima de 12 meses, padrão de mercado."><?= e(old($item ?? [], 'warranty', 'Garantia mínima de 12 meses, conforme padrão de mercado, contra defeitos de fabricação.')) ?></textarea>
+        <div class="col-12">
+            <script type="application/json" id="itemSupplyMonthWords"><?= json_encode($itemSupplyMonthWords, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
+            <fieldset class="item-supply-conditions border-top pt-4 mt-2" data-item-supply-conditions data-can-permanent-validity="<?= $canEnablePermanentValidity ? '1' : '0' ?>">
+                <legend class="h5 mb-1">Classificação e condições de fornecimento</legend>
+                <p class="text-muted mb-3">A classificação e os prazos estruturados geram automaticamente as cláusulas usadas nos documentos.</p>
+
+                <?php if ($legacySupplyConditions): ?>
+                    <div class="alert alert-warning">
+                        <strong>Este item usa o formato anterior e será migrado ao salvar.</strong>
+                        <?php if ($legacyWarrantyText !== ''): ?>
+                            <div class="mt-2"><span class="fw-semibold">Garantia anterior:</span> <?= nl2br(e($legacyWarrantyText)) ?></div>
+                        <?php endif; ?>
+                        <?php if ($legacyValidityText !== ''): ?>
+                            <div class="mt-2"><span class="fw-semibold">Validade anterior:</span> <?= nl2br(e($legacyValidityText)) ?></div>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+
+                <div class="item-classification-options mb-4" role="radiogroup" aria-label="Classificação do item">
+                    <?php foreach ([
+                        'permanent' => ['bi-box-seam', 'Permanente'],
+                        'consumption_nonperishable' => ['bi-basket', 'Consumo não perecível'],
+                        'consumption_perishable' => ['bi-hourglass-split', 'Consumo perecível'],
+                    ] as $classificationValue => [$classificationIcon, $classificationLabel]): ?>
+                        <label class="item-classification-option">
+                            <input
+                                type="radio"
+                                name="item_classification"
+                                value="<?= e($classificationValue) ?>"
+                                <?= $currentClassification === $classificationValue ? 'checked' : '' ?>
+                                required>
+                            <span><i class="bi <?= e($classificationIcon) ?>" aria-hidden="true"></i><?= e($classificationLabel) ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                    <input type="radio" name="item_classification" value="service" data-service-classification <?= $currentClassification === 'service' ? 'checked' : '' ?> class="visually-hidden">
+                </div>
+
+                <div class="alert alert-info d-none" data-service-classification-notice>
+                    <i class="bi bi-tools" aria-hidden="true"></i>
+                    O tipo de unidade selecionado identifica um serviço. A garantia será estruturada para a execução do serviço e a validade não será aplicada.
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label" for="warranty_months">Garantia mínima</label>
+                        <div class="input-group">
+                            <input type="number" id="warranty_months" name="warranty_months" class="form-control" min="1" step="1" inputmode="numeric" value="<?= e($currentWarrantyMonths) ?>" required>
+                            <span class="input-group-text">meses</span>
+                        </div>
+                        <div class="form-text" data-warranty-help>Selecione a classificação para aplicar o prazo mínimo.</div>
+                    </div>
+
+                    <div class="col-md-4 d-none" data-validity-toggle-wrap>
+                        <input type="hidden" name="minimum_validity_required" value="<?= $currentValidityRequired ? '1' : '0' ?>" data-validity-hidden>
+                        <div class="form-check form-switch mt-md-4 pt-md-2">
+                            <input class="form-check-input" type="checkbox" id="minimum_validity_required" name="minimum_validity_required" value="1" <?= $currentValidityRequired ? 'checked' : '' ?> data-validity-toggle>
+                            <label class="form-check-label" for="minimum_validity_required">Exigir validade mínima</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4 d-none" data-validity-months-wrap>
+                        <label class="form-label" for="minimum_validity_months">Validade mínima</label>
+                        <div class="input-group">
+                            <input type="number" id="minimum_validity_months" name="minimum_validity_months" class="form-control" min="1" step="1" inputmode="numeric" value="<?= e($currentValidityMonths) ?>" data-validity-months>
+                            <span class="input-group-text">meses</span>
+                        </div>
+                        <div class="form-text">Prazo remanescente contado da data da entrega.</div>
+                    </div>
+
+                    <div class="col-12 d-none" data-validity-justification-wrap>
+                        <label class="form-label" for="validity_exception_justification">Justificativa da validade excepcional</label>
+                        <textarea id="validity_exception_justification" name="validity_exception_justification" rows="3" class="form-control" data-validity-justification><?= e((string) ($formItem['validity_exception_justification'] ?? '')) ?></textarea>
+                        <div class="form-text">Obrigatória para material permanente e habilitada somente por administrador.</div>
+                    </div>
+                </div>
+
+                <div class="item-condition-preview mt-4" aria-live="polite">
+                    <dl class="mb-0">
+                        <dt>Garantia gerada</dt>
+                        <dd data-warranty-preview>Selecione a classificação e informe o prazo.</dd>
+                        <dt class="d-none" data-validity-preview-title>Validade gerada</dt>
+                        <dd class="d-none mb-0" data-validity-preview></dd>
+                    </dl>
+                </div>
+            </fieldset>
         </div>
 
-        <div class="col-md-6">
-            <label class="form-label">Possiveis impactos ambientais</label>
+        <div class="col-12">
+            <label class="form-label">Possíveis impactos ambientais</label>
 
             <input
                 type="hidden"
@@ -392,7 +520,7 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
             </div>
 
             <ul id="environmentalImpactList" class="list-group"></ul>
-            <div class="form-text">Os impactos serao salvos como lista estruturada.</div>
+            <div class="form-text">Os impactos serão salvos como lista estruturada.</div>
         </div>
 
         <?php if (!empty($similarItems)): ?>
@@ -701,4 +829,5 @@ $environmentalImpactItems = environmental_impacts_to_array((string) old($item ??
     });
 </script>
 
+<script src="/assets/item-supply-conditions.js"></script>
 <?php require __DIR__ . '/../app/views/footer.php'; ?>

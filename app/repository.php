@@ -58,6 +58,7 @@ function item_sort_options(): array
         'unit_type' => 'ut.name',
         'level' => 'i.level',
         'status' => 'i.status',
+        'classification' => "COALESCE(i.item_nature, '')",
         'warranty' => 'i.warranty',
         'created_at' => 'i.created_at',
     ];
@@ -229,6 +230,26 @@ function search_items(array|string|null $filters = null): array
         $params['status'] = $filters['status'];
     }
 
+    if (!empty($filters['item_classification'])) {
+        switch ($filters['item_classification']) {
+            case 'permanent':
+                $sql .= " AND i.item_nature = 'PERMANENTE'";
+                break;
+            case 'consumption_nonperishable':
+                $sql .= " AND i.item_nature = 'CONSUMO' AND COALESCE(i.is_perishable, FALSE) = FALSE";
+                break;
+            case 'consumption_perishable':
+                $sql .= " AND i.item_nature = 'CONSUMO' AND i.is_perishable = TRUE";
+                break;
+            case 'service':
+                $sql .= " AND i.item_nature = 'SERVICO'";
+                break;
+            case 'legacy':
+                $sql .= " AND i.supply_conditions_migrated_at IS NULL";
+                break;
+        }
+    }
+
     if (!empty($filters['unit_type_id'])) {
         $sql .= " AND i.unit_type_id = :unit_type_id";
         $params['unit_type_id'] = (int) $filters['unit_type_id'];
@@ -284,6 +305,11 @@ function find_item(int $id): ?array
 
 function create_item(array $data): int
 {
+    $data = array_merge($data, prepare_item_supply_conditions(
+        $data,
+        item_specification_kind_from_data($data) === 'service',
+        boolish($data['_allow_permanent_validity_exception'] ?? false, false)
+    ));
     $data['specification'] = normalize_item_specification_json(
         (string) $data['specification'],
         item_specification_kind_from_data($data)
@@ -303,6 +329,14 @@ function create_item(array $data): int
             specification,
             justification,
             warranty,
+            item_nature,
+            is_perishable,
+            warranty_months,
+            minimum_validity_required,
+            minimum_validity_months,
+            minimum_validity_text,
+            validity_exception_justification,
+            supply_conditions_migrated_at,
             environmental_impacts,
             image_path
         ) VALUES (
@@ -317,6 +351,14 @@ function create_item(array $data): int
             :specification::jsonb,
             :justification,
             :warranty,
+            :item_nature,
+            :is_perishable,
+            :warranty_months,
+            :minimum_validity_required,
+            :minimum_validity_months,
+            :minimum_validity_text,
+            :validity_exception_justification,
+            :supply_conditions_migrated_at,
             :environmental_impacts,
             :image_path
         )
@@ -335,6 +377,14 @@ function create_item(array $data): int
         'specification' => $data['specification'],
         'justification' => $data['justification'],
         'warranty' => $data['warranty'],
+        'item_nature' => $data['item_nature'],
+        'is_perishable' => pg_bool($data['is_perishable']),
+        'warranty_months' => $data['warranty_months'],
+        'minimum_validity_required' => pg_bool($data['minimum_validity_required']),
+        'minimum_validity_months' => $data['minimum_validity_months'],
+        'minimum_validity_text' => $data['minimum_validity_text'],
+        'validity_exception_justification' => $data['validity_exception_justification'],
+        'supply_conditions_migrated_at' => $data['supply_conditions_migrated_at'],
         'environmental_impacts' => $data['environmental_impacts'],
         'image_path' => $data['image_path'] ?? null,
     ]);
@@ -348,6 +398,11 @@ function create_item(array $data): int
 
 function update_item(int $id, array $data): void
 {
+    $data = array_merge($data, prepare_item_supply_conditions(
+        $data,
+        item_specification_kind_from_data($data) === 'service',
+        boolish($data['_allow_permanent_validity_exception'] ?? false, false)
+    ));
     $data['specification'] = normalize_item_specification_json(
         (string) $data['specification'],
         item_specification_kind_from_data($data)
@@ -367,8 +422,17 @@ function update_item(int $id, array $data): void
         specification = :specification::jsonb,
         justification = :justification,
         warranty = :warranty,
+        item_nature = :item_nature,
+        is_perishable = :is_perishable,
+        warranty_months = :warranty_months,
+        minimum_validity_required = :minimum_validity_required,
+        minimum_validity_months = :minimum_validity_months,
+        minimum_validity_text = :minimum_validity_text,
+        validity_exception_justification = :validity_exception_justification,
+        supply_conditions_migrated_at = :supply_conditions_migrated_at,
         environmental_impacts = :environmental_impacts,
-        image_path = :image_path
+        image_path = :image_path,
+        updated_at = CURRENT_TIMESTAMP
     WHERE id = :id
 ");
 
@@ -385,6 +449,14 @@ function update_item(int $id, array $data): void
         'specification' => $data['specification'],
         'justification' => $data['justification'],
         'warranty' => $data['warranty'],
+        'item_nature' => $data['item_nature'],
+        'is_perishable' => pg_bool($data['is_perishable']),
+        'warranty_months' => $data['warranty_months'],
+        'minimum_validity_required' => pg_bool($data['minimum_validity_required']),
+        'minimum_validity_months' => $data['minimum_validity_months'],
+        'minimum_validity_text' => $data['minimum_validity_text'],
+        'validity_exception_justification' => $data['validity_exception_justification'],
+        'supply_conditions_migrated_at' => $data['supply_conditions_migrated_at'],
         'environmental_impacts' => $data['environmental_impacts'],
         'image_path' => $data['image_path'] ?? null,
     ]);
@@ -2422,6 +2494,14 @@ function get_demand_items(int $demandListId): array
             {$trackingCodeSql} AS tracking_code,
             pi.specification,
             pi.warranty,
+            pi.item_nature,
+            pi.is_perishable,
+            pi.warranty_months,
+            pi.minimum_validity_required,
+            pi.minimum_validity_months,
+            pi.minimum_validity_text,
+            pi.validity_exception_justification,
+            pi.supply_conditions_migrated_at,
             pi.environmental_impacts,
             (COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)) AS estimated_total,
             ut.name AS unit_type_name,
@@ -5343,6 +5423,14 @@ function get_project_consolidated_items(int $projectId): array
             pi.specification,
             pi.justification,
             pi.warranty,
+            pi.item_nature,
+            pi.is_perishable,
+            pi.warranty_months,
+            pi.minimum_validity_required,
+            pi.minimum_validity_months,
+            pi.minimum_validity_text,
+            pi.validity_exception_justification,
+            pi.supply_conditions_migrated_at,
             pi.environmental_impacts,
             ut.name AS unit_type_name,
             ut.abbreviation AS unit_type_abbreviation,
@@ -5373,6 +5461,14 @@ function get_project_consolidated_items(int $projectId): array
             pi.specification,
             pi.justification,
             pi.warranty,
+            pi.item_nature,
+            pi.is_perishable,
+            pi.warranty_months,
+            pi.minimum_validity_required,
+            pi.minimum_validity_months,
+            pi.minimum_validity_text,
+            pi.validity_exception_justification,
+            pi.supply_conditions_migrated_at,
             pi.environmental_impacts,
             ut.name,
             ut.abbreviation,
@@ -6459,6 +6555,14 @@ function duplicate_item(int $id): int
             specification,
             justification,
             warranty,
+            item_nature,
+            is_perishable,
+            warranty_months,
+            minimum_validity_required,
+            minimum_validity_months,
+            minimum_validity_text,
+            validity_exception_justification,
+            supply_conditions_migrated_at,
             environmental_impacts,
             image_path
         ) VALUES (
@@ -6473,6 +6577,14 @@ function duplicate_item(int $id): int
             :specification::jsonb,
             :justification,
             :warranty,
+            :item_nature,
+            :is_perishable,
+            :warranty_months,
+            :minimum_validity_required,
+            :minimum_validity_months,
+            :minimum_validity_text,
+            :validity_exception_justification,
+            :supply_conditions_migrated_at,
             :environmental_impacts,
             :image_path
         )
@@ -6498,6 +6610,14 @@ function duplicate_item(int $id): int
         ),
         'justification' => $item['justification'],
         'warranty' => $item['warranty'],
+        'item_nature' => $item['item_nature'] ?? null,
+        'is_perishable' => isset($item['is_perishable']) ? pg_bool($item['is_perishable']) : null,
+        'warranty_months' => $item['warranty_months'] ?? null,
+        'minimum_validity_required' => pg_bool($item['minimum_validity_required'] ?? false),
+        'minimum_validity_months' => $item['minimum_validity_months'] ?? null,
+        'minimum_validity_text' => $item['minimum_validity_text'] ?? null,
+        'validity_exception_justification' => $item['validity_exception_justification'] ?? null,
+        'supply_conditions_migrated_at' => $item['supply_conditions_migrated_at'] ?? null,
         'environmental_impacts' => normalize_environmental_impacts_json($item['environmental_impacts'] ?? ''),
         'image_path' => $item['image_path'] ?? null,
     ]);
@@ -7071,7 +7191,7 @@ function get_next_item_version_number(int $itemId): int
     return (int) $stmt->fetchColumn();
 }
 
-function create_item_version(int $itemId, ?string $notes = null): int
+function create_item_version(int $itemId, ?string $notes = null, ?array $nextData = null): int
 {
     $item = find_item($itemId);
 
@@ -7080,6 +7200,18 @@ function create_item_version(int $itemId, ?string $notes = null): int
     }
 
     $versionNumber = get_next_item_version_number($itemId);
+    $currentUser = function_exists('auth_current_user') ? auth_current_user() : null;
+    $changeSummary = [
+        'previous' => item_supply_conditions_snapshot($item),
+        'next' => $nextData !== null ? item_supply_conditions_snapshot($nextData) : null,
+    ];
+
+    if (!item_supply_conditions_migrated($item)) {
+        $changeSummary['legacy'] = [
+            'warranty_text' => trim((string) ($item['warranty'] ?? '')),
+            'validity_text' => item_legacy_validity_text($item),
+        ];
+    }
 
     $stmt = db()->prepare("
         INSERT INTO procurement_item_versions (
@@ -7089,13 +7221,24 @@ function create_item_version(int $itemId, ?string $notes = null): int
             specification,
             justification,
             warranty,
+            item_nature,
+            is_perishable,
+            warranty_months,
+            minimum_validity_required,
+            minimum_validity_months,
+            minimum_validity_text,
+            validity_exception_justification,
+            supply_conditions_migrated_at,
             environmental_impacts,
             level,
             status,
             unit_type_id,
             package_content_quantity,
             package_content_unit_type_id,
-            notes
+            notes,
+            created_by_user_id,
+            created_by_user_name,
+            change_summary
         ) VALUES (
             :procurement_item_id,
             :version_number,
@@ -7103,13 +7246,24 @@ function create_item_version(int $itemId, ?string $notes = null): int
             :specification::jsonb,
             :justification,
             :warranty,
+            :item_nature,
+            :is_perishable,
+            :warranty_months,
+            :minimum_validity_required,
+            :minimum_validity_months,
+            :minimum_validity_text,
+            :validity_exception_justification,
+            :supply_conditions_migrated_at,
             :environmental_impacts,
             :level,
             :status,
             :unit_type_id,
             :package_content_quantity,
             :package_content_unit_type_id,
-            :notes
+            :notes,
+            :created_by_user_id,
+            :created_by_user_name,
+            :change_summary::jsonb
         )
         RETURNING id
     ");
@@ -7123,6 +7277,14 @@ function create_item_version(int $itemId, ?string $notes = null): int
             : json_encode($item['specification'], JSON_UNESCAPED_UNICODE),
         'justification' => $item['justification'],
         'warranty' => $item['warranty'],
+        'item_nature' => $item['item_nature'] ?? null,
+        'is_perishable' => isset($item['is_perishable']) ? pg_bool($item['is_perishable']) : null,
+        'warranty_months' => $item['warranty_months'] ?? null,
+        'minimum_validity_required' => pg_bool($item['minimum_validity_required'] ?? false),
+        'minimum_validity_months' => $item['minimum_validity_months'] ?? null,
+        'minimum_validity_text' => $item['minimum_validity_text'] ?? null,
+        'validity_exception_justification' => $item['validity_exception_justification'] ?? null,
+        'supply_conditions_migrated_at' => $item['supply_conditions_migrated_at'] ?? null,
         'environmental_impacts' => $item['environmental_impacts'],
         'level' => $item['level'],
         'status' => $item['status'] ?? 'draft',
@@ -7130,6 +7292,9 @@ function create_item_version(int $itemId, ?string $notes = null): int
         'package_content_quantity' => normalize_decimal_db_value($item['package_content_quantity'] ?? null),
         'package_content_unit_type_id' => $item['package_content_unit_type_id'] ?? null,
         'notes' => $notes,
+        'created_by_user_id' => $currentUser['id'] ?? null,
+        'created_by_user_name' => $currentUser['name'] ?? null,
+        'change_summary' => json_encode($changeSummary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
     ]);
 
     return (int) $stmt->fetchColumn();
@@ -7144,6 +7309,17 @@ function restore_item_version(int $versionId): int
     }
 
     $itemId = (int) $version['procurement_item_id'];
+    $currentItem = find_item($itemId);
+
+    if (!$currentItem) {
+        throw new RuntimeException('Item nao encontrado.');
+    }
+
+    if (!item_supply_conditions_migrated($currentItem)) {
+        throw new RuntimeException('Classifique o item e salve a migracao antes de restaurar uma versao.');
+    }
+
+    $supplyConditions = item_supply_conditions_migrated($version) ? $version : $currentItem;
 
     create_item_version(
         $itemId,
@@ -7156,12 +7332,21 @@ function restore_item_version(int $versionId): int
             specification = :specification::jsonb,
             justification = :justification,
             warranty = :warranty,
+            item_nature = :item_nature,
+            is_perishable = :is_perishable,
+            warranty_months = :warranty_months,
+            minimum_validity_required = :minimum_validity_required,
+            minimum_validity_months = :minimum_validity_months,
+            minimum_validity_text = :minimum_validity_text,
+            validity_exception_justification = :validity_exception_justification,
+            supply_conditions_migrated_at = :supply_conditions_migrated_at,
             environmental_impacts = :environmental_impacts,
             level = :level,
             status = :status,
             unit_type_id = :unit_type_id,
             package_content_quantity = :package_content_quantity,
-            package_content_unit_type_id = :package_content_unit_type_id
+            package_content_unit_type_id = :package_content_unit_type_id,
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = :id
     ");
 
@@ -7175,7 +7360,15 @@ function restore_item_version(int $versionId): int
             item_specification_kind_from_data($version)
         ),
         'justification' => $version['justification'],
-        'warranty' => $version['warranty'],
+        'warranty' => $supplyConditions['warranty'],
+        'item_nature' => $supplyConditions['item_nature'] ?? null,
+        'is_perishable' => pg_bool($supplyConditions['is_perishable'] ?? false),
+        'warranty_months' => $supplyConditions['warranty_months'] ?? null,
+        'minimum_validity_required' => pg_bool($supplyConditions['minimum_validity_required'] ?? false),
+        'minimum_validity_months' => $supplyConditions['minimum_validity_months'] ?? null,
+        'minimum_validity_text' => $supplyConditions['minimum_validity_text'] ?? null,
+        'validity_exception_justification' => $supplyConditions['validity_exception_justification'] ?? null,
+        'supply_conditions_migrated_at' => $supplyConditions['supply_conditions_migrated_at'] ?? null,
         'environmental_impacts' => normalize_environmental_impacts_json($version['environmental_impacts'] ?? ''),
         'level' => $version['level'],
         'status' => $version['status'] ?? 'draft',
@@ -8437,6 +8630,14 @@ function catalog_json_table_definitions(): array
                 'specification',
                 'justification',
                 'warranty',
+                'item_nature',
+                'is_perishable',
+                'warranty_months',
+                'minimum_validity_required',
+                'minimum_validity_months',
+                'minimum_validity_text',
+                'validity_exception_justification',
+                'supply_conditions_migrated_at',
                 'environmental_impacts',
                 'image_path',
                 'created_at',
@@ -8459,6 +8660,14 @@ function catalog_json_table_definitions(): array
                 'specification',
                 'justification',
                 'warranty',
+                'item_nature',
+                'is_perishable',
+                'warranty_months',
+                'minimum_validity_required',
+                'minimum_validity_months',
+                'minimum_validity_text',
+                'validity_exception_justification',
+                'supply_conditions_migrated_at',
                 'environmental_impacts',
                 'level',
                 'status',
@@ -8466,9 +8675,11 @@ function catalog_json_table_definitions(): array
                 'package_content_quantity',
                 'package_content_unit_type_id',
                 'notes',
+                'created_by_user_name',
+                'change_summary',
                 'created_at',
             ],
-            'json' => ['specification'],
+            'json' => ['specification', 'change_summary'],
         ],
         'procurement_projects' => [
             'label' => 'Projetos',
@@ -8843,7 +9054,7 @@ function export_catalog_data(string $scope): array
         'system' => APP_NAME,
         'scope' => $scope,
         'exported_at' => date(DATE_ATOM),
-        'format_version' => 1,
+        'format_version' => 2,
         'data' => $data,
     ];
 }
@@ -8863,7 +9074,7 @@ function catalog_json_import_template(string $scope): array
     return [
         'system' => APP_NAME,
         'scope' => $scope,
-        'format_version' => 1,
+        'format_version' => 2,
         'data' => $data,
     ];
 }
@@ -8891,7 +9102,15 @@ function catalog_json_sample_row(string $table, array $columns): array
             'name' => 'Nome do item',
             'specification' => default_item_specification(),
             'justification' => 'Justificativa administrativa do item.',
-            'warranty' => 'Garantia minima de 12 meses, conforme padrao de mercado.',
+            'warranty' => item_supply_warranty_text('PERMANENTE', 12),
+            'item_nature' => 'PERMANENTE',
+            'is_perishable' => false,
+            'warranty_months' => 12,
+            'minimum_validity_required' => false,
+            'minimum_validity_months' => null,
+            'minimum_validity_text' => '',
+            'validity_exception_justification' => null,
+            'supply_conditions_migrated_at' => date('Y-m-d H:i:s'),
             'environmental_impacts' => [
                 'Selecionar impactos ambientais aplicaveis.',
             ],
@@ -9221,6 +9440,18 @@ function import_catalog_table_rows(string $table, array $columns, array $jsonCol
     foreach ($rows as $row) {
         if (!is_array($row)) {
             continue;
+        }
+
+        if (
+            $table === 'procurement_items'
+            && (
+                trim((string) ($row['item_nature'] ?? '')) !== ''
+                || trim((string) ($row['item_classification'] ?? '')) !== ''
+                || trim((string) ($row['warranty_months'] ?? '')) !== ''
+            )
+        ) {
+            $isService = item_supply_classification_key($row) === 'service';
+            $row = array_merge($row, prepare_item_supply_conditions($row, $isService, true));
         }
 
         $values = [];

@@ -70,6 +70,13 @@ require __DIR__ . '/../app/views/header.php';
                     <dt>Conteúdo da embalagem</dt>
                     <dd><?= render_package_content($item) ?></dd>
 
+                    <dt>Classificação do item</dt>
+                    <dd>
+                        <span class="badge <?= e(item_supply_classification_badge_class($item)) ?>">
+                            <?= e(item_supply_classification_label($item)) ?>
+                        </span>
+                    </dd>
+
                     <dt>Nível</dt>
                     <dd><span class="badge text-bg-info"><?= e($item['level']) ?></span></dd>
 
@@ -177,9 +184,37 @@ require __DIR__ . '/../app/views/header.php';
         </div>
 
         <div class="card mb-4">
-            <div class="card-header fw-semibold">Garantia</div>
+            <div class="card-header fw-semibold">Condições de fornecimento</div>
             <div class="card-body">
-                <p class="mb-0"><?= nl2br(e($item['warranty'])) ?></p>
+                <?php if (item_supply_conditions_migrated($item)): ?>
+                    <dl class="mb-0">
+                        <dt>Garantia mínima</dt>
+                        <dd>
+                            <strong><?= (int) $item['warranty_months'] ?> mes(es)</strong>
+                            <div class="text-muted mt-1"><?= nl2br(e($item['warranty'])) ?></div>
+                        </dd>
+
+                        <dt>Validade mínima</dt>
+                        <dd>
+                            <?php if (boolish($item['minimum_validity_required'] ?? false, false)): ?>
+                                <strong><?= (int) $item['minimum_validity_months'] ?> mes(es)</strong>
+                                <div class="text-muted mt-1"><?= nl2br(e($item['minimum_validity_text'] ?? '')) ?></div>
+                            <?php else: ?>
+                                <span class="text-muted">Não aplicável.</span>
+                            <?php endif; ?>
+                        </dd>
+
+                        <?php if (!empty($item['validity_exception_justification'])): ?>
+                            <dt>Justificativa da exceção</dt>
+                            <dd><?= nl2br(e($item['validity_exception_justification'])) ?></dd>
+                        <?php endif; ?>
+                    </dl>
+                <?php else: ?>
+                    <div class="alert alert-warning mb-3">
+                        Este item ainda usa o modelo legado. A classificação e os prazos serão obrigatórios na próxima edição.
+                    </div>
+                    <p class="mb-0"><?= nl2br(e($item['warranty'] ?: 'Garantia legada não informada.')) ?></p>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -215,9 +250,11 @@ require __DIR__ . '/../app/views/header.php';
                         <th>Nome</th>
                         <th>Nível</th>
                         <th>Status</th>
+                        <th>Classificação</th>
                         <th>Unidade</th>
                         <th>Observação</th>
                         <th>Criada em</th>
+                        <th>Responsável</th>
                         <th class="text-end">Ações</th>
                     </tr>
                 </thead>
@@ -225,7 +262,7 @@ require __DIR__ . '/../app/views/header.php';
                 <tbody>
                     <?php if (!$versions): ?>
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">
+                            <td colspan="10" class="text-center text-muted py-4">
                                 Nenhuma versão salva.
                             </td>
                         </tr>
@@ -250,6 +287,12 @@ require __DIR__ . '/../app/views/header.php';
                             </td>
 
                             <td>
+                                <span class="badge <?= e(item_supply_classification_badge_class($version)) ?>">
+                                    <?= e(item_supply_classification_label($version)) ?>
+                                </span>
+                            </td>
+
+                            <td>
                                 <?= e($version['unit_type_abbreviation'] ?: ($version['unit_type_name'] ?? '-')) ?>
                                 <?php if (format_package_content($version) !== '-'): ?>
                                     <div class="small text-muted">
@@ -261,6 +304,8 @@ require __DIR__ . '/../app/views/header.php';
                             <td><?= e($version['notes']) ?></td>
 
                             <td><?= e($version['created_at']) ?></td>
+
+                            <td><?= e(($version['created_by_user_name'] ?? '') ?: '-') ?></td>
 
                             <td class="text-end">
                                 <a
@@ -277,7 +322,9 @@ require __DIR__ . '/../app/views/header.php';
 
                                     <input type="hidden" name="version_id" value="<?= (int) $version['id'] ?>">
 
-                                    <button class="btn btn-sm btn-outline-warning">
+                                    <button
+                                        class="btn btn-sm btn-outline-warning"
+                                        <?= item_supply_conditions_migrated($item) ? '' : 'disabled title="Classifique e salve o item antes de restaurar versões"' ?>>
                                         Restaurar
                                     </button>
                                 </form>

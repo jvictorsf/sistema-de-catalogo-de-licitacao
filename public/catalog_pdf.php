@@ -222,7 +222,9 @@ header('Content-Type: text/html; charset=utf-8');
             </tr>
             <tr>
                 <th>Status</th>
-                <td colspan="3"><?= e(item_status_label($item['status'] ?? null)) ?></td>
+                <td><?= e(item_status_label($item['status'] ?? null)) ?></td>
+                <th>Classificação</th>
+                <td><?= e(item_supply_classification_label($item)) ?></td>
             </tr>
         </table>
 
@@ -232,8 +234,11 @@ header('Content-Type: text/html; charset=utf-8');
         <h3>Justificativa</h3>
         <p><?= nl2br(e($item['justification'])) ?></p>
 
-        <h3>Garantia</h3>
+        <h3>Condições de fornecimento</h3>
         <p><?= nl2br(e($item['warranty'])) ?></p>
+        <?php if (!empty($item['minimum_validity_text'])): ?>
+            <p><?= nl2br(e($item['minimum_validity_text'])) ?></p>
+        <?php endif; ?>
 
         <h3>Possíveis impactos ambientais</h3>
         <?= render_environmental_impacts_list($item['environmental_impacts']) ?>

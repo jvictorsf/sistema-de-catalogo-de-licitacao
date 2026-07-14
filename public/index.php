@@ -20,6 +20,7 @@ $filters = [
     'subcategory_id' => (int) ($_GET['subcategory_id'] ?? 0),
     'level' => trim($_GET['level'] ?? ''),
     'status' => trim($_GET['status'] ?? ''),
+    'item_classification' => trim($_GET['item_classification'] ?? ''),
     'unit_type_id' => (int) ($_GET['unit_type_id'] ?? 0),
     'sort' => trim($_GET['sort'] ?? 'created_at'),
     'direction' => strtolower(trim($_GET['direction'] ?? 'desc')),
@@ -32,6 +33,11 @@ $subcategories = get_subcategories();
 $unitTypes = get_unit_types();
 
 $statusLabels = item_status_options();
+$supplyClassificationLabels = array_map(
+    static fn (array $option): string => (string) $option['label'],
+    item_supply_classification_options()
+);
+$supplyClassificationLabels['legacy'] = 'Classificação pendente';
 
 function sort_header(string $column, string $label, array $filters): string
 {
@@ -63,9 +69,9 @@ require __DIR__ . '/../app/views/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 class="h3 mb-1">Itens para Licitação</h1>
+        <h1 class="h3 mb-1">Catálogo de itens e serviços</h1>
         <p class="text-muted mb-0">
-            Cadastro de itens, especificações, justificativas, impactos ambientais e planejamento de demandas.
+            Cadastro técnico com classificação, condições de fornecimento, impactos ambientais e uso nas demandas.
         </p>
     </div>
 
@@ -188,6 +194,20 @@ require __DIR__ . '/../app/views/header.php';
             </select>
         </div>
 
+        <div class="col-md-3">
+            <label class="form-label">Classificação</label>
+
+            <select name="item_classification" class="form-select">
+                <option value="">Todas</option>
+
+                <?php foreach ($supplyClassificationLabels as $value => $label): ?>
+                    <option value="<?= e($value) ?>" <?= $filters['item_classification'] === $value ? 'selected' : '' ?>>
+                        <?= e($label) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
         <div class="col-md-3 d-flex align-items-end gap-2">
             <button class="btn btn-outline-primary w-100">
                 <i class="bi bi-funnel"></i>Filtrar
@@ -219,7 +239,7 @@ require __DIR__ . '/../app/views/header.php';
                     <th><?= sort_header('unit_type', 'Unidade', $filters) ?></th>
                     <th><?= sort_header('level', 'Nivel', $filters) ?></th>
                     <th><?= sort_header('status', 'Status', $filters) ?></th>
-                    <th><?= sort_header('warranty', 'Garantia', $filters) ?></th>
+                    <th><?= sort_header('classification', 'Classificação e garantia', $filters) ?></th>
                     <th class="text-end">Ações</th>
                 </tr>
             </thead>
@@ -295,7 +315,17 @@ require __DIR__ . '/../app/views/header.php';
                         </td>
 
                         <td>
-                            <?= e(mb_strimwidth((string) $item['warranty'], 0, 40, '...')) ?>
+                            <span class="badge <?= e(item_supply_classification_badge_class($item)) ?>">
+                                <?= e(item_supply_classification_label($item)) ?>
+                            </span>
+
+                            <div class="small text-muted mt-1">
+                                <?php if (item_supply_conditions_migrated($item)): ?>
+                                    Garantia: <?= (int) $item['warranty_months'] ?> mes(es)
+                                <?php else: ?>
+                                    Migração necessária ao editar
+                                <?php endif; ?>
+                            </div>
                         </td>
 
                         <td class="text-end">

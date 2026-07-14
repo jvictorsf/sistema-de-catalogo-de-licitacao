@@ -36,6 +36,14 @@ CREATE TABLE IF NOT EXISTS procurement_items (
     specification JSONB NOT NULL DEFAULT '{}'::jsonb,
     justification TEXT NOT NULL DEFAULT '',
     warranty TEXT,
+    item_nature VARCHAR(20),
+    is_perishable BOOLEAN,
+    warranty_months INTEGER,
+    minimum_validity_required BOOLEAN NOT NULL DEFAULT FALSE,
+    minimum_validity_months INTEGER,
+    minimum_validity_text TEXT,
+    validity_exception_justification TEXT,
+    supply_conditions_migrated_at TIMESTAMP NULL,
     environmental_impacts TEXT,
     image_path VARCHAR(255),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -59,6 +67,15 @@ ADD COLUMN IF NOT EXISTS package_content_unit_type_id INTEGER NULL;
 
 ALTER TABLE procurement_items
 ADD COLUMN IF NOT EXISTS image_path VARCHAR(255);
+
+ALTER TABLE procurement_items ADD COLUMN IF NOT EXISTS item_nature VARCHAR(20);
+ALTER TABLE procurement_items ADD COLUMN IF NOT EXISTS is_perishable BOOLEAN;
+ALTER TABLE procurement_items ADD COLUMN IF NOT EXISTS warranty_months INTEGER;
+ALTER TABLE procurement_items ADD COLUMN IF NOT EXISTS minimum_validity_required BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE procurement_items ADD COLUMN IF NOT EXISTS minimum_validity_months INTEGER;
+ALTER TABLE procurement_items ADD COLUMN IF NOT EXISTS minimum_validity_text TEXT;
+ALTER TABLE procurement_items ADD COLUMN IF NOT EXISTS validity_exception_justification TEXT;
+ALTER TABLE procurement_items ADD COLUMN IF NOT EXISTS supply_conditions_migrated_at TIMESTAMP NULL;
 
 DO $$
 BEGIN
@@ -115,6 +132,61 @@ BEGIN
 END
 $$;
 
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_procurement_items_supply_conditions') THEN
+        ALTER TABLE procurement_items
+        ADD CONSTRAINT ck_procurement_items_supply_conditions CHECK (
+            supply_conditions_migrated_at IS NULL
+            OR (
+                item_nature IN ('PERMANENTE', 'CONSUMO', 'SERVICO')
+                AND is_perishable IS NOT NULL
+                AND warranty_months IS NOT NULL
+                AND warranty_months > 0
+                AND (
+                    (
+                        item_nature = 'PERMANENTE'
+                        AND is_perishable = FALSE
+                        AND warranty_months >= 12
+                        AND (
+                            (minimum_validity_required = FALSE AND minimum_validity_months IS NULL)
+                            OR (
+                                minimum_validity_required = TRUE
+                                AND minimum_validity_months > 0
+                                AND NULLIF(BTRIM(validity_exception_justification), '') IS NOT NULL
+                            )
+                        )
+                    )
+                    OR (
+                        item_nature = 'CONSUMO'
+                        AND warranty_months >= 3
+                        AND (
+                            (is_perishable = TRUE AND minimum_validity_required = TRUE AND minimum_validity_months > 0)
+                            OR (
+                                is_perishable = FALSE
+                                AND (
+                                    (minimum_validity_required = FALSE AND minimum_validity_months IS NULL)
+                                    OR (minimum_validity_required = TRUE AND minimum_validity_months > 0)
+                                )
+                            )
+                        )
+                    )
+                    OR (
+                        item_nature = 'SERVICO'
+                        AND is_perishable = FALSE
+                        AND minimum_validity_required = FALSE
+                        AND minimum_validity_months IS NULL
+                    )
+                )
+            )
+        );
+    END IF;
+END
+$$;
+
+CREATE INDEX IF NOT EXISTS idx_procurement_items_nature_perishable
+ON procurement_items (item_nature, is_perishable);
+
 CREATE TABLE IF NOT EXISTS procurement_item_images (
     id SERIAL PRIMARY KEY,
     procurement_item_id INTEGER NOT NULL REFERENCES procurement_items(id) ON DELETE CASCADE,
@@ -135,12 +207,23 @@ CREATE TABLE IF NOT EXISTS procurement_item_versions (
     specification JSONB NOT NULL DEFAULT '{}'::jsonb,
     justification TEXT,
     warranty TEXT,
+    item_nature VARCHAR(20),
+    is_perishable BOOLEAN,
+    warranty_months INTEGER,
+    minimum_validity_required BOOLEAN NOT NULL DEFAULT FALSE,
+    minimum_validity_months INTEGER,
+    minimum_validity_text TEXT,
+    validity_exception_justification TEXT,
+    supply_conditions_migrated_at TIMESTAMP NULL,
     environmental_impacts TEXT,
     level CHAR(1),
     status VARCHAR(50),
     unit_type_id INTEGER NULL REFERENCES unit_types(id) ON DELETE SET NULL,
     package_content_quantity NUMERIC(12,2),
     package_content_unit_type_id INTEGER NULL REFERENCES unit_types(id) ON DELETE SET NULL,
+    created_by_user_id INTEGER NULL,
+    created_by_user_name VARCHAR(255),
+    change_summary JSONB NOT NULL DEFAULT '{}'::jsonb,
     notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (procurement_item_id, version_number)
@@ -151,6 +234,18 @@ ADD COLUMN IF NOT EXISTS package_content_quantity NUMERIC(12,2);
 
 ALTER TABLE procurement_item_versions
 ADD COLUMN IF NOT EXISTS package_content_unit_type_id INTEGER NULL;
+
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS item_nature VARCHAR(20);
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS is_perishable BOOLEAN;
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS warranty_months INTEGER;
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS minimum_validity_required BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS minimum_validity_months INTEGER;
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS minimum_validity_text TEXT;
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS validity_exception_justification TEXT;
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS supply_conditions_migrated_at TIMESTAMP NULL;
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS created_by_user_id INTEGER NULL;
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS created_by_user_name VARCHAR(255);
+ALTER TABLE procurement_item_versions ADD COLUMN IF NOT EXISTS change_summary JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 DO $$
 BEGIN
@@ -170,6 +265,58 @@ BEGIN
         CHECK (
             (package_content_quantity IS NULL AND package_content_unit_type_id IS NULL)
             OR (package_content_quantity > 0 AND package_content_unit_type_id IS NOT NULL)
+        );
+    END IF;
+END
+$$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_procurement_item_versions_supply_conditions') THEN
+        ALTER TABLE procurement_item_versions
+        ADD CONSTRAINT ck_procurement_item_versions_supply_conditions CHECK (
+            supply_conditions_migrated_at IS NULL
+            OR (
+                item_nature IN ('PERMANENTE', 'CONSUMO', 'SERVICO')
+                AND is_perishable IS NOT NULL
+                AND warranty_months IS NOT NULL
+                AND warranty_months > 0
+                AND (
+                    (
+                        item_nature = 'PERMANENTE'
+                        AND is_perishable = FALSE
+                        AND warranty_months >= 12
+                        AND (
+                            (minimum_validity_required = FALSE AND minimum_validity_months IS NULL)
+                            OR (
+                                minimum_validity_required = TRUE
+                                AND minimum_validity_months > 0
+                                AND NULLIF(BTRIM(validity_exception_justification), '') IS NOT NULL
+                            )
+                        )
+                    )
+                    OR (
+                        item_nature = 'CONSUMO'
+                        AND warranty_months >= 3
+                        AND (
+                            (is_perishable = TRUE AND minimum_validity_required = TRUE AND minimum_validity_months > 0)
+                            OR (
+                                is_perishable = FALSE
+                                AND (
+                                    (minimum_validity_required = FALSE AND minimum_validity_months IS NULL)
+                                    OR (minimum_validity_required = TRUE AND minimum_validity_months > 0)
+                                )
+                            )
+                        )
+                    )
+                    OR (
+                        item_nature = 'SERVICO'
+                        AND is_perishable = FALSE
+                        AND minimum_validity_required = FALSE
+                        AND minimum_validity_months IS NULL
+                    )
+                )
+            )
         );
     END IF;
 END
@@ -316,6 +463,19 @@ DROP CONSTRAINT IF EXISTS ck_app_users_role;
 ALTER TABLE app_users
 ADD CONSTRAINT ck_app_users_role
 CHECK (role IN ('admin', 'manager', 'operator', 'viewer'));
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_procurement_item_versions_created_by_user'
+    ) THEN
+        ALTER TABLE procurement_item_versions
+        ADD CONSTRAINT fk_procurement_item_versions_created_by_user
+        FOREIGN KEY (created_by_user_id) REFERENCES app_users(id) ON DELETE SET NULL;
+    END IF;
+END
+$$;
+
 CREATE TABLE IF NOT EXISTS collaborators (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,

@@ -104,6 +104,21 @@ $expectedLotAnnexTitles = [
 ];
 $annexTypes = project_annex_types();
 
+reports_test_assert_same(
+    "Anexo IV - Rela\u{00E7}\u{00E3}o simplificada de itens e quantidades",
+    $annexTypes['annex_iv'] ?? null,
+    'Nome do anexo simplificado deve seguir o padrao institucional.'
+);
+
+$simpleAnnexSource = file_get_contents(__DIR__ . '/../public/project_licitation_annex_iv.php') ?: '';
+reports_test_assert_contains("register_project_annex_version(\$id, 'annex_iv')", $simpleAnnexSource, 'Anexo simplificado deve registrar versao e hash.');
+reports_test_assert_contains('<th style="width: 10%;">Item</th>', $simpleAnnexSource, 'Anexo simplificado deve exibir o numero do item.');
+reports_test_assert_contains('<th style="width: 72%;">Nome do item</th>', $simpleAnnexSource, 'Anexo simplificado deve exibir o nome do item.');
+reports_test_assert_contains('<th style="width: 18%;">Quantidade</th>', $simpleAnnexSource, 'Anexo simplificado deve exibir a quantidade.');
+
+$schemaSource = file_get_contents(__DIR__ . '/../database/schema.sql') ?: '';
+reports_test_assert_contains("'annex_iv'", $schemaSource, 'Schema deve permitir o versionamento do anexo simplificado.');
+
 foreach ($expectedLotAnnexTitles as $annexType => $expectedTitle) {
     reports_test_assert_same($expectedTitle, $annexTypes[$annexType] ?? null, 'Nome do anexo por lote deve seguir o padrao institucional.');
     $source = file_get_contents(__DIR__ . '/../public/project_' . $annexType . '.php') ?: '';

@@ -1848,7 +1848,7 @@ function project_item_quantity_memory_text(array $memory): string
         '',
         'Demandas registradas:',
         '- Quantidade solicitada: ' . format_decimal_quantity($memory['requested_quantity_snapshot'] ?? 0) . '.',
-        '- Quantidade aprovada: ' . format_decimal_quantity($memory['approved_quantity_snapshot'] ?? 0) . '.',
+        '- Demandas aprovadas: ' . format_decimal_quantity($memory['approved_quantity_snapshot'] ?? 0) . '.',
     ];
     $additions = [];
     $deductions = [];
@@ -1895,7 +1895,7 @@ function project_item_quantity_memory_text(array $memory): string
     }
 
     $lines[] = '';
-    $lines[] = 'Quantidade final estimada: ' . format_decimal_quantity($memory['final_quantity'] ?? 0) . '.';
+    $lines[] = 'Quantidade final estimada: ' . format_decimal_quantity($memory['final_quantity'] ?? 0) . ' unidades.';
 
     return implode(PHP_EOL, $lines);
 }

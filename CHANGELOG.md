@@ -1,3 +1,24 @@
+# Changelog
+
+Todas as alteracoes relevantes deste sistema serao registradas aqui.
+
+## [1.6.23] - 2026-07-20
+
+### Adicionado
+- Anexo IV por item com relacao simplificada do numero oficial, nome e quantidade efetiva de cada item da licitacao.
+- Exportacao do novo anexo em PDF institucional, Word e Excel, com data de emissao configuravel.
+- Versionamento, hash, invalidacao automatica e indicador de situacao para o novo documento.
+
+### Banco de Dados
+- Restricao de tipos de anexos atualizada de forma idempotente para aceitar o Anexo IV por item sem alterar os registros existentes.
+
+### Corrigido
+- Resumo textual da memoria de calculo passa a identificar as demandas aprovadas e a unidade da quantidade final conforme o resultado esperado.
+- Teste da memoria estruturada corrige a ordem dos snapshots solicitado/aprovado e compara quantidades decimais adequadamente.
+
+### Testes
+- Suite de relatorios passa a validar titulo, colunas, versionamento e suporte do schema ao novo anexo.
+
 ## [1.6.22] - 2026-07-20
 
 ### Adicionado
@@ -6,9 +27,6 @@
 
 ### Alterado
 - Itens, demandas, anexos e relatorios passam a considerar a quantidade efetiva consolidada quando a memoria de calculo do item estiver disponivel.
-# Changelog
-
-Todas as alteracoes relevantes deste sistema serao registradas aqui.
 ## [1.6.21] - 2026-07-13
 
 ### Adicionado

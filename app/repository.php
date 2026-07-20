@@ -3422,6 +3422,7 @@ function project_annex_types(): array
         'annex_i' => 'Anexo I - Planilha de itens, especificacoes, quantitativos e memoria de calculo',
         'annex_ii' => 'Anexo II - Planilha de pesquisa e estimativa de precos',
         'annex_iii' => 'Anexo III - Quadro resumido da estimativa de precos',
+        'annex_iv' => "Anexo IV - Rela\u{00E7}\u{00E3}o simplificada de itens e quantidades",
         'lot_annex_i' => "Anexo I - Planilha de Itens, Especifica\u{00E7}\u{00F5}es, Quantitativos e Mem\u{00F3}ria de C\u{00E1}lculo por lote",
         'lot_annex_ii' => "Anexo II - Planilha de Pesquisa e Estimativa de Pre\u{00E7}os por lote",
         'lot_annex_iii' => 'Anexo III - Quadro de agrupamento dos lotes',
@@ -4370,6 +4371,18 @@ function project_annex_payload(int $projectId, string $annexType): array
                         : null,
                 ], project_annex_quantity_memory_payload($item));
             }, $summary['items'] ?? []),
+        ];
+    }
+
+    if ($annexType === 'annex_iv') {
+        return [
+            'type' => $annexType,
+            'items' => array_map(static fn (array $item): array => [
+                'sequence' => (int) ($item['sequence'] ?? 0),
+                'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                'item_name' => (string) ($item['item_name'] ?? ''),
+                'quantity' => (float) ($item['annex_quantity'] ?? 0),
+            ], get_project_licitation_annex_i_items($projectId)),
         ];
     }
 

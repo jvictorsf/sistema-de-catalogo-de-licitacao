@@ -49,6 +49,7 @@ $primaryNavItems = [
             'project_licitation_annex_i.php',
             'project_licitation_annex_ii.php',
             'project_licitation_annex_iii.php',
+            'project_licitation_annex_iv.php',
             'project_lot_annex_i.php',
             'project_lot_annex_ii.php',
             'project_lot_annex_iii.php',

@@ -1108,6 +1108,7 @@ function enforce_project_reopen_deadline(array $project): array
 
     $projectId = (int) $project['id'];
     $reason = 'Fechamento automatico por prazo de correcao expirado.';
+    assert_project_quantity_memories_ready_for_closure($projectId);
 
     db()->beginTransaction();
 
@@ -1299,6 +1300,10 @@ function update_project(int $id, array $data): void
         $reopenDeadline = $project['reopen_correction_deadline'] ?: null;
     }
 
+    if ($nextStatus === 'closed' && $currentStatus !== 'closed') {
+        assert_project_quantity_memories_ready_for_closure($id);
+    }
+
     db()->beginTransaction();
 
     try {
@@ -1379,6 +1384,549 @@ function repository_json_array(mixed $value): array
     }
 
     return [];
+}
+
+function project_quantity_memory_tables_exist(): bool
+{
+    return database_table_exists('project_item_quantity_memories')
+        && database_table_exists('project_item_quantity_memory_versions');
+}
+
+function normalize_project_quantity_memory_row(array $row): array
+{
+    $row['calculation_data'] = normalize_quantity_memory_calculation_data($row['calculation_data'] ?? []);
+    $row['supporting_references'] = normalize_quantity_memory_supporting_references($row['supporting_references'] ?? []);
+    $row['include_approved_demands'] = boolish($row['include_approved_demands'] ?? true, true);
+    $row['needs_review'] = boolish($row['needs_review'] ?? true, true);
+
+    return $row;
+}
+
+function get_project_item_demand_composition(int $projectId, int $procurementItemId): array
+{
+    $stmt = db()->prepare("
+        SELECT
+            di.*,
+            dl.id AS demand_id,
+            dl.name AS demand_name,
+            dl.requester_department,
+            dl.responsible_name,
+            s.name AS secretariat_name,
+            CASE
+                WHEN parent_ru.id IS NOT NULL THEN parent_ru.name || ' - ' || ru.name
+                ELSE COALESCE(ru.name, dl.requester_department)
+            END AS requester_unit_name
+        FROM demand_items di
+        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+        LEFT JOIN secretariats s ON s.id = dl.secretariat_id
+        LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
+        LEFT JOIN requester_units parent_ru ON parent_ru.id = ru.parent_id
+        WHERE dl.project_id = :project_id
+          AND di.procurement_item_id = :procurement_item_id
+        ORDER BY s.name NULLS LAST, requester_unit_name NULLS LAST, dl.name, di.id
+    ");
+    $stmt->execute([
+        'project_id' => $projectId,
+        'procurement_item_id' => $procurementItemId,
+    ]);
+
+    return $stmt->fetchAll();
+}
+
+function get_project_item_quantity_snapshots(int $projectId, int $procurementItemId): array
+{
+    $composition = get_project_item_demand_composition($projectId, $procurementItemId);
+    $requested = 0.0;
+    $approved = 0.0;
+
+    foreach ($composition as $item) {
+        $requested += (float) ($item['quantity'] ?? 0);
+        $approved += (float) ($item['approved_quantity'] ?? $item['quantity'] ?? 0);
+    }
+
+    return [
+        'requested_quantity' => round($requested, 2),
+        'approved_quantity' => round($approved, 2),
+        'composition' => $composition,
+    ];
+}
+
+function project_item_quantity_memory_source_payload(
+    int $projectId,
+    int $procurementItemId,
+    array $memory
+): array {
+    $snapshots = get_project_item_quantity_snapshots($projectId, $procurementItemId);
+
+    return [
+        'project_id' => $projectId,
+        'procurement_item_id' => $procurementItemId,
+        'demands' => array_map(static fn (array $item): array => [
+            'id' => (int) ($item['id'] ?? 0),
+            'demand_id' => (int) ($item['demand_id'] ?? 0),
+            'quantity' => (float) ($item['quantity'] ?? 0),
+            'approved_quantity' => (float) ($item['approved_quantity'] ?? $item['quantity'] ?? 0),
+            'validation_status' => (string) ($item['validation_status'] ?? ''),
+        ], $snapshots['composition']),
+        'memory' => [
+            'calculation_method' => (string) ($memory['calculation_method'] ?? ''),
+            'planning_period_months' => (int) ($memory['planning_period_months'] ?? 12),
+            'include_approved_demands' => boolish($memory['include_approved_demands'] ?? true, true),
+            'calculation_data' => normalize_quantity_memory_calculation_data($memory['calculation_data'] ?? []),
+            'supporting_references' => normalize_quantity_memory_supporting_references($memory['supporting_references'] ?? []),
+            'rounding_rule' => (string) ($memory['rounding_rule'] ?? 'NONE'),
+            'manual_adjustment_justification' => (string) ($memory['manual_adjustment_justification'] ?? ''),
+            'final_quantity' => (float) ($memory['final_quantity'] ?? 0),
+        ],
+    ];
+}
+
+function project_item_quantity_memory_source_hash(
+    int $projectId,
+    int $procurementItemId,
+    array $memory
+): string {
+    return project_annex_hash(project_item_quantity_memory_source_payload($projectId, $procurementItemId, $memory));
+}
+
+function get_project_quantity_memory_map(int $projectId): array
+{
+    if (!project_quantity_memory_tables_exist()) {
+        return [];
+    }
+
+    $stmt = db()->prepare("
+        SELECT
+            memory.*,
+            validator.name AS validated_by_user_name,
+            updater.name AS updated_by_user_name
+        FROM project_item_quantity_memories memory
+        LEFT JOIN app_users validator ON validator.id = memory.validated_by_user_id
+        LEFT JOIN app_users updater ON updater.id = memory.updated_by_user_id
+        WHERE memory.project_id = :project_id
+        ORDER BY memory.procurement_item_id
+    ");
+    $stmt->execute(['project_id' => $projectId]);
+    $map = [];
+
+    foreach ($stmt->fetchAll() as $row) {
+        $map[(int) $row['procurement_item_id']] = normalize_project_quantity_memory_row($row);
+    }
+
+    return $map;
+}
+
+function find_project_item_quantity_memory(int $projectId, int $procurementItemId): ?array
+{
+    return get_project_quantity_memory_map($projectId)[$procurementItemId] ?? null;
+}
+
+function get_project_item_quantity_memory_versions(int $quantityMemoryId): array
+{
+    if (!project_quantity_memory_tables_exist()) {
+        return [];
+    }
+
+    $stmt = db()->prepare("
+        SELECT *
+        FROM project_item_quantity_memory_versions
+        WHERE quantity_memory_id = :quantity_memory_id
+        ORDER BY version_number DESC
+    ");
+    $stmt->execute(['quantity_memory_id' => $quantityMemoryId]);
+    $versions = $stmt->fetchAll();
+
+    foreach ($versions as $index => $version) {
+        $versions[$index]['snapshot'] = repository_json_array($version['snapshot'] ?? []);
+        $versions[$index]['change_summary'] = repository_json_array($version['change_summary'] ?? []);
+    }
+
+    return $versions;
+}
+
+function project_item_quantity_memory_snapshot(array $memory): array
+{
+    $snapshot = $memory;
+    unset(
+        $snapshot['validated_by_user_name'],
+        $snapshot['updated_by_user_name']
+    );
+    $snapshot['calculation_data'] = normalize_quantity_memory_calculation_data($snapshot['calculation_data'] ?? []);
+    $snapshot['supporting_references'] = normalize_quantity_memory_supporting_references($snapshot['supporting_references'] ?? []);
+
+    return $snapshot;
+}
+
+function create_project_item_quantity_memory_version(
+    array $current,
+    array $next,
+    string $notes = ''
+): void {
+    $memoryId = (int) ($current['id'] ?? 0);
+
+    if ($memoryId <= 0 || !project_quantity_memory_tables_exist()) {
+        return;
+    }
+
+    $stmt = db()->prepare("
+        SELECT COALESCE(MAX(version_number), 0) + 1
+        FROM project_item_quantity_memory_versions
+        WHERE quantity_memory_id = :quantity_memory_id
+    ");
+    $stmt->execute(['quantity_memory_id' => $memoryId]);
+    $versionNumber = (int) $stmt->fetchColumn();
+    $user = function_exists('auth_current_user') ? auth_current_user() : null;
+    $summary = [
+        'previous' => [
+            'calculation_method' => $current['calculation_method'] ?? null,
+            'calculated_quantity' => (float) ($current['calculated_quantity'] ?? 0),
+            'final_quantity' => (float) ($current['final_quantity'] ?? 0),
+            'status' => $current['status'] ?? null,
+            'source_hash' => $current['source_hash'] ?? null,
+        ],
+        'next' => [
+            'calculation_method' => $next['calculation_method'] ?? null,
+            'calculated_quantity' => (float) ($next['calculated_quantity'] ?? 0),
+            'final_quantity' => (float) ($next['final_quantity'] ?? 0),
+            'status' => $next['status'] ?? null,
+            'source_hash' => $next['source_hash'] ?? null,
+        ],
+    ];
+    $insert = db()->prepare("
+        INSERT INTO project_item_quantity_memory_versions (
+            quantity_memory_id,
+            version_number,
+            snapshot,
+            change_summary,
+            created_by_user_id,
+            created_by_user_name,
+            notes
+        ) VALUES (
+            :quantity_memory_id,
+            :version_number,
+            CAST(:snapshot AS jsonb),
+            CAST(:change_summary AS jsonb),
+            :created_by_user_id,
+            :created_by_user_name,
+            :notes
+        )
+    ");
+    $insert->execute([
+        'quantity_memory_id' => $memoryId,
+        'version_number' => $versionNumber,
+        'snapshot' => json_encode(project_item_quantity_memory_snapshot($current), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'change_summary' => json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'created_by_user_id' => $user['id'] ?? null,
+        'created_by_user_name' => $user['name'] ?? null,
+        'notes' => trim($notes) !== '' ? trim($notes) : null,
+    ]);
+}
+
+function save_project_item_quantity_memory(
+    int $projectId,
+    int $procurementItemId,
+    array $data,
+    string $action = 'draft'
+): array {
+    assert_project_editable($projectId);
+
+    if (!project_quantity_memory_tables_exist()) {
+        throw new RuntimeException('Memórias de cálculo indisponíveis. Atualize o schema do banco de dados.');
+    }
+
+    $item = find_item($procurementItemId);
+    if (!$item) {
+        throw new RuntimeException('Item do catálogo não encontrado.');
+    }
+
+    $current = find_project_item_quantity_memory($projectId, $procurementItemId);
+    $snapshots = get_project_item_quantity_snapshots($projectId, $procurementItemId);
+    $action = in_array($action, ['draft', 'validate', 'review'], true) ? $action : 'draft';
+    $data['status'] = $action === 'validate' ? 'VALIDATED' : 'DRAFT';
+    $data['needs_review'] = $action !== 'validate';
+    $result = calculate_project_item_quantity_memory(
+        $data,
+        (float) $snapshots['requested_quantity'],
+        (float) $snapshots['approved_quantity']
+    );
+    $result['status'] = $data['status'];
+    $result['needs_review'] = $action !== 'validate';
+    $result['source_hash'] = project_item_quantity_memory_source_hash($projectId, $procurementItemId, $result);
+    $user = function_exists('auth_current_user') ? auth_current_user() : null;
+
+    if ($current) {
+        create_project_item_quantity_memory_version(
+            $current,
+            $result,
+            trim((string) ($data['version_notes'] ?? '')) ?: 'Atualização da memória de cálculo.'
+        );
+    }
+
+    $stmt = db()->prepare("
+        INSERT INTO project_item_quantity_memories (
+            project_id,
+            procurement_item_id,
+            calculation_method,
+            planning_period_months,
+            include_approved_demands,
+            calculation_data,
+            supporting_references,
+            rounding_rule,
+            requested_quantity_snapshot,
+            approved_quantity_snapshot,
+            additions_total,
+            deductions_total,
+            calculated_quantity,
+            final_quantity,
+            manual_adjustment_justification,
+            calculation_text,
+            status,
+            needs_review,
+            source_hash,
+            created_by_user_id,
+            updated_by_user_id,
+            validated_by_user_id,
+            validated_at
+        ) VALUES (
+            :project_id,
+            :procurement_item_id,
+            :calculation_method,
+            :planning_period_months,
+            :include_approved_demands,
+            CAST(:calculation_data AS jsonb),
+            CAST(:supporting_references AS jsonb),
+            :rounding_rule,
+            :requested_quantity_snapshot,
+            :approved_quantity_snapshot,
+            :additions_total,
+            :deductions_total,
+            :calculated_quantity,
+            :final_quantity,
+            :manual_adjustment_justification,
+            :calculation_text,
+            :status,
+            :needs_review,
+            :source_hash,
+            :created_by_user_id,
+            :updated_by_user_id,
+            :validated_by_user_id,
+            :validated_at
+        )
+        ON CONFLICT (project_id, procurement_item_id) DO UPDATE SET
+            calculation_method = EXCLUDED.calculation_method,
+            planning_period_months = EXCLUDED.planning_period_months,
+            include_approved_demands = EXCLUDED.include_approved_demands,
+            calculation_data = EXCLUDED.calculation_data,
+            supporting_references = EXCLUDED.supporting_references,
+            rounding_rule = EXCLUDED.rounding_rule,
+            requested_quantity_snapshot = EXCLUDED.requested_quantity_snapshot,
+            approved_quantity_snapshot = EXCLUDED.approved_quantity_snapshot,
+            additions_total = EXCLUDED.additions_total,
+            deductions_total = EXCLUDED.deductions_total,
+            calculated_quantity = EXCLUDED.calculated_quantity,
+            final_quantity = EXCLUDED.final_quantity,
+            manual_adjustment_justification = EXCLUDED.manual_adjustment_justification,
+            calculation_text = EXCLUDED.calculation_text,
+            status = EXCLUDED.status,
+            needs_review = EXCLUDED.needs_review,
+            source_hash = EXCLUDED.source_hash,
+            updated_by_user_id = EXCLUDED.updated_by_user_id,
+            validated_by_user_id = EXCLUDED.validated_by_user_id,
+            validated_at = EXCLUDED.validated_at,
+            updated_at = CURRENT_TIMESTAMP
+        RETURNING *
+    ");
+    $stmt->execute([
+        'project_id' => $projectId,
+        'procurement_item_id' => $procurementItemId,
+        'calculation_method' => $result['calculation_method'],
+        'planning_period_months' => $result['planning_period_months'],
+        'include_approved_demands' => pg_bool($result['include_approved_demands']),
+        'calculation_data' => json_encode($result['calculation_data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'supporting_references' => json_encode($result['supporting_references'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'rounding_rule' => $result['rounding_rule'],
+        'requested_quantity_snapshot' => $result['requested_quantity_snapshot'],
+        'approved_quantity_snapshot' => $result['approved_quantity_snapshot'],
+        'additions_total' => $result['additions_total'],
+        'deductions_total' => $result['deductions_total'],
+        'calculated_quantity' => $result['calculated_quantity'],
+        'final_quantity' => $result['final_quantity'],
+        'manual_adjustment_justification' => $result['manual_adjustment_justification'],
+        'calculation_text' => $result['calculation_text'],
+        'status' => $result['status'],
+        'needs_review' => pg_bool($result['needs_review']),
+        'source_hash' => $result['source_hash'],
+        'created_by_user_id' => $current['created_by_user_id'] ?? $user['id'] ?? null,
+        'updated_by_user_id' => $user['id'] ?? null,
+        'validated_by_user_id' => $action === 'validate' ? ($user['id'] ?? null) : null,
+        'validated_at' => $action === 'validate' ? date('Y-m-d H:i:s') : null,
+    ]);
+
+    invalidate_project_annex_versions($projectId);
+
+    return normalize_project_quantity_memory_row($stmt->fetch() ?: $result);
+}
+
+function initialize_project_quantity_memories(int $projectId): int
+{
+    assert_project_editable($projectId);
+    $count = 0;
+    $existing = get_project_quantity_memory_map($projectId);
+
+    foreach (get_project_consolidated_items($projectId) as $item) {
+        $procurementItemId = (int) $item['procurement_item_id'];
+
+        if (isset($existing[$procurementItemId])) {
+            continue;
+        }
+
+        save_project_item_quantity_memory($projectId, $procurementItemId, [
+            'calculation_method' => 'DEMAND_CONSOLIDATION',
+            'planning_period_months' => 12,
+            'include_approved_demands' => true,
+            'calculation_data' => quantity_memory_default_calculation_data(),
+            'supporting_references' => [],
+            'rounding_rule' => 'NONE',
+            'status' => 'DRAFT',
+            'needs_review' => true,
+        ], 'draft');
+        $count++;
+    }
+
+    return $count;
+}
+
+function refresh_project_quantity_memories_after_demand_change(
+    int $projectId,
+    ?int $procurementItemId = null
+): void {
+    if (!project_quantity_memory_tables_exist()) {
+        return;
+    }
+
+    $memories = get_project_quantity_memory_map($projectId);
+
+    foreach ($memories as $itemId => $current) {
+        if ($procurementItemId !== null && $itemId !== $procurementItemId) {
+            continue;
+        }
+
+        $snapshots = get_project_item_quantity_snapshots($projectId, $itemId);
+        $hadManualAdjustment = abs(
+            (float) ($current['final_quantity'] ?? 0)
+            - (float) ($current['calculated_quantity'] ?? 0)
+        ) > 0.00001;
+        $input = $current;
+        $input['status'] = 'DRAFT';
+        $input['needs_review'] = true;
+
+        if (!$hadManualAdjustment) {
+            unset($input['final_quantity']);
+        }
+
+        $next = calculate_project_item_quantity_memory(
+            $input,
+            (float) $snapshots['requested_quantity'],
+            (float) $snapshots['approved_quantity']
+        );
+        $next['status'] = 'DRAFT';
+        $next['needs_review'] = true;
+        $next['source_hash'] = project_item_quantity_memory_source_hash($projectId, $itemId, $next);
+        create_project_item_quantity_memory_version(
+            $current,
+            $next,
+            $hadManualAdjustment
+                ? 'Base das demandas alterada; quantidade final ajustada preservada para revisão.'
+                : 'Base das demandas alterada; memória recalculada automaticamente.'
+        );
+
+        $stmt = db()->prepare("
+            UPDATE project_item_quantity_memories SET
+                requested_quantity_snapshot = :requested_quantity_snapshot,
+                approved_quantity_snapshot = :approved_quantity_snapshot,
+                calculation_data = CAST(:calculation_data AS jsonb),
+                additions_total = :additions_total,
+                deductions_total = :deductions_total,
+                calculated_quantity = :calculated_quantity,
+                final_quantity = :final_quantity,
+                calculation_text = :calculation_text,
+                status = 'DRAFT',
+                needs_review = TRUE,
+                source_hash = :source_hash,
+                validated_by_user_id = NULL,
+                validated_at = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+        ");
+        $stmt->execute([
+            'id' => $current['id'],
+            'requested_quantity_snapshot' => $next['requested_quantity_snapshot'],
+            'approved_quantity_snapshot' => $next['approved_quantity_snapshot'],
+            'calculation_data' => json_encode($next['calculation_data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'additions_total' => $next['additions_total'],
+            'deductions_total' => $next['deductions_total'],
+            'calculated_quantity' => $next['calculated_quantity'],
+            'final_quantity' => $next['final_quantity'],
+            'calculation_text' => $next['calculation_text'],
+            'source_hash' => $next['source_hash'],
+        ]);
+    }
+
+    invalidate_project_annex_versions($projectId);
+}
+
+function get_project_quantity_memory_pending_items(int $projectId): array
+{
+    if (!project_quantity_memory_tables_exist()) {
+        return [];
+    }
+
+    $stmt = db()->prepare("
+        SELECT
+            memory.procurement_item_id,
+            memory.status,
+            memory.needs_review,
+            pi.name AS item_name
+        FROM project_item_quantity_memories memory
+        INNER JOIN procurement_items pi ON pi.id = memory.procurement_item_id
+        WHERE memory.project_id = :project_id
+          AND (memory.status <> 'VALIDATED' OR memory.needs_review = TRUE)
+        ORDER BY pi.name
+    ");
+    $stmt->execute(['project_id' => $projectId]);
+
+    return $stmt->fetchAll();
+}
+
+function assert_project_quantity_memories_ready_for_closure(int $projectId): void
+{
+    if (!project_quantity_memory_tables_exist()) {
+        return;
+    }
+
+    $countStmt = db()->prepare("
+        SELECT COUNT(*)
+        FROM project_item_quantity_memories
+        WHERE project_id = :project_id
+    ");
+    $countStmt->execute(['project_id' => $projectId]);
+
+    if ((int) $countStmt->fetchColumn() === 0) {
+        return;
+    }
+
+    $pending = get_project_quantity_memory_pending_items($projectId);
+
+    if ($pending) {
+        $names = array_map(static fn (array $item): string => (string) $item['item_name'], array_slice($pending, 0, 8));
+        $suffix = count($pending) > 8 ? ' e outros.' : '.';
+
+        throw new RuntimeException(
+            'Valide as memórias de cálculo pendentes antes de fechar o projeto: '
+            . implode(', ', $names)
+            . $suffix
+        );
+    }
 }
 
 function rich_text_editor_settings_table_exists(): bool
@@ -2602,6 +3150,13 @@ function delete_demand_list(int $id): void
 {
     $projectId = find_project_id_by_demand_list($id);
     assert_project_editable($projectId);
+    $itemStmt = db()->prepare("
+        SELECT DISTINCT procurement_item_id
+        FROM demand_items
+        WHERE demand_list_id = :demand_list_id
+    ");
+    $itemStmt->execute(['demand_list_id' => $id]);
+    $procurementItemIds = array_map('intval', $itemStmt->fetchAll(PDO::FETCH_COLUMN));
 
     $stmt = db()->prepare("
         DELETE FROM demand_lists
@@ -2610,6 +3165,10 @@ function delete_demand_list(int $id): void
 
     $stmt->execute(['id' => $id]);
     invalidate_project_annex_versions($projectId);
+
+    foreach ($procurementItemIds as $procurementItemId) {
+        refresh_project_quantity_memories_after_demand_change((int) $projectId, $procurementItemId);
+    }
 }
 
 function get_demand_items(int $demandListId): array
@@ -2653,7 +3212,11 @@ function get_demand_items(int $demandListId): array
 
 function add_demand_item(array $data): void
 {
-    assert_project_editable(find_project_id_by_demand_list((int) $data['demand_list_id']));
+    $projectId = find_project_id_by_demand_list((int) $data['demand_list_id']);
+    assert_project_editable($projectId);
+    $details = prepare_demand_item_details($data, true);
+    $user = function_exists('auth_current_user') ? auth_current_user() : null;
+    $validated = ($details['validation_status'] ?? 'PENDING') !== 'PENDING';
 
     $stmt = db()->prepare("
         INSERT INTO demand_items (
@@ -2662,6 +3225,20 @@ function add_demand_item(array $data): void
             quantity,
             approved_quantity,
             estimated_unit_price,
+            need_type,
+            need_justification,
+            intended_use,
+            destination,
+            priority,
+            needed_by_date,
+            related_assets,
+            related_project,
+            evidence_references,
+            validation_status,
+            validation_notes,
+            validated_by_user_id,
+            validated_at,
+            demand_details_migrated_at,
             notes
         ) VALUES (
             :demand_list_id,
@@ -2669,6 +3246,20 @@ function add_demand_item(array $data): void
             :quantity,
             :approved_quantity,
             :estimated_unit_price,
+            :need_type,
+            :need_justification,
+            :intended_use,
+            :destination,
+            :priority,
+            :needed_by_date,
+            :related_assets,
+            :related_project,
+            :evidence_references,
+            :validation_status,
+            :validation_notes,
+            :validated_by_user_id,
+            :validated_at,
+            :demand_details_migrated_at,
             :notes
         )
         ON CONFLICT (demand_list_id, procurement_item_id)
@@ -2676,25 +3267,57 @@ function add_demand_item(array $data): void
             quantity = demand_items.quantity + EXCLUDED.quantity,
             approved_quantity = COALESCE(demand_items.approved_quantity, 0) + EXCLUDED.approved_quantity,
             estimated_unit_price = EXCLUDED.estimated_unit_price,
+            need_type = EXCLUDED.need_type,
+            need_justification = EXCLUDED.need_justification,
+            intended_use = EXCLUDED.intended_use,
+            destination = EXCLUDED.destination,
+            priority = EXCLUDED.priority,
+            needed_by_date = EXCLUDED.needed_by_date,
+            related_assets = EXCLUDED.related_assets,
+            related_project = EXCLUDED.related_project,
+            evidence_references = EXCLUDED.evidence_references,
+            validation_status = EXCLUDED.validation_status,
+            validation_notes = EXCLUDED.validation_notes,
+            validated_by_user_id = EXCLUDED.validated_by_user_id,
+            validated_at = EXCLUDED.validated_at,
+            demand_details_migrated_at = EXCLUDED.demand_details_migrated_at,
             notes = EXCLUDED.notes
     ");
 
     $stmt->execute([
         'demand_list_id' => $data['demand_list_id'],
         'procurement_item_id' => $data['procurement_item_id'],
-        'quantity' => $data['quantity'],
-        'approved_quantity' => $data['approved_quantity'] ?? $data['quantity'],
+        'quantity' => $details['quantity'],
+        'approved_quantity' => $details['approved_quantity'],
         'estimated_unit_price' => $data['estimated_unit_price'] ?? null,
+        'need_type' => $details['need_type'],
+        'need_justification' => $details['need_justification'],
+        'intended_use' => $details['intended_use'],
+        'destination' => $details['destination'],
+        'priority' => $details['priority'],
+        'needed_by_date' => $details['needed_by_date'],
+        'related_assets' => $details['related_assets'],
+        'related_project' => $details['related_project'],
+        'evidence_references' => $details['evidence_references'],
+        'validation_status' => $details['validation_status'],
+        'validation_notes' => $details['validation_notes'],
+        'validated_by_user_id' => $validated ? ($user['id'] ?? null) : null,
+        'validated_at' => $validated ? date('Y-m-d H:i:s') : null,
+        'demand_details_migrated_at' => $details['demand_details_migrated_at'],
         'notes' => $data['notes'] ?? null,
     ]);
 
-    invalidate_project_annex_versions(find_project_id_by_demand_list((int) $data['demand_list_id']));
+    invalidate_project_annex_versions($projectId);
+    refresh_project_quantity_memories_after_demand_change((int) $projectId, (int) $data['procurement_item_id']);
 }
 
 function delete_demand_item(int $id): void
 {
     $projectId = find_project_id_by_demand_item($id);
     assert_project_editable($projectId);
+    $itemStmt = db()->prepare("SELECT procurement_item_id FROM demand_items WHERE id = :id");
+    $itemStmt->execute(['id' => $id]);
+    $procurementItemId = (int) $itemStmt->fetchColumn();
 
     $stmt = db()->prepare("
         DELETE FROM demand_items
@@ -2703,31 +3326,67 @@ function delete_demand_item(int $id): void
 
     $stmt->execute(['id' => $id]);
     invalidate_project_annex_versions($projectId);
+    refresh_project_quantity_memories_after_demand_change((int) $projectId, $procurementItemId);
 }
 
 function update_demand_item(int $id, array $data): void
 {
     $projectId = find_project_id_by_demand_item($id);
     assert_project_editable($projectId);
+    $details = prepare_demand_item_details($data, true);
+    $user = function_exists('auth_current_user') ? auth_current_user() : null;
+    $validated = ($details['validation_status'] ?? 'PENDING') !== 'PENDING';
+    $itemStmt = db()->prepare("SELECT procurement_item_id FROM demand_items WHERE id = :id");
+    $itemStmt->execute(['id' => $id]);
+    $procurementItemId = (int) $itemStmt->fetchColumn();
 
     $stmt = db()->prepare("
         UPDATE demand_items SET
             quantity = :quantity,
             approved_quantity = :approved_quantity,
             estimated_unit_price = :estimated_unit_price,
+            need_type = :need_type,
+            need_justification = :need_justification,
+            intended_use = :intended_use,
+            destination = :destination,
+            priority = :priority,
+            needed_by_date = :needed_by_date,
+            related_assets = :related_assets,
+            related_project = :related_project,
+            evidence_references = :evidence_references,
+            validation_status = :validation_status,
+            validation_notes = :validation_notes,
+            validated_by_user_id = :validated_by_user_id,
+            validated_at = :validated_at,
+            demand_details_migrated_at = :demand_details_migrated_at,
             notes = :notes
         WHERE id = :id
     ");
 
     $stmt->execute([
         'id' => $id,
-        'quantity' => $data['quantity'],
-        'approved_quantity' => $data['approved_quantity'],
+        'quantity' => $details['quantity'],
+        'approved_quantity' => $details['approved_quantity'],
         'estimated_unit_price' => $data['estimated_unit_price'],
+        'need_type' => $details['need_type'],
+        'need_justification' => $details['need_justification'],
+        'intended_use' => $details['intended_use'],
+        'destination' => $details['destination'],
+        'priority' => $details['priority'],
+        'needed_by_date' => $details['needed_by_date'],
+        'related_assets' => $details['related_assets'],
+        'related_project' => $details['related_project'],
+        'evidence_references' => $details['evidence_references'],
+        'validation_status' => $details['validation_status'],
+        'validation_notes' => $details['validation_notes'],
+        'validated_by_user_id' => $validated ? ($user['id'] ?? null) : null,
+        'validated_at' => $validated ? date('Y-m-d H:i:s') : null,
+        'demand_details_migrated_at' => $details['demand_details_migrated_at'],
         'notes' => $data['notes'] ?? null,
     ]);
 
     invalidate_project_annex_versions($projectId);
+    refresh_project_quantity_memories_after_demand_change((int) $projectId, $procurementItemId);
 }
 
 function normalize_money_value(mixed $value): ?float
@@ -3601,13 +4260,40 @@ function project_annex_hash(array $payload): string
     );
 }
 
+function project_annex_quantity_memory_payload(array $item): array
+{
+    return [
+        'effective_quantity' => project_item_effective_quantity($item),
+        'calculation_method' => $item['calculation_method'] ?? null,
+        'calculated_quantity' => isset($item['calculated_quantity'])
+            ? (float) $item['calculated_quantity']
+            : null,
+        'final_quantity' => isset($item['final_quantity'])
+            ? (float) $item['final_quantity']
+            : null,
+        'quantity_memory_status' => $item['quantity_memory_status'] ?? null,
+        'quantity_memory_needs_review' => (bool) ($item['quantity_memory_needs_review'] ?? false),
+        'calculation_data' => $item['calculation_data'] ?? null,
+        'supporting_references' => $item['supporting_references'] ?? [],
+        'calculation_text' => $item['calculation_text'] ?? null,
+        'source_hash' => $item['quantity_memory_source_hash'] ?? null,
+        'demand_composition' => array_map(static fn (array $memory): array => [
+            'demand_id' => (int) ($memory['demand_id'] ?? 0),
+            'demand_name' => (string) ($memory['demand_name'] ?? ''),
+            'secretariat_name' => (string) ($memory['secretariat_name'] ?? ''),
+            'requester_department' => (string) ($memory['requester_department'] ?? ''),
+            'quantity' => (float) ($memory['quantity'] ?? 0),
+        ], $item['demand_memory'] ?? []),
+    ];
+}
+
 function project_annex_payload(int $projectId, string $annexType): array
 {
     if ($annexType === 'annex_i') {
         return [
             'type' => $annexType,
             'items' => array_map(static function (array $item): array {
-                return [
+                return array_merge([
                     'sequence' => (int) ($item['sequence'] ?? 0),
                     'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
                     'tracking_code' => (string) ($item['tracking_code'] ?? ''),
@@ -3619,7 +4305,7 @@ function project_annex_payload(int $projectId, string $annexType): array
                         'demand_id' => (int) ($memory['demand_id'] ?? 0),
                         'quantity' => (float) ($memory['quantity'] ?? 0),
                     ], $item['demand_memory'] ?? []),
-                ];
+                ], project_annex_quantity_memory_payload($item));
             }, get_project_licitation_annex_i_items($projectId)),
         ];
     }
@@ -3640,21 +4326,23 @@ function project_annex_payload(int $projectId, string $annexType): array
                         'document' => (string) ($supplier['document'] ?? ''),
                         'proposal_dates' => array_values($supplier['proposal_dates'] ?? []),
                     ], $group['suppliers'] ?? []),
-                    'items' => array_map(static fn (array $item): array => [
-                        'sequence' => (int) ($item['sequence'] ?? 0),
-                        'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
-                        'item_name' => (string) ($item['item_name'] ?? ''),
-                        'unit' => licitation_annex_unit_text($item),
-                        'specification' => licitation_annex_specification_text($item),
-                        'quantity' => (float) ($item['annex_quantity'] ?? 0),
-                        'supplier_prices' => $item['supplier_prices'] ?? [],
-                        'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
-                            ? (float) $item['estimated_unit_price']
-                            : null,
-                        'estimated_total' => ($item['estimated_total'] ?? null) !== null
-                            ? (float) $item['estimated_total']
-                            : null,
-                    ], $group['items'] ?? []),
+                    'items' => array_map(static function (array $item): array {
+                        return array_merge([
+                            'sequence' => (int) ($item['sequence'] ?? 0),
+                            'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                            'item_name' => (string) ($item['item_name'] ?? ''),
+                            'unit' => licitation_annex_unit_text($item),
+                            'specification' => licitation_annex_specification_text($item),
+                            'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                            'supplier_prices' => $item['supplier_prices'] ?? [],
+                            'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
+                                ? (float) $item['estimated_unit_price']
+                                : null,
+                            'estimated_total' => ($item['estimated_total'] ?? null) !== null
+                                ? (float) $item['estimated_total']
+                                : null,
+                        ], project_annex_quantity_memory_payload($item));
+                    }, $group['items'] ?? []),
                     'subtotal' => (float) ($group['subtotal'] ?? 0),
                 ];
             }, $annex['groups'] ?? []),
@@ -3667,19 +4355,21 @@ function project_annex_payload(int $projectId, string $annexType): array
         return [
             'type' => $annexType,
             'global_total' => (float) ($summary['global_total'] ?? 0),
-            'items' => array_map(static fn (array $item): array => [
-                'sequence' => (int) ($item['sequence'] ?? 0),
-                'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
-                'item_name' => (string) ($item['item_name'] ?? ''),
-                'unit' => licitation_annex_unit_text($item),
-                'quantity' => (float) ($item['annex_quantity'] ?? 0),
-                'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
-                    ? (float) $item['estimated_unit_price']
-                    : null,
-                'estimated_total' => ($item['estimated_total'] ?? null) !== null
-                    ? (float) $item['estimated_total']
-                    : null,
-            ], $summary['items'] ?? []),
+            'items' => array_map(static function (array $item): array {
+                return array_merge([
+                    'sequence' => (int) ($item['sequence'] ?? 0),
+                    'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                    'item_name' => (string) ($item['item_name'] ?? ''),
+                    'unit' => licitation_annex_unit_text($item),
+                    'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                    'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
+                        ? (float) $item['estimated_unit_price']
+                        : null,
+                    'estimated_total' => ($item['estimated_total'] ?? null) !== null
+                        ? (float) $item['estimated_total']
+                        : null,
+                ], project_annex_quantity_memory_payload($item));
+            }, $summary['items'] ?? []),
         ];
     }
 
@@ -3690,19 +4380,21 @@ function project_annex_payload(int $projectId, string $annexType): array
                 'lot_number' => $lot['lot_number'] !== null ? (int) $lot['lot_number'] : null,
                 'name' => (string) ($lot['name'] ?? ''),
                 'justification' => (string) ($lot['justification'] ?? ''),
-                'items' => array_map(static fn (array $item): array => [
-                    'sequence' => (int) ($item['sequence'] ?? 0),
-                    'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
-                    'tracking_code' => (string) ($item['tracking_code'] ?? ''),
-                    'item_name' => (string) ($item['item_name'] ?? ''),
-                    'unit' => licitation_annex_unit_text($item),
-                    'quantity' => (float) ($item['annex_quantity'] ?? 0),
-                    'specification' => licitation_annex_specification_text($item),
-                    'demand_memory' => array_map(static fn (array $memory): array => [
-                        'demand_id' => (int) ($memory['demand_id'] ?? 0),
-                        'quantity' => (float) ($memory['quantity'] ?? 0),
-                    ], $item['demand_memory'] ?? []),
-                ], $lot['items'] ?? []),
+                'items' => array_map(static function (array $item): array {
+                    return array_merge([
+                        'sequence' => (int) ($item['sequence'] ?? 0),
+                        'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                        'tracking_code' => (string) ($item['tracking_code'] ?? ''),
+                        'item_name' => (string) ($item['item_name'] ?? ''),
+                        'unit' => licitation_annex_unit_text($item),
+                        'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                        'specification' => licitation_annex_specification_text($item),
+                        'demand_memory' => array_map(static fn (array $memory): array => [
+                            'demand_id' => (int) ($memory['demand_id'] ?? 0),
+                            'quantity' => (float) ($memory['quantity'] ?? 0),
+                        ], $item['demand_memory'] ?? []),
+                    ], project_annex_quantity_memory_payload($item));
+                }, $lot['items'] ?? []),
             ], get_project_lot_licitation_annex_i_groups($projectId)),
         ];
     }
@@ -3726,21 +4418,23 @@ function project_annex_payload(int $projectId, string $annexType): array
                         'document' => (string) ($supplier['document'] ?? ''),
                         'proposal_dates' => array_values($supplier['proposal_dates'] ?? []),
                     ], $supplierGroup['suppliers'] ?? []),
-                    'items' => array_map(static fn (array $item): array => [
-                        'sequence' => (int) ($item['sequence'] ?? 0),
-                        'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
-                        'item_name' => (string) ($item['item_name'] ?? ''),
-                        'unit' => licitation_annex_unit_text($item),
-                        'specification' => licitation_annex_specification_text($item),
-                        'quantity' => (float) ($item['annex_quantity'] ?? 0),
-                        'supplier_prices' => $item['supplier_prices'] ?? [],
-                        'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
-                            ? (float) $item['estimated_unit_price']
-                            : null,
-                        'estimated_total' => ($item['estimated_total'] ?? null) !== null
-                            ? (float) $item['estimated_total']
-                            : null,
-                    ], $supplierGroup['items'] ?? []),
+                    'items' => array_map(static function (array $item): array {
+                        return array_merge([
+                            'sequence' => (int) ($item['sequence'] ?? 0),
+                            'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                            'item_name' => (string) ($item['item_name'] ?? ''),
+                            'unit' => licitation_annex_unit_text($item),
+                            'specification' => licitation_annex_specification_text($item),
+                            'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                            'supplier_prices' => $item['supplier_prices'] ?? [],
+                            'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
+                                ? (float) $item['estimated_unit_price']
+                                : null,
+                            'estimated_total' => ($item['estimated_total'] ?? null) !== null
+                                ? (float) $item['estimated_total']
+                                : null,
+                        ], project_annex_quantity_memory_payload($item));
+                    }, $supplierGroup['items'] ?? []),
                     'subtotal' => (float) ($supplierGroup['subtotal'] ?? 0),
                 ], $lot['supplier_groups'] ?? []),
                 'subtotal' => (float) ($lot['subtotal'] ?? 0),
@@ -3755,11 +4449,11 @@ function project_annex_payload(int $projectId, string $annexType): array
                 'lot_number' => $lot['lot_number'] !== null ? (int) $lot['lot_number'] : null,
                 'name' => (string) ($lot['name'] ?? ''),
                 'justification' => (string) ($lot['justification'] ?? ''),
-                'items' => array_map(static fn (array $item): array => [
+                'items' => array_map(static fn (array $item): array => array_merge([
                     'sequence' => (int) ($item['sequence'] ?? 0),
                     'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
                     'item_name' => (string) ($item['item_name'] ?? ''),
-                ], $lot['items'] ?? []),
+                ], project_annex_quantity_memory_payload($item)), $lot['items'] ?? []),
             ], get_project_lot_licitation_annex_i_groups($projectId)),
         ];
     }
@@ -3773,11 +4467,11 @@ function project_annex_payload(int $projectId, string $annexType): array
             'lots' => array_map(static fn (array $lot): array => [
                 'lot_number' => $lot['lot_number'] !== null ? (int) $lot['lot_number'] : null,
                 'name' => (string) ($lot['name'] ?? ''),
-                'items' => array_map(static fn (array $item): array => [
+                'items' => array_map(static fn (array $item): array => array_merge([
                     'sequence' => (int) ($item['sequence'] ?? 0),
                     'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
                     'item_name' => (string) ($item['item_name'] ?? ''),
-                ], $lot['items'] ?? []),
+                ], project_annex_quantity_memory_payload($item)), $lot['items'] ?? []),
                 'subtotal' => (float) ($lot['subtotal'] ?? 0),
             ], $annex['lots'] ?? []),
         ];
@@ -4931,7 +5625,7 @@ function get_project_global_price_bank_candidates(int $projectId, int $months = 
         $targetQuantities = [];
 
         foreach ($targetItems as $item) {
-            $targetQuantities[(int) $item['procurement_item_id']] = (float) ($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0);
+            $targetQuantities[(int) $item['procurement_item_id']] = project_item_effective_quantity($item);
         }
 
         if (!$targetQuantities) {
@@ -5617,6 +6311,7 @@ function get_project_consolidated_items(int $projectId): array
 
     $budgetItems = get_project_demand_budget_items($projectId);
     $licitationNumbers = get_project_licitation_number_map($projectId);
+    $quantityMemoryMap = get_project_quantity_memory_map($projectId);
     $itemTotals = [];
 
     $stmt = db()->prepare("
@@ -5654,12 +6349,51 @@ function get_project_consolidated_items(int $projectId): array
         $procurementItemId = (int) $item['procurement_item_id'];
         $total = $itemTotals[$procurementItemId]['estimated_total'] ?? (float) $item['estimated_total'];
         $approvedQuantity = (float) ($item['total_approved_quantity'] ?? 0);
+        $quantityMemory = $quantityMemoryMap[$procurementItemId] ?? null;
+        $averageUnitPrice = $approvedQuantity > 0
+            ? $total / $approvedQuantity
+            : (float) ($item['average_unit_price'] ?? 0);
+        $memoryFields = $quantityMemory ? [
+            'quantity_memory_id' => (int) $quantityMemory['id'],
+            'quantity_memory' => $quantityMemory,
+            'calculation_method' => $quantityMemory['calculation_method'],
+            'calculation_data' => $quantityMemory['calculation_data'],
+            'supporting_references' => $quantityMemory['supporting_references'],
+            'requested_quantity_snapshot' => (float) $quantityMemory['requested_quantity_snapshot'],
+            'approved_quantity_snapshot' => (float) $quantityMemory['approved_quantity_snapshot'],
+            'additions_total' => (float) $quantityMemory['additions_total'],
+            'deductions_total' => (float) $quantityMemory['deductions_total'],
+            'calculated_quantity' => (float) $quantityMemory['calculated_quantity'],
+            'final_quantity' => (float) $quantityMemory['final_quantity'],
+            'quantity_memory_status' => $quantityMemory['status'],
+            'quantity_memory_needs_review' => (bool) $quantityMemory['needs_review'],
+            'quantity_memory_source_hash' => $quantityMemory['source_hash'],
+            'calculation_text' => $quantityMemory['calculation_text'],
+        ] : [
+            'quantity_memory_id' => null,
+            'quantity_memory' => null,
+            'calculation_method' => null,
+            'calculation_data' => null,
+            'supporting_references' => [],
+            'requested_quantity_snapshot' => (float) ($item['total_quantity'] ?? 0),
+            'approved_quantity_snapshot' => $approvedQuantity,
+            'additions_total' => 0.0,
+            'deductions_total' => 0.0,
+            'calculated_quantity' => $approvedQuantity,
+            'final_quantity' => $approvedQuantity,
+            'quantity_memory_status' => null,
+            'quantity_memory_needs_review' => false,
+            'quantity_memory_source_hash' => null,
+            'calculation_text' => null,
+        ];
 
         $items[$index]['licitation_number'] = $licitationNumbers[$procurementItemId] ?? null;
-        $items[$index]['estimated_total'] = $total;
-        $items[$index]['average_unit_price'] = $approvedQuantity > 0
-            ? $total / $approvedQuantity
-            : 0;
+        $items[$index] = array_merge($items[$index], $memoryFields);
+        $items[$index]['effective_quantity'] = project_item_effective_quantity($items[$index]);
+        $items[$index]['average_unit_price'] = $averageUnitPrice;
+        $items[$index]['estimated_total'] = round_money_value(
+            $averageUnitPrice * (float) $items[$index]['effective_quantity']
+        );
         $items[$index]['uses_supplier_average'] = $itemTotals[$procurementItemId]['uses_supplier_average'] ?? false;
     }
 
@@ -5769,11 +6503,7 @@ function get_project_licitation_annex_i_items(int $projectId): array
         $procurementItemId = (int) $item['procurement_item_id'];
 
         $items[$index]['sequence'] = (int) ($item['licitation_number'] ?? 0) ?: $index + 1;
-        $items[$index]['annex_quantity'] = (float) (
-            $item['total_approved_quantity']
-            ?? $item['total_quantity']
-            ?? 0
-        );
+        $items[$index]['annex_quantity'] = project_item_effective_quantity($item);
         $items[$index]['demand_memory'] = $memoryByItem[$procurementItemId] ?? [];
     }
 
@@ -5788,7 +6518,7 @@ function get_project_licitation_annex_ii_groups(int $projectId): array
         $baseItems[(int) $item['procurement_item_id']] = $item;
     }
 
-    $rows = [];
+    $rowsByItem = [];
 
     foreach (get_project_demands($projectId) as $demand) {
         $budget = get_demand_budget_report((int) $demand['id']);
@@ -5801,7 +6531,7 @@ function get_project_licitation_annex_ii_groups(int $projectId): array
         foreach ($budget['items'] as $item) {
             $procurementItemId = (int) $item['procurement_item_id'];
             $baseItem = $baseItems[$procurementItemId] ?? $item;
-            $quantity = (float) ($item['budget_quantity'] ?? $item['approved_quantity'] ?? $item['quantity'] ?? 0);
+            $demandQuantity = (float) ($item['budget_quantity'] ?? $item['approved_quantity'] ?? $item['quantity'] ?? 0);
             $suppliers = [];
 
             foreach ($item['supplier_prices'] ?? [] as $quoteId => $unitPrice) {
@@ -5860,21 +6590,38 @@ function get_project_licitation_annex_ii_groups(int $projectId): array
                 ];
             }
 
-            $rows[] = array_merge($baseItem, [
-                'annex_quantity' => $quantity,
-                'manual_unit_price' => $item['estimated_unit_price'] !== null
-                    ? (float) $item['estimated_unit_price']
-                    : null,
-                'suppliers' => $suppliers,
-                'demand_memory' => [[
+            if (!isset($rowsByItem[$procurementItemId])) {
+                $rowsByItem[$procurementItemId] = array_merge($baseItem, [
+                    'annex_quantity' => project_item_effective_quantity($baseItem),
+                    'manual_price_values' => [],
+                    'suppliers' => [],
+                    'demand_memory' => [],
+                ]);
+            }
+
+            if ($item['estimated_unit_price'] !== null) {
+                $rowsByItem[$procurementItemId]['manual_price_values'][] = (float) $item['estimated_unit_price'];
+            }
+
+            array_push($rowsByItem[$procurementItemId]['suppliers'], ...$suppliers);
+            $rowsByItem[$procurementItemId]['demand_memory'][] = [
                     'demand_id' => (int) $demand['id'],
                     'demand_name' => $demand['name'],
                     'secretariat_name' => $demand['secretariat_name'] ?? null,
                     'requester_department' => $demand['requester_department'] ?? null,
-                    'quantity' => $quantity,
-                ]],
-            ]);
+                    'quantity' => $demandQuantity,
+            ];
         }
+    }
+
+    $rows = [];
+    foreach ($rowsByItem as $row) {
+        $manualValues = $row['manual_price_values'];
+        $row['manual_unit_price'] = $manualValues
+            ? array_sum($manualValues) / count($manualValues)
+            : null;
+        unset($row['manual_price_values']);
+        $rows[] = $row;
     }
 
     return build_licitation_annex_ii_groups_from_rows($rows);
@@ -5964,16 +6711,19 @@ function get_project_financial_summary(int $projectId): array
     $summary['total_approved_quantity'] = $summary['total_approved_quantity'] ?? 0;
     $annex = get_project_licitation_annex_ii_groups($projectId);
     $summary['total_estimated_value'] = (float) ($annex['global_total'] ?? 0);
+    $effectiveQuantities = [];
     $summary['uses_supplier_average'] = false;
 
     foreach ($annex['groups'] ?? [] as $group) {
         foreach ($group['items'] ?? [] as $item) {
+            $effectiveQuantities[(int) ($item['procurement_item_id'] ?? 0)] = (float) ($item['annex_quantity'] ?? 0);
             if (array_filter($item['supplier_prices'] ?? [], static fn (mixed $price): bool => $price !== null)) {
                 $summary['uses_supplier_average'] = true;
-                break 2;
             }
         }
     }
+    unset($effectiveQuantities[0]);
+    $summary['total_effective_quantity'] = array_sum($effectiveQuantities);
 
     return $summary;
 }
@@ -7016,7 +7766,7 @@ function delete_item_kit_item(int $id): void
     $stmt->execute(['id' => $id]);
 }
 
-function add_kit_to_demand(int $demandListId, int $kitId, float $multiplier = 1): void
+function add_kit_to_demand(int $demandListId, int $kitId, float $multiplier = 1, array $details = []): void
 {
     $items = get_item_kit_items($kitId);
 
@@ -7029,6 +7779,17 @@ function add_kit_to_demand(int $demandListId, int $kitId, float $multiplier = 1)
             'quantity' => $quantity,
             'approved_quantity' => $quantity,
             'estimated_unit_price' => null,
+            'need_type' => $details['need_type'] ?? 'OTHER',
+            'need_justification' => $details['need_justification'] ?? '',
+            'intended_use' => $details['intended_use'] ?? '',
+            'destination' => $details['destination'] ?? '',
+            'priority' => $details['priority'] ?? 'MEDIUM',
+            'needed_by_date' => $details['needed_by_date'] ?? '',
+            'related_assets' => $details['related_assets'] ?? '',
+            'related_project' => $details['related_project'] ?? '',
+            'evidence_references' => $details['evidence_references'] ?? '',
+            'validation_status' => $details['validation_status'] ?? 'PENDING',
+            'validation_notes' => $details['validation_notes'] ?? '',
             'notes' => $item['notes'] ?? null,
         ]);
     }
@@ -7511,7 +8272,17 @@ function restore_item_version(int $versionId): int
 
 function project_budget_aggregate_cte_sql(): string
 {
-    return <<<'SQL'
+    $memoryAvailable = project_quantity_memory_tables_exist();
+    $memoryJoin = $memoryAvailable
+        ? 'LEFT JOIN project_item_quantity_memories quantity_memory
+            ON quantity_memory.project_id = dib.project_id
+           AND quantity_memory.procurement_item_id = dib.procurement_item_id'
+        : '';
+    $effectiveQuantity = $memoryAvailable
+        ? 'COALESCE(MAX(quantity_memory.final_quantity), SUM(dib.quantity))'
+        : 'SUM(dib.quantity)';
+
+    return <<<SQL
 WITH price_sources AS (
     SELECT
         di.id AS demand_item_id,
@@ -7575,6 +8346,18 @@ demand_item_budget AS (
         di.approved_quantity,
         di.quantity,
         di.estimated_unit_price
+),
+project_item_budget AS (
+    SELECT
+        dib.project_id,
+        dib.procurement_item_id,
+        {$effectiveQuantity} AS quantity,
+        AVG(dib.calculated_unit_price) AS calculated_unit_price,
+        {$effectiveQuantity} * AVG(dib.calculated_unit_price) AS calculated_total,
+        SUM(dib.price_count) AS price_count
+    FROM demand_item_budget dib
+    {$memoryJoin}
+    GROUP BY dib.project_id, dib.procurement_item_id
 )
 SQL;
 }
@@ -7590,7 +8373,7 @@ function get_dashboard_summary(): array
             (SELECT COUNT(*) FROM suppliers WHERE is_active = TRUE) AS active_suppliers,
             (SELECT COUNT(*) FROM secretariats) AS total_secretariats,
             (SELECT COUNT(*) FROM requester_units) AS total_requester_units,
-            COALESCE((SELECT SUM(calculated_total) FROM demand_item_budget), 0) AS total_estimated_value
+            COALESCE((SELECT SUM(calculated_total) FROM project_item_budget), 0) AS total_estimated_value
     ";
 
     $row = db()->query($sql)->fetch() ?: [];
@@ -7661,7 +8444,7 @@ function get_recent_projects_for_dashboard(int $limit = 6): array
     $sql = project_budget_aggregate_cte_sql() . "
         , project_values AS (
             SELECT project_id, SUM(calculated_total) AS total_estimated_value
-            FROM demand_item_budget
+            FROM project_item_budget
             GROUP BY project_id
         ), project_demands AS (
             SELECT project_id, COUNT(*) AS demand_count
@@ -7816,7 +8599,7 @@ function project_bi_project_rows(array $filters = []): array
                 COUNT(DISTINCT procurement_item_id) AS item_count,
                 SUM(calculated_total) AS total_estimated_value,
                 BOOL_OR(price_count > 0) AS uses_supplier_average
-            FROM demand_item_budget
+            FROM project_item_budget
             GROUP BY project_id
         ), project_demands AS (
             SELECT project_id, COUNT(*) AS demand_count
@@ -8015,7 +8798,7 @@ function project_bi_project_item_alerts(int $projectId, int $limit = 12): array
             SUM(dib.quantity) AS total_quantity,
             SUM(dib.calculated_total) AS total_estimated_value,
             SUM(dib.price_count) AS price_count
-        FROM demand_item_budget dib
+        FROM project_item_budget dib
         INNER JOIN procurement_items pi ON pi.id = dib.procurement_item_id
         LEFT JOIN project_licitation_items pli
             ON pli.project_id = dib.project_id

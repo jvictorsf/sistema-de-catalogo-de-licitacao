@@ -390,6 +390,12 @@ require __DIR__ . '/../app/views/header.php';
                 placeholder="Opcional">
         </div>
 
+        <?php
+            $demandItemFieldPrefix = 'addItem';
+            $demandItemFieldValues = [];
+            require __DIR__ . '/../app/views/demand_item_details_fields.php';
+        ?>
+
         <div class="col-12 d-flex justify-content-end">
             <button class="btn btn-primary">
                 Adicionar item
@@ -437,6 +443,12 @@ require __DIR__ . '/../app/views/header.php';
                 Adicionar kit
             </button>
         </div>
+
+        <?php
+            $demandItemFieldPrefix = 'addKit';
+            $demandItemFieldValues = [];
+            require __DIR__ . '/../app/views/demand_item_details_fields.php';
+        ?>
 
         <div class="col-12">
             <div class="form-text">
@@ -493,6 +505,15 @@ require __DIR__ . '/../app/views/header.php';
 
                         <td>
                             <?= e($item['item_name']) ?>
+                            <?php if (!empty($item['need_type'])): ?>
+                                <div class="small text-muted mt-1">
+                                    <?= e(demand_need_type_label($item['need_type'])) ?>
+                                    <?php if (!empty($item['priority'])): ?> · <?= e(demand_priority_label($item['priority'])) ?><?php endif; ?>
+                                </div>
+                            <?php endif; ?>
+                            <?php if (!empty($item['need_justification'])): ?>
+                                <div class="small mt-1"><?= e($item['need_justification']) ?></div>
+                            <?php endif; ?>
                         </td>
 
                         <td>
@@ -511,6 +532,7 @@ require __DIR__ . '/../app/views/header.php';
 
                         <td class="fw-semibold">
                             <?= e((string) ($item['approved_quantity'] ?? $item['quantity'])) ?>
+                            <div class="mt-1"><span class="badge <?= e(demand_validation_status_badge_class($item['validation_status'] ?? null)) ?>"><?= e(demand_validation_status_label($item['validation_status'] ?? null)) ?></span></div>
                         </td>
 
                         <td>
@@ -548,7 +570,18 @@ require __DIR__ . '/../app/views/header.php';
                                 data-quantity="<?= e((string) $item['quantity']) ?>"
                                 data-approved-quantity="<?= e((string) ($item['approved_quantity'] ?? $item['quantity'])) ?>"
                                 data-estimated-unit-price="<?= e((string) ($item['estimated_unit_price'] ?? '')) ?>"
-                                data-notes="<?= e($item['notes']) ?>">
+                                data-notes="<?= e($item['notes']) ?>"
+                                data-need-type="<?= e((string) ($item['need_type'] ?? '')) ?>"
+                                data-need-justification="<?= e((string) ($item['need_justification'] ?? '')) ?>"
+                                data-intended-use="<?= e((string) ($item['intended_use'] ?? '')) ?>"
+                                data-destination="<?= e((string) ($item['destination'] ?? '')) ?>"
+                                data-priority="<?= e((string) ($item['priority'] ?? 'MEDIUM')) ?>"
+                                data-needed-by-date="<?= e((string) ($item['needed_by_date'] ?? '')) ?>"
+                                data-related-assets="<?= e((string) ($item['related_assets'] ?? '')) ?>"
+                                data-related-project="<?= e((string) ($item['related_project'] ?? '')) ?>"
+                                data-evidence-references="<?= e((string) ($item['evidence_references'] ?? '')) ?>"
+                                data-validation-status="<?= e((string) ($item['validation_status'] ?? 'PENDING')) ?>"
+                                data-validation-notes="<?= e((string) ($item['validation_notes'] ?? '')) ?>">
                                 Editar
                             </button>
 
@@ -659,6 +692,12 @@ require __DIR__ . '/../app/views/header.php';
                             class="form-control"></textarea>
                     </div>
 
+                    <?php
+                        $demandItemFieldPrefix = 'modal';
+                        $demandItemFieldValues = [];
+                        require __DIR__ . '/../app/views/demand_item_details_fields.php';
+                    ?>
+
                     <div class="col-12">
                         <div class="alert alert-info mb-0">
                             Ao salvar, os totais da demanda e a consolidação financeira do projeto serão recalculados automaticamente.
@@ -735,6 +774,17 @@ require __DIR__ . '/../app/views/header.php';
                 document.getElementById('modalApprovedQuantity').value = approvedQuantity;
                 document.getElementById('modalEstimatedUnitPrice').value = estimatedUnitPrice;
                 document.getElementById('modalNotes').value = notes || '';
+                document.getElementById('modalNeedType').value = button.dataset.needType || '';
+                document.getElementById('modalJustification').value = button.dataset.needJustification || '';
+                document.getElementById('modalUse').value = button.dataset.intendedUse || '';
+                document.getElementById('modalDestination').value = button.dataset.destination || '';
+                document.getElementById('modalPriority').value = button.dataset.priority || 'MEDIUM';
+                document.getElementById('modalNeededBy').value = button.dataset.neededByDate || '';
+                document.getElementById('modalAssets').value = button.dataset.relatedAssets || '';
+                document.getElementById('modalProject').value = button.dataset.relatedProject || '';
+                document.getElementById('modalEvidence').value = button.dataset.evidenceReferences || '';
+                document.getElementById('modalValidationStatus').value = button.dataset.validationStatus || 'PENDING';
+                document.getElementById('modalValidationNotes').value = button.dataset.validationNotes || '';
 
                 document.getElementById('modalItemDescription').textContent =
                     trackingCode + ' - ' + itemName;

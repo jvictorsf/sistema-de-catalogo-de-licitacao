@@ -19,7 +19,7 @@ function project_quote_request_group_quantity(array $group): float
 {
     return array_reduce(
         $group['items'] ?? [],
-        static fn (float $total, array $item): float => $total + (float) ($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0),
+        static fn (float $total, array $item): float => $total + project_item_effective_quantity($item),
         0.0
     );
 }
@@ -37,7 +37,7 @@ function project_quote_request_render_rows(array $items): void
 
     foreach ($items as $item) {
         $specification = item_specification_array_from_value($item['specification'] ?? []);
-        $quantity = $item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0;
+        $quantity = project_item_effective_quantity($item);
         $packageContentQuantity = $item['package_content_quantity'] ?? null;
         $packageContentUnit = $item['package_content_unit_type_name']
             ?? $item['package_content_unit_type_abbreviation']
@@ -112,7 +112,7 @@ if (!$sections) {
 
 $totalQuantity = array_reduce(
     $items,
-    static fn (float $total, array $item): float => $total + (float) ($item['total_approved_quantity'] ?? 0),
+    static fn (float $total, array $item): float => $total + project_item_effective_quantity($item),
     0.0
 );
 

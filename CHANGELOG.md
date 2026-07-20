@@ -1,3 +1,11 @@
+## [1.6.22] - 2026-07-20
+
+### Adicionado
+- Memoria de calculo estruturada para estimativa de quantitativos em projetos, com composicao, deducoes, referencias de apoio, texto legivel e hash proprio.
+- Teste automatizado dedicado a validar o exemplo completo de memoria de calculo, a quantidade efetiva e a renderizacao textual do resumo.
+
+### Alterado
+- Itens, demandas, anexos e relatorios passam a considerar a quantidade efetiva consolidada quando a memoria de calculo do item estiver disponivel.
 # Changelog
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.

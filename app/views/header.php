@@ -57,6 +57,8 @@ $primaryNavItems = [
             'project_lot_form.php',
             'project_lot_assignments.php',
             'project_licitation_numbers.php',
+            'project_quantity_memories.php',
+            'project_quantity_memory_form.php',
             'project_quote_request.php',
             'project_quote_request_excel.php',
             'project_quote_request_excel_grouped.php',

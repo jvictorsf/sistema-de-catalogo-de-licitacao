@@ -10,7 +10,7 @@ function project_quote_request_denominations_quantity(array $group): float
 {
     return array_reduce(
         $group['items'] ?? [],
-        static fn (float $total, array $item): float => $total + (float) ($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0),
+        static fn (float $total, array $item): float => $total + project_item_effective_quantity($item),
         0.0
     );
 }

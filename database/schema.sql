@@ -583,6 +583,20 @@ CREATE TABLE IF NOT EXISTS demand_items (
     quantity NUMERIC(12,2) NOT NULL DEFAULT 1,
     approved_quantity NUMERIC(12,2),
     estimated_unit_price NUMERIC(12,2),
+    need_type VARCHAR(50),
+    need_justification TEXT,
+    intended_use TEXT,
+    destination TEXT,
+    priority VARCHAR(20),
+    needed_by_date DATE,
+    related_assets TEXT,
+    related_project TEXT,
+    evidence_references TEXT,
+    validation_status VARCHAR(30),
+    validation_notes TEXT,
+    validated_by_user_id INTEGER NULL REFERENCES app_users(id) ON DELETE SET NULL,
+    validated_at TIMESTAMP NULL,
+    demand_details_migrated_at TIMESTAMP NULL,
     notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -669,6 +683,60 @@ CREATE TABLE IF NOT EXISTS project_annex_versions (
     CHECK (status IN ('valid', 'invalid'))
 );
 
+CREATE TABLE IF NOT EXISTS project_item_quantity_memories (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES procurement_projects(id) ON DELETE CASCADE,
+    procurement_item_id INTEGER NOT NULL REFERENCES procurement_items(id) ON DELETE CASCADE,
+    calculation_method VARCHAR(50) NOT NULL,
+    planning_period_months INTEGER NOT NULL DEFAULT 12,
+    include_approved_demands BOOLEAN NOT NULL DEFAULT TRUE,
+    calculation_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    supporting_references JSONB NOT NULL DEFAULT '[]'::jsonb,
+    rounding_rule VARCHAR(30) NOT NULL DEFAULT 'NONE',
+    requested_quantity_snapshot NUMERIC(12,2) NOT NULL DEFAULT 0,
+    approved_quantity_snapshot NUMERIC(12,2) NOT NULL DEFAULT 0,
+    additions_total NUMERIC(12,2) NOT NULL DEFAULT 0,
+    deductions_total NUMERIC(12,2) NOT NULL DEFAULT 0,
+    calculated_quantity NUMERIC(12,2) NOT NULL DEFAULT 0,
+    final_quantity NUMERIC(12,2) NOT NULL DEFAULT 0,
+    manual_adjustment_justification TEXT,
+    calculation_text TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+    needs_review BOOLEAN NOT NULL DEFAULT TRUE,
+    source_hash CHAR(64),
+    created_by_user_id INTEGER NULL REFERENCES app_users(id) ON DELETE SET NULL,
+    updated_by_user_id INTEGER NULL REFERENCES app_users(id) ON DELETE SET NULL,
+    validated_by_user_id INTEGER NULL REFERENCES app_users(id) ON DELETE SET NULL,
+    validated_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, procurement_item_id),
+    CHECK (calculation_method IN ('DEMAND_CONSOLIDATION', 'HISTORICAL_CONSUMPTION', 'ASSET_REPLACEMENT', 'TECHNICAL_PROJECT', 'INSTALLED_BASE', 'HYBRID')),
+    CHECK (rounding_rule IN ('NONE', 'CEIL', 'FLOOR', 'NEAREST')),
+    CHECK (status IN ('DRAFT', 'VALIDATED')),
+    CHECK (planning_period_months BETWEEN 1 AND 120),
+    CHECK (final_quantity >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS project_item_quantity_memory_versions (
+    id SERIAL PRIMARY KEY,
+    quantity_memory_id INTEGER NOT NULL REFERENCES project_item_quantity_memories(id) ON DELETE CASCADE,
+    version_number INTEGER NOT NULL,
+    snapshot JSONB NOT NULL,
+    change_summary JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by_user_id INTEGER NULL REFERENCES app_users(id) ON DELETE SET NULL,
+    created_by_user_name VARCHAR(255),
+    notes TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (quantity_memory_id, version_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_item_quantity_memories_project_status
+ON project_item_quantity_memories (project_id, status, needs_review);
+
+CREATE INDEX IF NOT EXISTS idx_project_item_quantity_memory_versions_memory
+ON project_item_quantity_memory_versions (quantity_memory_id, version_number DESC);
+
 ALTER TABLE project_annex_versions
 DROP CONSTRAINT IF EXISTS project_annex_versions_annex_type_check;
 
@@ -732,6 +800,66 @@ ADD COLUMN IF NOT EXISTS approved_quantity NUMERIC(12,2);
 
 ALTER TABLE demand_items
 ADD COLUMN IF NOT EXISTS estimated_unit_price NUMERIC(12,2);
+
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS need_type VARCHAR(50);
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS need_justification TEXT;
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS intended_use TEXT;
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS destination TEXT;
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS priority VARCHAR(20);
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS needed_by_date DATE;
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS related_assets TEXT;
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS related_project TEXT;
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS evidence_references TEXT;
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS validation_status VARCHAR(30);
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS validation_notes TEXT;
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS validated_by_user_id INTEGER NULL;
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS validated_at TIMESTAMP NULL;
+ALTER TABLE demand_items ADD COLUMN IF NOT EXISTS demand_details_migrated_at TIMESTAMP NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_demand_items_validated_by_user') THEN
+        ALTER TABLE demand_items
+        ADD CONSTRAINT fk_demand_items_validated_by_user
+        FOREIGN KEY (validated_by_user_id) REFERENCES app_users(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_demand_items_structured_details') THEN
+        ALTER TABLE demand_items
+        ADD CONSTRAINT ck_demand_items_structured_details CHECK (
+            demand_details_migrated_at IS NULL
+            OR (
+                need_type IN (
+                    'NEW_POSITION', 'REPLACEMENT_OBSOLESCENCE', 'REPLACEMENT_DEFECT',
+                    'EXPANSION', 'MAINTENANCE', 'STOCK_REPLENISHMENT',
+                    'RECURRING_CONSUMPTION', 'TECHNICAL_PROJECT', 'TECHNICAL_RESERVE',
+                    'CONTINGENCY', 'OTHER'
+                )
+                AND NULLIF(BTRIM(need_justification), '') IS NOT NULL
+                AND priority IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')
+                AND validation_status IN ('PENDING', 'APPROVED', 'APPROVED_WITH_ADJUSTMENT', 'REJECTED')
+                AND (
+                    (validation_status = 'REJECTED' AND approved_quantity = 0 AND NULLIF(BTRIM(validation_notes), '') IS NOT NULL)
+                    OR (
+                        validation_status <> 'REJECTED'
+                        AND approved_quantity >= 0
+                        AND (
+                            approved_quantity = quantity
+                            OR (
+                                validation_status = 'APPROVED_WITH_ADJUSTMENT'
+                                AND NULLIF(BTRIM(validation_notes), '') IS NOT NULL
+                            )
+                        )
+                    )
+                )
+            )
+        );
+    END IF;
+END
+$$;
+
+CREATE INDEX IF NOT EXISTS idx_demand_items_need_validation
+ON demand_items (validation_status, need_type, priority);
 
 UPDATE demand_items
 SET approved_quantity = quantity
@@ -1296,6 +1424,12 @@ EXECUTE FUNCTION touch_updated_at();
 DROP TRIGGER IF EXISTS trg_touch_updated_at_project_annex_versions ON project_annex_versions;
 CREATE TRIGGER trg_touch_updated_at_project_annex_versions
 BEFORE UPDATE ON project_annex_versions
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_touch_updated_at_project_item_quantity_memories ON project_item_quantity_memories;
+CREATE TRIGGER trg_touch_updated_at_project_item_quantity_memories
+BEFORE UPDATE ON project_item_quantity_memories
 FOR EACH ROW
 EXECUTE FUNCTION touch_updated_at();
 

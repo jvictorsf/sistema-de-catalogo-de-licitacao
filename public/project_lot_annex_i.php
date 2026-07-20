@@ -114,14 +114,14 @@ $issueDateText = annex_issue_date_text($issueDate);
                 <th style="width: 34%;">Especifica&ccedil;&atilde;o t&eacute;cnica</th>
                 <th style="width: 13%;">Unidade</th>
                 <th style="width: 8%;">Quantidade</th>
-                <th style="width: 24%;">Mem&oacute;ria de c&aacute;lculo</th>
+                <th style="width: 24%;">Composi&ccedil;&atilde;o das demandas e mem&oacute;ria de c&aacute;lculo</th>
             </tr>
         </thead>
         <tbody>
             <?php foreach ($lot['items'] as $item): ?>
                 <?php
                     $quantity = (float) ($item['annex_quantity'] ?? 0);
-                    $demandMemory = licitation_annex_demand_memory_text($item['demand_memory'] ?? []);
+                    $demandMemory = licitation_annex_quantity_memory_summary($item);
                 ?>
                 <tr>
                     <td class="number"><?= (int) $item['sequence'] ?></td>

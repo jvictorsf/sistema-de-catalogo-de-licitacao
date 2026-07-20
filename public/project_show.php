@@ -67,6 +67,10 @@ require __DIR__ . '/../app/views/header.php';
         <?php endif; ?>
         <?php endif; ?>
 
+        <a href="/project_quantity_memories.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-info">
+            <i class="bi bi-calculator"></i>Memórias de quantitativos
+        </a>
+
         <div class="btn-group">
             <button
                 type="button"
@@ -582,7 +586,7 @@ require __DIR__ . '/../app/views/header.php';
 <?php endif; ?>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card card-body">
             <div class="text-muted small">Qtd. solicitada</div>
 
@@ -592,7 +596,7 @@ require __DIR__ . '/../app/views/header.php';
         </div>
     </div>
 
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card card-body">
             <div class="text-muted small">Qtd. aprovada</div>
 
@@ -602,7 +606,14 @@ require __DIR__ . '/../app/views/header.php';
         </div>
     </div>
 
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <div class="card card-body">
+            <div class="text-muted small">Qtd. final estimada</div>
+            <div class="h4 mb-0"><?= e(format_decimal_quantity($financialSummary['total_effective_quantity'] ?? 0)) ?></div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
         <div class="card card-body">
             <div class="text-muted small">Valor total estimado</div>
 
@@ -726,6 +737,7 @@ require __DIR__ . '/../app/views/header.php';
                             <th>Demandas</th>
                             <th>Qtd. solicitada</th>
                             <th>Qtd. aprovada</th>
+                            <th>Qtd. final</th>
                             <th>Valor médio unit.</th>
                             <th>Total estimado</th>
                         </tr>
@@ -734,7 +746,7 @@ require __DIR__ . '/../app/views/header.php';
                     <tbody>
                         <?php if (!$consolidatedItems): ?>
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">
+                                <td colspan="9" class="text-center text-muted py-4">
                                     Nenhum item demandado.
                                 </td>
                             </tr>
@@ -766,6 +778,13 @@ require __DIR__ . '/../app/views/header.php';
 
                                 <td class="fw-semibold">
                                     <?= e((string) $item['total_approved_quantity']) ?>
+                                </td>
+
+                                <td class="fw-semibold">
+                                    <?= e(format_decimal_quantity(project_item_effective_quantity($item))) ?>
+                                    <?php if ((int) ($item['quantity_memory_id'] ?? 0) > 0): ?>
+                                        <div class="small text-muted"><?= e(quantity_memory_status_label($item['quantity_memory_status'] ?? null)) ?></div>
+                                    <?php endif; ?>
                                 </td>
 
                                 <td>

@@ -1214,19 +1214,705 @@ function direct_purchase_dod_money_in_words(?float $value): string
     return implode(' e ', $parts);
 }
 
+function demand_need_type_options(): array
+{
+    return [
+        'NEW_POSITION' => 'Novo posto ou nova unidade',
+        'REPLACEMENT_OBSOLESCENCE' => 'Substituição por obsolescência',
+        'REPLACEMENT_DEFECT' => 'Substituição por defeito',
+        'EXPANSION' => 'Expansão da capacidade',
+        'MAINTENANCE' => 'Manutenção',
+        'STOCK_REPLENISHMENT' => 'Reposição de estoque',
+        'RECURRING_CONSUMPTION' => 'Consumo recorrente',
+        'TECHNICAL_PROJECT' => 'Projeto técnico',
+        'TECHNICAL_RESERVE' => 'Reserva técnica',
+        'CONTINGENCY' => 'Contingência',
+        'OTHER' => 'Outra necessidade',
+    ];
+}
+
+function demand_priority_options(): array
+{
+    return [
+        'LOW' => 'Baixa',
+        'MEDIUM' => 'Média',
+        'HIGH' => 'Alta',
+        'CRITICAL' => 'Crítica',
+    ];
+}
+
+function demand_validation_status_options(): array
+{
+    return [
+        'PENDING' => 'Pendente',
+        'APPROVED' => 'Aprovada',
+        'APPROVED_WITH_ADJUSTMENT' => 'Aprovada com ajuste',
+        'REJECTED' => 'Rejeitada',
+    ];
+}
+
+function demand_need_type_label(?string $value): string
+{
+    return demand_need_type_options()[$value ?? ''] ?? 'Legado';
+}
+
+function demand_priority_label(?string $value): string
+{
+    return demand_priority_options()[$value ?? ''] ?? 'Não informada';
+}
+
+function demand_validation_status_label(?string $value): string
+{
+    return demand_validation_status_options()[$value ?? ''] ?? 'Legado';
+}
+
+function demand_validation_status_badge_class(?string $value): string
+{
+    return match ($value) {
+        'APPROVED' => 'text-bg-success',
+        'APPROVED_WITH_ADJUSTMENT' => 'text-bg-warning',
+        'REJECTED' => 'text-bg-danger',
+        'PENDING' => 'text-bg-secondary',
+        default => 'text-bg-light text-dark border',
+    };
+}
+
+function prepare_demand_item_details(array $data, bool $strict = true): array
+{
+    $quantity = max(0.0, (float) ($data['quantity'] ?? 0));
+    $approvedQuantity = array_key_exists('approved_quantity', $data) && $data['approved_quantity'] !== ''
+        ? max(0.0, (float) $data['approved_quantity'])
+        : $quantity;
+    $needType = strtoupper(trim((string) ($data['need_type'] ?? '')));
+    $priority = strtoupper(trim((string) ($data['priority'] ?? 'MEDIUM')));
+    $validationStatus = strtoupper(trim((string) ($data['validation_status'] ?? '')));
+    $needJustification = trim((string) ($data['need_justification'] ?? ''));
+    $validationNotes = trim((string) ($data['validation_notes'] ?? ''));
+
+    if ($strict && !isset(demand_need_type_options()[$needType])) {
+        throw new InvalidArgumentException('Selecione o tipo da necessidade.');
+    }
+
+    if ($strict && $needJustification === '') {
+        throw new InvalidArgumentException('Informe a justificativa da necessidade.');
+    }
+
+    if (!isset(demand_priority_options()[$priority])) {
+        if ($strict) {
+            throw new InvalidArgumentException('Selecione uma prioridade válida.');
+        }
+
+        $priority = 'MEDIUM';
+    }
+
+    if ($validationStatus === '') {
+        $validationStatus = $strict ? '' : 'PENDING';
+    }
+
+    if ($strict && !isset(demand_validation_status_options()[$validationStatus])) {
+        throw new InvalidArgumentException('Selecione a situação da validação.');
+    }
+
+    if ($validationStatus === 'REJECTED') {
+        $approvedQuantity = 0.0;
+
+        if ($validationNotes === '') {
+            throw new InvalidArgumentException('Informe o motivo da rejeição do item.');
+        }
+    } elseif (abs($approvedQuantity - $quantity) > 0.00001) {
+        if ($validationNotes === '') {
+            throw new InvalidArgumentException('Justifique a diferença entre a quantidade solicitada e a aprovada.');
+        }
+
+        $validationStatus = 'APPROVED_WITH_ADJUSTMENT';
+    } elseif ($validationStatus === 'APPROVED_WITH_ADJUSTMENT') {
+        $validationStatus = 'APPROVED';
+    }
+
+    if ($needType === 'TECHNICAL_PROJECT') {
+        $relatedProject = trim((string) ($data['related_project'] ?? ''));
+
+        if ($strict && $relatedProject === '' && mb_strlen($needJustification, 'UTF-8') < 30) {
+            throw new InvalidArgumentException('Informe o projeto relacionado ou detalhe melhor a justificativa técnica.');
+        }
+    }
+
+    return [
+        'quantity' => $quantity,
+        'approved_quantity' => $approvedQuantity,
+        'need_type' => $needType !== '' ? $needType : null,
+        'need_justification' => $needJustification !== '' ? $needJustification : null,
+        'intended_use' => trim((string) ($data['intended_use'] ?? '')) ?: null,
+        'destination' => trim((string) ($data['destination'] ?? '')) ?: null,
+        'priority' => $priority,
+        'needed_by_date' => trim((string) ($data['needed_by_date'] ?? '')) ?: null,
+        'related_assets' => trim((string) ($data['related_assets'] ?? '')) ?: null,
+        'related_project' => trim((string) ($data['related_project'] ?? '')) ?: null,
+        'evidence_references' => trim((string) ($data['evidence_references'] ?? '')) ?: null,
+        'validation_status' => $validationStatus !== '' ? $validationStatus : null,
+        'validation_notes' => $validationNotes !== '' ? $validationNotes : null,
+        'demand_details_migrated_at' => date('Y-m-d H:i:s'),
+    ];
+}
+
+function quantity_memory_calculation_method_options(): array
+{
+    return [
+        'DEMAND_CONSOLIDATION' => 'Consolidação de demandas',
+        'HISTORICAL_CONSUMPTION' => 'Histórico de consumo',
+        'ASSET_REPLACEMENT' => 'Substituição de bens',
+        'TECHNICAL_PROJECT' => 'Projeto técnico',
+        'INSTALLED_BASE' => 'Base instalada',
+        'HYBRID' => 'Método híbrido',
+    ];
+}
+
+function quantity_memory_rounding_rule_options(): array
+{
+    return [
+        'NONE' => 'Sem arredondamento',
+        'CEIL' => 'Inteiro superior',
+        'FLOOR' => 'Inteiro inferior',
+        'NEAREST' => 'Inteiro mais próximo',
+    ];
+}
+
+function quantity_memory_supporting_reference_type_options(): array
+{
+    return [
+        'DEMAND_REPORT' => 'Relatório de demandas',
+        'INVENTORY_REPORT' => 'Relatório de inventário',
+        'TECHNICAL_REPORT' => 'Relatório técnico',
+        'CONSUMPTION_HISTORY' => 'Histórico de consumo',
+        'WAREHOUSE_REPORT' => 'Relatório de almoxarifado',
+        'FRAMEWORK_AGREEMENT' => 'Ata de Registro de Preços',
+        'CONTRACT' => 'Contrato',
+        'TECHNICAL_PROJECT' => 'Projeto técnico',
+        'OFFICIAL_MEMO' => 'Ofício ou memorando',
+        'OTHER' => 'Outro documento',
+    ];
+}
+
+function quantity_memory_method_label(?string $value): string
+{
+    return quantity_memory_calculation_method_options()[$value ?? ''] ?? 'Não definido';
+}
+
+function quantity_memory_rounding_label(?string $value): string
+{
+    return quantity_memory_rounding_rule_options()[$value ?? ''] ?? 'Sem arredondamento';
+}
+
+function quantity_memory_status_label(?string $value): string
+{
+    return $value === 'VALIDATED' ? 'Validada' : 'Rascunho';
+}
+
+function quantity_memory_default_calculation_data(): array
+{
+    return [
+        'historical_projection' => ['quantity' => 0.0, 'description' => null, 'source_reference' => null],
+        'asset_replacement' => [
+            'obsolete' => 0.0,
+            'irreparable' => 0.0,
+            'incompatible' => 0.0,
+            'new_positions' => 0.0,
+            'description' => null,
+        ],
+        'planned_projects' => ['quantity' => 0.0, 'description' => null, 'source_reference' => null],
+        'technical_project' => ['quantity' => 0.0, 'description' => null, 'source_reference' => null],
+        'installed_base' => [
+            'quantity' => 0.0,
+            'annual_failure_rate_percent' => 0.0,
+            'projected_quantity' => 0.0,
+            'description' => null,
+        ],
+        'technical_reserve' => ['type' => 'NONE', 'value' => 0.0, 'calculated_quantity' => 0.0, 'justification' => null],
+        'technical_loss' => ['type' => 'NONE', 'value' => 0.0, 'calculated_quantity' => 0.0, 'justification' => null],
+        'other_additions' => ['quantity' => 0.0, 'justification' => null],
+        'deductions' => [
+            'stock_available' => 0.0,
+            'framework_agreement_balance' => 0.0,
+            'contract_balance' => 0.0,
+            'reusable_quantity' => 0.0,
+            'purchases_in_progress' => 0.0,
+            'other_quantity' => 0.0,
+            'other_justification' => null,
+        ],
+    ];
+}
+
+function quantity_memory_number(mixed $value): float
+{
+    $normalized = str_replace(',', '.', trim((string) $value));
+
+    return round(max(0.0, is_numeric($normalized) ? (float) $normalized : 0.0), 4);
+}
+
+function normalize_quantity_memory_calculation_data(mixed $value): array
+{
+    if (is_string($value)) {
+        $decoded = json_decode($value, true);
+        $value = is_array($decoded) ? $decoded : [];
+    }
+
+    $value = is_array($value) ? $value : [];
+    $defaults = quantity_memory_default_calculation_data();
+    $result = [];
+
+    foreach ($defaults as $section => $sectionDefaults) {
+        $source = is_array($value[$section] ?? null) ? $value[$section] : [];
+        $result[$section] = [];
+
+        foreach ($sectionDefaults as $field => $default) {
+            $raw = $source[$field] ?? $default;
+
+            if (is_float($default)) {
+                $result[$section][$field] = quantity_memory_number($raw);
+            } elseif ($field === 'type') {
+                $type = strtoupper(trim((string) $raw));
+                $result[$section][$field] = in_array($type, ['NONE', 'FIXED', 'PERCENTAGE'], true) ? $type : 'NONE';
+            } else {
+                $text = trim((string) $raw);
+                $result[$section][$field] = $text !== '' ? $text : null;
+            }
+        }
+    }
+
+    return $result;
+}
+
+function normalize_quantity_memory_supporting_references(mixed $value): array
+{
+    if (is_string($value)) {
+        $decoded = json_decode($value, true);
+        $value = is_array($decoded) ? $decoded : [];
+    }
+
+    $references = [];
+
+    foreach (is_array($value) ? $value : [] as $reference) {
+        if (!is_array($reference)) {
+            continue;
+        }
+
+        $type = strtoupper(trim((string) ($reference['type'] ?? 'OTHER')));
+        $description = trim((string) ($reference['description'] ?? ''));
+        $identifier = trim((string) ($reference['reference'] ?? ''));
+
+        if ($description === '' && $identifier === '') {
+            continue;
+        }
+
+        $references[] = [
+            'type' => isset(quantity_memory_supporting_reference_type_options()[$type]) ? $type : 'OTHER',
+            'description' => $description,
+            'reference' => $identifier,
+        ];
+    }
+
+    return $references;
+}
+
+function quantity_memory_component(float $value, string $label, int $sign = 1): array
+{
+    return [
+        'label' => $label,
+        'value' => round($value, 4),
+        'sign' => $sign < 0 ? -1 : 1,
+    ];
+}
+
+function quantity_memory_percentage_value(array $component, float $base): float
+{
+    return match ($component['type'] ?? 'NONE') {
+        'FIXED' => quantity_memory_number($component['value'] ?? 0),
+        'PERCENTAGE' => round($base * quantity_memory_number($component['value'] ?? 0) / 100, 4),
+        default => 0.0,
+    };
+}
+
+function calculate_project_item_quantity_memory(
+    array $memory,
+    float $requestedQuantity,
+    float $approvedQuantity
+): array {
+    $method = strtoupper(trim((string) ($memory['calculation_method'] ?? 'DEMAND_CONSOLIDATION')));
+
+    if (!isset(quantity_memory_calculation_method_options()[$method])) {
+        throw new InvalidArgumentException('Selecione um método de cálculo válido.');
+    }
+
+    $roundingRule = strtoupper(trim((string) ($memory['rounding_rule'] ?? 'NONE')));
+
+    if (!isset(quantity_memory_rounding_rule_options()[$roundingRule])) {
+        throw new InvalidArgumentException('Selecione uma regra de arredondamento válida.');
+    }
+
+    $planningMonths = max(1, min(120, (int) ($memory['planning_period_months'] ?? 12)));
+    $includeApprovedDemands = boolish($memory['include_approved_demands'] ?? true, true);
+    $data = normalize_quantity_memory_calculation_data($memory['calculation_data'] ?? []);
+    $references = normalize_quantity_memory_supporting_references($memory['supporting_references'] ?? []);
+    $requestedQuantity = round(max(0.0, $requestedQuantity), 4);
+    $approvedQuantity = round(max(0.0, $approvedQuantity), 4);
+    $positiveComponents = [];
+    $demandBase = 0.0;
+
+    if ($method === 'DEMAND_CONSOLIDATION' || ($method === 'HYBRID' && $includeApprovedDemands)) {
+        $demandBase = $approvedQuantity;
+    }
+
+    $historical = $data['historical_projection']['quantity'];
+    $asset = $data['asset_replacement'];
+    $plannedProjects = $data['planned_projects']['quantity'];
+    $technicalProject = $data['technical_project']['quantity'];
+    $installedBaseProjection = round(
+        $data['installed_base']['quantity']
+        * $data['installed_base']['annual_failure_rate_percent']
+        * $planningMonths
+        / 1200,
+        4
+    );
+    $data['installed_base']['projected_quantity'] = $installedBaseProjection;
+
+    if (in_array($method, ['HISTORICAL_CONSUMPTION', 'HYBRID'], true) && $historical > 0) {
+        $positiveComponents[] = quantity_memory_component($historical, 'Projeção histórica');
+    }
+
+    if (in_array($method, ['ASSET_REPLACEMENT', 'HYBRID'], true)) {
+        foreach ([
+            'obsolete' => 'Bens obsoletos',
+            'irreparable' => 'Bens irreparáveis',
+            'incompatible' => 'Bens incompatíveis',
+            'new_positions' => 'Novos postos',
+        ] as $field => $label) {
+            if ($asset[$field] > 0) {
+                $positiveComponents[] = quantity_memory_component($asset[$field], $label);
+            }
+        }
+    }
+
+    if ($method === 'HYBRID' && $plannedProjects > 0) {
+        $positiveComponents[] = quantity_memory_component($plannedProjects, 'Projetos previstos');
+    }
+
+    if (in_array($method, ['TECHNICAL_PROJECT', 'HYBRID'], true) && $technicalProject > 0) {
+        $positiveComponents[] = quantity_memory_component($technicalProject, 'Composição do projeto técnico');
+    }
+
+    if (in_array($method, ['INSTALLED_BASE', 'HYBRID'], true) && $installedBaseProjection > 0) {
+        $positiveComponents[] = quantity_memory_component($installedBaseProjection, 'Projeção da base instalada');
+    }
+
+    $otherAdditions = $data['other_additions']['quantity'];
+    if ($otherAdditions > 0) {
+        $positiveComponents[] = quantity_memory_component($otherAdditions, 'Outros acréscimos');
+    }
+
+    $positiveSubtotal = $demandBase;
+    foreach ($positiveComponents as $component) {
+        $positiveSubtotal += $component['value'];
+    }
+
+    $reserve = quantity_memory_percentage_value($data['technical_reserve'], $positiveSubtotal);
+    $data['technical_reserve']['calculated_quantity'] = $reserve;
+
+    if ($reserve > 0) {
+        if (trim((string) ($data['technical_reserve']['justification'] ?? '')) === '') {
+            throw new InvalidArgumentException('Justifique a reserva técnica.');
+        }
+
+        $positiveComponents[] = quantity_memory_component($reserve, 'Reserva técnica');
+    }
+
+    $lossBase = $technicalProject > 0 ? $technicalProject : $positiveSubtotal;
+    $technicalLoss = quantity_memory_percentage_value($data['technical_loss'], $lossBase);
+    $data['technical_loss']['calculated_quantity'] = $technicalLoss;
+    $data['technical_loss']['calculation_base'] = round($lossBase, 4);
+
+    if ($technicalLoss > 0) {
+        if (trim((string) ($data['technical_loss']['justification'] ?? '')) === '') {
+            throw new InvalidArgumentException('Justifique a perda técnica.');
+        }
+
+        $positiveComponents[] = quantity_memory_component($technicalLoss, 'Perda técnica');
+    }
+
+    if ($historical > 0 && in_array($method, ['HISTORICAL_CONSUMPTION', 'HYBRID'], true)) {
+        if (
+            trim((string) ($data['historical_projection']['description'] ?? '')) === ''
+            && trim((string) ($data['historical_projection']['source_reference'] ?? '')) === ''
+        ) {
+            throw new InvalidArgumentException('Informe a justificativa ou referência da projeção histórica.');
+        }
+    }
+
+    if ($otherAdditions > 0 && trim((string) ($data['other_additions']['justification'] ?? '')) === '') {
+        throw new InvalidArgumentException('Justifique os outros acréscimos.');
+    }
+
+    $deductionComponents = [];
+    foreach ([
+        'stock_available' => 'Estoque disponível',
+        'framework_agreement_balance' => 'Saldo de ata',
+        'contract_balance' => 'Saldo contratual',
+        'reusable_quantity' => 'Bens reaproveitáveis',
+        'purchases_in_progress' => 'Compras em andamento',
+        'other_quantity' => 'Outras deduções',
+    ] as $field => $label) {
+        $value = $data['deductions'][$field];
+
+        if ($value > 0) {
+            $deductionComponents[] = quantity_memory_component($value, $label, -1);
+        }
+    }
+
+    if (
+        $data['deductions']['other_quantity'] > 0
+        && trim((string) ($data['deductions']['other_justification'] ?? '')) === ''
+    ) {
+        throw new InvalidArgumentException('Justifique as outras deduções.');
+    }
+
+    $additionsTotal = array_sum(array_column($positiveComponents, 'value'));
+    $deductionsTotal = array_sum(array_column($deductionComponents, 'value'));
+    $beforeRounding = max(0.0, round($demandBase + $additionsTotal - $deductionsTotal, 4));
+    $calculatedQuantity = match ($roundingRule) {
+        'CEIL' => (float) ceil($beforeRounding),
+        'FLOOR' => (float) floor($beforeRounding),
+        'NEAREST' => (float) round($beforeRounding),
+        default => round($beforeRounding, 2),
+    };
+
+    $manualFinalProvided = array_key_exists('final_quantity', $memory)
+        && $memory['final_quantity'] !== null
+        && trim((string) $memory['final_quantity']) !== '';
+    $finalQuantity = $manualFinalProvided
+        ? quantity_memory_number($memory['final_quantity'])
+        : $calculatedQuantity;
+    $manualJustification = trim((string) ($memory['manual_adjustment_justification'] ?? ''));
+    $hasManualAdjustment = abs($finalQuantity - $calculatedQuantity) > 0.00001;
+
+    if ($hasManualAdjustment && $manualJustification === '') {
+        throw new InvalidArgumentException('Justifique o ajuste manual da quantidade final.');
+    }
+
+    if (($memory['status'] ?? 'DRAFT') === 'VALIDATED' && $finalQuantity <= 0) {
+        throw new InvalidArgumentException('A quantidade final validada deve ser maior que zero.');
+    }
+
+    if (
+        ($memory['status'] ?? 'DRAFT') === 'VALIDATED'
+        && $deductionsTotal > 0
+        && !$references
+    ) {
+        throw new InvalidArgumentException('Adicione ao menos uma referência de suporte para as deduções informadas.');
+    }
+
+    $formulaComponents = [];
+    if ($demandBase > 0) {
+        $formulaComponents[] = quantity_memory_component($demandBase, 'Demandas aprovadas');
+    }
+    $formulaComponents = array_merge($formulaComponents, $positiveComponents, $deductionComponents);
+    $result = array_merge($memory, [
+        'calculation_method' => $method,
+        'planning_period_months' => $planningMonths,
+        'include_approved_demands' => $includeApprovedDemands,
+        'calculation_data' => $data,
+        'supporting_references' => $references,
+        'rounding_rule' => $roundingRule,
+        'requested_quantity_snapshot' => $requestedQuantity,
+        'approved_quantity_snapshot' => $approvedQuantity,
+        'additions_total' => round($additionsTotal, 4),
+        'deductions_total' => round($deductionsTotal, 4),
+        'quantity_before_rounding' => $beforeRounding,
+        'calculated_quantity' => $calculatedQuantity,
+        'final_quantity' => $finalQuantity,
+        'manual_adjustment_justification' => $manualJustification !== '' ? $manualJustification : null,
+        'has_manual_adjustment' => $hasManualAdjustment,
+        'formula_components' => $formulaComponents,
+        'needs_review' => $hasManualAdjustment || boolish($memory['needs_review'] ?? true, true),
+    ]);
+    $result['calculation_text'] = project_item_quantity_memory_text($result);
+
+    return $result;
+}
+
+function project_item_effective_quantity(array $item): float
+{
+    $memoryId = (int) ($item['quantity_memory_id'] ?? $item['quantity_memory']['id'] ?? 0);
+
+    if ($memoryId > 0) {
+        $value = $item['final_quantity'] ?? $item['quantity_memory']['final_quantity'] ?? null;
+
+        if ($value !== null && $value !== '') {
+            return max(0.0, (float) $value);
+        }
+    }
+
+    return max(0.0, (float) ($item['total_approved_quantity'] ?? $item['approved_quantity'] ?? $item['total_quantity'] ?? $item['quantity'] ?? 0));
+}
+
+function project_item_quantity_memory_components(array $memory): array
+{
+    if (!empty($memory['formula_components']) && is_array($memory['formula_components'])) {
+        return $memory['formula_components'];
+    }
+
+    $method = (string) ($memory['calculation_method'] ?? 'DEMAND_CONSOLIDATION');
+    $data = normalize_quantity_memory_calculation_data($memory['calculation_data'] ?? []);
+    $components = [];
+    $includeDemand = $method === 'DEMAND_CONSOLIDATION'
+        || ($method === 'HYBRID' && boolish($memory['include_approved_demands'] ?? true, true));
+
+    if ($includeDemand) {
+        $components[] = quantity_memory_component(
+            (float) ($memory['approved_quantity_snapshot'] ?? $memory['total_approved_quantity'] ?? 0),
+            'Demandas aprovadas'
+        );
+    }
+
+    $add = static function (array &$target, float $value, string $label, int $sign = 1): void {
+        if ($value > 0) {
+            $target[] = quantity_memory_component($value, $label, $sign);
+        }
+    };
+
+    if (in_array($method, ['HISTORICAL_CONSUMPTION', 'HYBRID'], true)) {
+        $add($components, $data['historical_projection']['quantity'], 'Projeção histórica');
+    }
+    if (in_array($method, ['ASSET_REPLACEMENT', 'HYBRID'], true)) {
+        foreach (['obsolete' => 'Bens obsoletos', 'irreparable' => 'Bens irreparáveis', 'incompatible' => 'Bens incompatíveis', 'new_positions' => 'Novos postos'] as $field => $label) {
+            $add($components, $data['asset_replacement'][$field], $label);
+        }
+    }
+    if ($method === 'HYBRID') {
+        $add($components, $data['planned_projects']['quantity'], 'Projetos previstos');
+    }
+    if (in_array($method, ['TECHNICAL_PROJECT', 'HYBRID'], true)) {
+        $add($components, $data['technical_project']['quantity'], 'Composição do projeto técnico');
+    }
+    if (in_array($method, ['INSTALLED_BASE', 'HYBRID'], true)) {
+        $add($components, $data['installed_base']['projected_quantity'], 'Projeção da base instalada');
+    }
+    $add($components, $data['other_additions']['quantity'], 'Outros acréscimos');
+    $add($components, $data['technical_reserve']['calculated_quantity'], 'Reserva técnica');
+    $add($components, $data['technical_loss']['calculated_quantity'], 'Perda técnica');
+
+    foreach ([
+        'stock_available' => 'Estoque disponível',
+        'framework_agreement_balance' => 'Saldo de ata',
+        'contract_balance' => 'Saldo contratual',
+        'reusable_quantity' => 'Bens reaproveitáveis',
+        'purchases_in_progress' => 'Compras em andamento',
+        'other_quantity' => 'Outras deduções',
+    ] as $field => $label) {
+        $add($components, $data['deductions'][$field], $label, -1);
+    }
+
+    return $components;
+}
+
+function project_item_quantity_memory_formula(array $memory): string
+{
+    $parts = [];
+
+    foreach (project_item_quantity_memory_components($memory) as $component) {
+        $value = quantity_memory_number($component['value'] ?? 0);
+
+        if ($value <= 0) {
+            continue;
+        }
+
+        $formatted = format_decimal_quantity($value);
+        $sign = (int) ($component['sign'] ?? 1) < 0 ? '-' : '+';
+
+        if (!$parts) {
+            $parts[] = $sign === '-' ? '0 - ' . $formatted : $formatted;
+        } else {
+            $parts[] = $sign . ' ' . $formatted;
+        }
+    }
+
+    if (!$parts) {
+        $parts[] = '0';
+    }
+
+    return implode(' ', $parts) . ' = ' . format_decimal_quantity($memory['calculated_quantity'] ?? 0);
+}
+
+function project_item_quantity_memory_text(array $memory): string
+{
+    $lines = [
+        'Método utilizado: ' . mb_strtolower(quantity_memory_method_label($memory['calculation_method'] ?? null), 'UTF-8') . '.',
+        '',
+        'Demandas registradas:',
+        '- Quantidade solicitada: ' . format_decimal_quantity($memory['requested_quantity_snapshot'] ?? 0) . '.',
+        '- Quantidade aprovada: ' . format_decimal_quantity($memory['approved_quantity_snapshot'] ?? 0) . '.',
+    ];
+    $additions = [];
+    $deductions = [];
+
+    foreach (project_item_quantity_memory_components($memory) as $component) {
+        $value = quantity_memory_number($component['value'] ?? 0);
+        $label = trim((string) ($component['label'] ?? ''));
+
+        if ($value <= 0 || $label === 'Demandas aprovadas') {
+            continue;
+        }
+
+        $line = '- ' . $label . ': ' . format_decimal_quantity($value) . '.';
+        if ((int) ($component['sign'] ?? 1) < 0) {
+            $deductions[] = $line;
+        } else {
+            $additions[] = $line;
+        }
+    }
+
+    if ($additions) {
+        $lines[] = '';
+        $lines[] = 'Acréscimos:';
+        array_push($lines, ...$additions);
+    }
+
+    if ($deductions) {
+        $lines[] = '';
+        $lines[] = 'Deduções:';
+        array_push($lines, ...$deductions);
+    }
+
+    $lines[] = '';
+    $lines[] = 'Cálculo: ' . project_item_quantity_memory_formula($memory) . '.';
+
+    if (abs((float) ($memory['quantity_before_rounding'] ?? 0) - (float) ($memory['calculated_quantity'] ?? 0)) > 0.00001) {
+        $lines[] = 'Arredondamento: ' . quantity_memory_rounding_label($memory['rounding_rule'] ?? null)
+            . ', de ' . format_decimal_quantity($memory['quantity_before_rounding'] ?? 0)
+            . ' para ' . format_decimal_quantity($memory['calculated_quantity'] ?? 0) . '.';
+    }
+
+    if (!empty($memory['has_manual_adjustment'])) {
+        $lines[] = 'Ajuste manual: ' . (string) ($memory['manual_adjustment_justification'] ?? '');
+    }
+
+    $lines[] = '';
+    $lines[] = 'Quantidade final estimada: ' . format_decimal_quantity($memory['final_quantity'] ?? 0) . '.';
+
+    return implode(PHP_EOL, $lines);
+}
+
 function direct_purchase_dod_quantity_methodology_text(array $items): string
 {
     if (!$items) {
         return direct_purchase_dod_text('N\u{00E3}o h\u{00E1} itens cadastrados nas demandas do projeto para compor a estimativa de quantidades.');
     }
 
-    $lines = [
-        direct_purchase_dod_text('A estimativa de quantidades foi consolidada automaticamente a partir das demandas registradas no projeto, considerando as quantidades aprovadas em cada unidade administrativa.'),
-        '',
-    ];
+    $hasQuantityMemory = array_filter($items, static fn (array $item): bool => (int) ($item['quantity_memory_id'] ?? 0) > 0);
+    $lines = [$hasQuantityMemory
+        ? 'A estimativa de quantidades considera as demandas aprovadas e as memórias de cálculo consolidadas dos itens.'
+        : direct_purchase_dod_text('A estimativa de quantidades foi consolidada automaticamente a partir das demandas registradas no projeto, considerando as quantidades aprovadas em cada unidade administrativa.'), ''];
 
     foreach ($items as $item) {
-        $quantity = format_decimal_quantity($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0);
+        $quantity = format_decimal_quantity(project_item_effective_quantity($item));
         $unit = licitation_annex_unit_text($item);
         $demandCount = (int) ($item['demand_count'] ?? 0);
         $demandText = $demandCount === 1 ? '1 demanda' : $demandCount . ' demandas';
@@ -1234,7 +1920,16 @@ function direct_purchase_dod_quantity_methodology_text(array $items): string
         $name = trim((string) ($item['item_name'] ?? 'Item'));
         $label = $code !== '' ? $code . ' - ' . $name : $name;
 
-        $lines[] = '- ' . $label . ': ' . ($quantity !== '' ? $quantity : '0') . ' ' . $unit . ', consolidado a partir de ' . $demandText . '.';
+        if ((int) ($item['quantity_memory_id'] ?? 0) > 0) {
+            $lines[] = '- ' . $label . ': ' . ($quantity !== '' ? $quantity : '0') . ' ' . $unit
+                . '; método: ' . mb_strtolower(quantity_memory_method_label($item['calculation_method'] ?? null), 'UTF-8')
+                . '; demandas aprovadas: ' . format_decimal_quantity($item['total_approved_quantity'] ?? 0)
+                . '; acréscimos: ' . format_decimal_quantity($item['additions_total'] ?? 0)
+                . '; deduções: ' . format_decimal_quantity($item['deductions_total'] ?? 0)
+                . '; cálculo: ' . project_item_quantity_memory_formula($item) . '.';
+        } else {
+            $lines[] = '- ' . $label . ': ' . ($quantity !== '' ? $quantity : '0') . ' ' . $unit . ', consolidado a partir de ' . $demandText . '.';
+        }
     }
 
     $lines[] = '';
@@ -1727,7 +2422,7 @@ function direct_purchase_dod_ai_prompt_text(array $project, array $demands, arra
         $lines[] = '- ' . trim(implode(' | ', array_filter([
             (string) ($item['tracking_code'] ?? ''),
             (string) ($item['item_name'] ?? ''),
-            'Qtd: ' . format_decimal_quantity($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0),
+            'Qtd. final: ' . format_decimal_quantity(project_item_effective_quantity($item)),
             'Unidade: ' . licitation_annex_unit_text($item),
         ])));
     }
@@ -2146,6 +2841,40 @@ function licitation_annex_demand_memory_text(array $memory, string $separator = 
     return $parts ? implode($separator, $parts) : '-';
 }
 
+function licitation_annex_quantity_memory_summary(array $item, string $separator = "\n"): string
+{
+    $lines = [
+        'Composição das demandas:',
+        licitation_annex_demand_memory_text($item['demand_memory'] ?? [], $separator),
+    ];
+
+    if ((int) ($item['quantity_memory_id'] ?? 0) <= 0) {
+        $lines[] = 'Memória consolidada: projeto legado; quantidade aprovada utilizada como quantidade final.';
+        return implode($separator, $lines);
+    }
+
+    $lines[] = '';
+    $lines[] = 'Memória consolidada:';
+    $lines[] = 'Método: ' . quantity_memory_method_label($item['calculation_method'] ?? null) . '.';
+    $lines[] = 'Solicitado: ' . format_decimal_quantity($item['requested_quantity_snapshot'] ?? 0)
+        . '; aprovado: ' . format_decimal_quantity($item['approved_quantity_snapshot'] ?? 0) . '.';
+
+    foreach (project_item_quantity_memory_components($item) as $component) {
+        if (($component['label'] ?? '') === 'Demandas aprovadas') {
+            continue;
+        }
+
+        $sign = (int) ($component['sign'] ?? 1) < 0 ? '-' : '+';
+        $lines[] = $sign . ' ' . (string) ($component['label'] ?? 'Componente')
+            . ': ' . format_decimal_quantity($component['value'] ?? 0) . '.';
+    }
+
+    $lines[] = 'Cálculo: ' . project_item_quantity_memory_formula($item) . '.';
+    $lines[] = 'Quantidade final: ' . format_decimal_quantity(project_item_effective_quantity($item)) . '.';
+
+    return implode($separator, $lines);
+}
+
 function licitation_annex_supplier_signature(array $suppliers): string
 {
     $keys = [];
@@ -2158,6 +2887,7 @@ function licitation_annex_supplier_signature(array $suppliers): string
         }
     }
 
+    $keys = array_values(array_unique($keys));
     sort($keys, SORT_NATURAL);
 
     return $keys ? implode('|', $keys) : 'sem-cotacao';

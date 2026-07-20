@@ -158,7 +158,7 @@ require __DIR__ . '/../app/views/header.php';
         tabindex="0">
 
         <div class="row g-3 mb-4">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="card card-body">
                     <div class="text-muted small">Quantidade solicitada</div>
 
@@ -168,7 +168,7 @@ require __DIR__ . '/../app/views/header.php';
                 </div>
             </div>
 
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="card card-body">
                     <div class="text-muted small">Quantidade aprovada</div>
 
@@ -178,7 +178,14 @@ require __DIR__ . '/../app/views/header.php';
                 </div>
             </div>
 
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <div class="card card-body">
+                    <div class="text-muted small">Quantidade final estimada</div>
+                    <div class="h4 mb-0"><?= e(format_decimal_quantity($financialSummary['total_effective_quantity'] ?? 0)) ?></div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
                 <div class="card card-body">
                     <div class="text-muted small">Valor total estimado</div>
 
@@ -269,6 +276,7 @@ require __DIR__ . '/../app/views/header.php';
                             <th>Demandas</th>
                             <th>Qtd. solicitada</th>
                             <th>Qtd. aprovada</th>
+                            <th>Qtd. final</th>
                             <th>Valor médio unit.</th>
                             <th>Total estimado</th>
                         </tr>
@@ -277,7 +285,7 @@ require __DIR__ . '/../app/views/header.php';
                     <tbody>
                         <?php if (!$consolidatedItems): ?>
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">
+                                <td colspan="9" class="text-center text-muted py-4">
                                     Nenhum item demandado.
                                 </td>
                             </tr>
@@ -297,7 +305,8 @@ require __DIR__ . '/../app/views/header.php';
                                 </td>
                                 <td><?= e((string) $item['demand_count']) ?></td>
                                 <td><?= e((string) $item['total_quantity']) ?></td>
-                                <td class="fw-semibold"><?= e((string) $item['total_approved_quantity']) ?></td>
+                                <td><?= e((string) $item['total_approved_quantity']) ?></td>
+                                <td class="fw-semibold"><?= e(format_decimal_quantity(project_item_effective_quantity($item))) ?></td>
                                 <td>R$ <?= number_format((float) $item['average_unit_price'], 2, ',', '.') ?></td>
                                 <td class="fw-semibold">
                                     R$ <?= number_format((float) $item['estimated_total'], 2, ',', '.') ?>
@@ -329,7 +338,7 @@ require __DIR__ . '/../app/views/header.php';
             <?php
                 $groupTotalQuantity = array_reduce(
                     $group['items'] ?? [],
-                    static fn (float $total, array $item): float => $total + (float) ($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0),
+                    static fn (float $total, array $item): float => $total + project_item_effective_quantity($item),
                     0.0
                 );
                 $groupSubtotal = (float) ($group['subtotal'] ?? 0);
@@ -361,7 +370,7 @@ require __DIR__ . '/../app/views/header.php';
                                 <th>Codigo</th>
                                 <th>Item</th>
                                 <th>Un.</th>
-                                <th>Qtd. aprovada</th>
+                                <th>Qtd. final</th>
                                 <th>Valor medio unit.</th>
                                 <th>Total estimado</th>
                             </tr>
@@ -380,7 +389,7 @@ require __DIR__ . '/../app/views/header.php';
                                             </div>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="fw-semibold"><?= e(format_decimal_quantity($item['total_approved_quantity'] ?? $item['total_quantity'] ?? 0)) ?></td>
+                                    <td class="fw-semibold"><?= e(format_decimal_quantity(project_item_effective_quantity($item))) ?></td>
                                     <td>R$ <?= number_format((float) ($item['average_unit_price'] ?? 0), 2, ',', '.') ?></td>
                                     <td class="fw-semibold">
                                         R$ <?= number_format((float) ($item['estimated_total'] ?? 0), 2, ',', '.') ?>

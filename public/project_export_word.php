@@ -149,6 +149,11 @@ send_download_headers('application/msword; charset=utf-8', $filename);
         </td>
 
         <td>
+            <small>Quantidade final estimada</small>
+            <?= e(format_decimal_quantity($financialSummary['total_effective_quantity'] ?? 0)) ?>
+        </td>
+
+        <td>
             <small>Valor total estimado</small>
             R$ <?= number_format((float) ($financialSummary['total_estimated_value'] ?? 0), 2, ',', '.') ?>
             <?php if (!empty($financialSummary['uses_supplier_average'])): ?>
@@ -194,6 +199,7 @@ send_download_headers('application/msword; charset=utf-8', $filename);
             <th>Unidade</th>
             <th>Qtd. solicitada</th>
             <th>Qtd. aprovada</th>
+            <th>Qtd. final</th>
             <th>Valor médio unit.</th>
             <th>Total estimado</th>
         </tr>
@@ -212,6 +218,7 @@ send_download_headers('application/msword; charset=utf-8', $filename);
                 </td>
                 <td><?= e((string) $item['total_quantity']) ?></td>
                 <td><?= e((string) $item['total_approved_quantity']) ?></td>
+                <td><strong><?= e(format_decimal_quantity(project_item_effective_quantity($item))) ?></strong></td>
                 <td>R$ <?= number_format((float) $item['average_unit_price'], 2, ',', '.') ?></td>
                 <td>
                     R$ <?= number_format((float) $item['estimated_total'], 2, ',', '.') ?>

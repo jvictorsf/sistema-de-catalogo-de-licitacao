@@ -38,8 +38,8 @@ project_lots_test_assert(
     'Tela de lotes deve oferecer a acao de sequenciamento.'
 );
 project_lots_test_assert(
-    str_contains($page, 'if (!$projectLocked)'),
-    'Acao de sequenciamento deve respeitar o bloqueio do projeto.'
+    str_contains($page, 'if (!$projectLocked && $canManageProject)'),
+    'Acao de sequenciamento deve respeitar o bloqueio do projeto e a permissao de gestao.'
 );
 
 echo "ProjectLotsTest: OK\n";

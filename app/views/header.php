@@ -31,12 +31,14 @@ $primaryNavItems = [
         'href' => '/',
         'label' => 'Itens',
         'icon' => 'bi-box-seam',
+        'permission' => 'catalog.view',
         'active' => ['index.php', 'item_form.php', 'item_show.php'],
     ],
     [
         'href' => '/projects.php',
         'label' => 'Projetos',
         'icon' => 'bi-folder2-open',
+        'permission' => 'projects.view',
         'active' => [
             'projects.php',
             'project_form.php',

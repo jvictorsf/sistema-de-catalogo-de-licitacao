@@ -34,6 +34,9 @@ $projectError = trim($_GET['project_error'] ?? '');
 $statusEvents = get_project_status_events($id);
 $closureHash = trim((string) ($project['closure_hash'] ?? ''));
 $closureShortHash = $closureHash !== '' ? substr($closureHash, 0, 12) : '';
+$canManageProject = auth_can('projects.manage');
+$canViewBudgets = auth_can('budgets.view');
+$canManageBudgets = auth_can('budgets.manage');
 
 require __DIR__ . '/../app/views/header.php';
 
@@ -41,13 +44,9 @@ require __DIR__ . '/../app/views/header.php';
 
 <div class="project-show-toolbar mb-3">
     <div class="page-actions project-actions d-flex gap-2 flex-wrap justify-content-start">
-        <?php if (!$projectLocked): ?>
+        <?php if (!$projectLocked && $canManageProject): ?>
         <a href="/demand_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i>Nova demanda
-        </a>
-
-        <a href="/project_supplier_quote_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-outline-success">
-            <i class="bi bi-cash-coin"></i><?= $isDirectPurchase ? 'Orcamento geral da compra' : 'Orcamento geral' ?>
         </a>
 
         <?php if ($isDirectPurchase): ?>
@@ -65,6 +64,12 @@ require __DIR__ . '/../app/views/header.php';
             <i class="bi bi-boxes"></i>Denominacoes
         </a>
         <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if (!$projectLocked && $canManageBudgets): ?>
+        <a href="/project_supplier_quote_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-outline-success">
+            <i class="bi bi-cash-coin"></i><?= $isDirectPurchase ? 'Orcamento geral da compra' : 'Orcamento geral' ?>
+        </a>
         <?php endif; ?>
 
         <a href="/project_quantity_memories.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-info">
@@ -99,11 +104,13 @@ require __DIR__ . '/../app/views/header.php';
                 <?php if ($isDirectPurchase): ?>
                     <li><hr class="dropdown-divider"></li>
                     <li><h6 class="dropdown-header">Compra Direta</h6></li>
+                    <?php if ($canManageProject): ?>
                     <li>
                         <a href="/direct_purchase_dod.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
                             DOD - configurar/consultar
                         </a>
                     </li>
+                    <?php endif; ?>
                     <li>
                         <a href="/direct_purchase_dod_export.php?id=<?= (int) $project['id'] ?>" target="_blank" class="dropdown-item">
                             DOD - PDF
@@ -363,11 +370,13 @@ require __DIR__ . '/../app/views/header.php';
                         Orcamentos do projeto
                     </a>
                 </li>
+                <?php if ($canManageBudgets): ?>
                 <li>
                     <a href="/project_global_price_bank.php?id=<?= (int) $project['id'] ?>" class="dropdown-item">
                         Banco de precos de orcamentos gerais
                     </a>
                 </li>
+                <?php endif; ?>
 
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Solicitacao geral</h6></li>
@@ -565,7 +574,7 @@ require __DIR__ . '/../app/views/header.php';
                 <div class="text-muted small">Quando os itens, a ordem ou os precos mudam, gere novamente os anexos desatualizados.</div>
             </div>
 
-            <?php if (!$projectLocked): ?>
+            <?php if (!$projectLocked && $canManageProject): ?>
                 <a href="/project_licitation_numbers.php?id=<?= (int) $project['id'] ?>" class="btn btn-sm btn-outline-dark">
                     <i class="bi bi-list-ol"></i>Ajustar numeracao
                 </a>
@@ -710,13 +719,16 @@ require __DIR__ . '/../app/views/header.php';
                                         Abrir
                                     </a>
 
-                                    <?php if (!$projectLocked): ?>
+                                    <?php if ($canViewBudgets): ?>
                                     <a
                                         href="/demand_budget.php?id=<?= (int) $demand['id'] ?>"
                                         class="btn btn-sm btn-outline-success">
                                         Orçamento
                                     </a>
 
+                                    <?php endif; ?>
+
+                                    <?php if (!$projectLocked && $canManageProject): ?>
                                     <form
                                         action="/demand_delete.php"
                                         method="post"

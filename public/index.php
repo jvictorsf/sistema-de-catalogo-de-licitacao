@@ -14,6 +14,8 @@ require_once __DIR__ . '/../app/config.php';
 require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';
 
+$canManageCatalog = auth_can('catalog.manage');
+
 $filters = [
     'q' => trim($_GET['q'] ?? ''),
     'category_id' => (int) ($_GET['category_id'] ?? 0),
@@ -84,9 +86,11 @@ require __DIR__ . '/../app/views/header.php';
             <i class="bi bi-file-earmark-pdf"></i>PDF Catalogo
         </a>
 
+        <?php if ($canManageCatalog): ?>
         <a href="/item_form.php" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i>Novo item
         </a>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -335,6 +339,7 @@ require __DIR__ . '/../app/views/header.php';
                                 <i class="bi bi-eye"></i>Ver
                             </a>
 
+                            <?php if ($canManageCatalog): ?>
                             <a
                                 href="/item_form.php?id=<?= (int) $item['id'] ?>"
                                 class="btn btn-sm btn-outline-secondary">
@@ -372,6 +377,7 @@ require __DIR__ . '/../app/views/header.php';
                                     <i class="bi bi-trash"></i>Excluir
                                 </button>
                             </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

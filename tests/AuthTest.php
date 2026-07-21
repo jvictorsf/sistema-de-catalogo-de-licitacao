@@ -25,9 +25,30 @@ auth_test_assert_same('true', auth_pg_bool('on'), 'String on deve ser aceita com
 auth_test_assert_same('false', auth_pg_bool(''), 'String vazia deve ser aceita como false.');
 auth_test_assert_true(in_array('system.manage_users', auth_role_permissions('admin'), true), 'Administrador deve gerenciar usuarios.');
 auth_test_assert_true(in_array('system.manage_editor_settings', auth_role_permissions('admin'), true), 'Administrador deve configurar editor e documentos.');
+auth_test_assert_same(count(auth_permission_labels()), count(auth_role_permissions('admin')), 'Administrador deve possuir todas as permissoes cadastradas.');
 auth_test_assert_true(!in_array('system.manage_users', auth_role_permissions('viewer'), true), 'Consulta nao deve gerenciar usuarios.');
 auth_test_assert_true(!in_array('system.manage_editor_settings', auth_role_permissions('manager'), true), 'Gestor nao deve alterar padroes globais do editor.');
 auth_test_assert_true(!in_array('system.view_logs', auth_role_permissions('operator'), true), 'Operador nao deve acessar logs administrativos.');
+auth_test_assert_true(auth_role_can('viewer', 'catalog.view'), 'Consulta deve visualizar o catalogo.');
+auth_test_assert_true(auth_role_can('viewer', 'projects.view'), 'Consulta deve visualizar projetos.');
+auth_test_assert_true(auth_role_can('viewer', 'budgets.view'), 'Consulta deve visualizar orcamentos.');
+auth_test_assert_true(!auth_role_can('viewer', 'projects.manage'), 'Consulta nao deve alterar projetos.');
+auth_test_assert_true(!auth_role_can('operator', 'ai.use'), 'Operador nao deve usar IA sem permissao.');
+auth_test_assert_true(auth_role_can('manager', 'ai.use'), 'Gestor deve poder usar IA.');
+auth_test_assert_true(!auth_role_can('admin', 'permission.unknown'), 'Permissao desconhecida deve ser negada inclusive ao administrador.');
+
+auth_test_assert_same('catalog.manage', auth_route_required_permission('item_delete.php', 'POST'), 'Exclusao de item deve exigir gestao do catalogo.');
+auth_test_assert_same('ai.use', auth_route_required_permission('ai_suggest.php', 'POST'), 'Sugestao por IA deve exigir permissao especifica.');
+auth_test_assert_same('projects.view', auth_route_required_permission('project_show.php', 'GET'), 'Consulta de projeto deve exigir visualizacao.');
+auth_test_assert_same('projects.view', auth_route_required_permission('project_lots.php', 'GET'), 'Consulta de lotes deve exigir visualizacao.');
+auth_test_assert_same('projects.manage', auth_route_required_permission('project_lots.php', 'POST'), 'Alteracao de lotes deve exigir gestao.');
+auth_test_assert_same('projects.manage', auth_route_required_permission('project_lots.php', 'DELETE'), 'Metodo nao previsto em lotes deve usar a permissao mais restritiva.');
+auth_test_assert_same('projects.view', auth_route_required_permission('project_quantity_memory_form.php', 'GET'), 'Memoria quantitativa deve aceitar consulta.');
+auth_test_assert_same('projects.manage', auth_route_required_permission('project_quantity_memory_form.php', 'POST'), 'Edicao da memoria quantitativa deve exigir gestao.');
+auth_test_assert_same('reports.view', auth_route_required_permission('project_lot_annex_iv.php', 'GET'), 'Anexo deve exigir permissao de relatorio.');
+auth_test_assert_same('budgets.view', auth_route_required_permission('supplier_quote_file.php', 'GET'), 'Anexo privado de orcamento deve exigir consulta de orcamentos.');
+auth_test_assert_true(auth_route_is_registered('dashboard.php'), 'Dashboard deve constar no registro de rotas autenticadas.');
+auth_test_assert_true(!auth_route_is_registered('pagina_inexistente.php'), 'Rota nao cadastrada deve ser negada por padrao.');
 auth_test_assert_true(function_exists('auth_ldap_config'), 'Funcoes LDAP devem ser carregadas pelo auth.php.');
 $ldapConfig = auth_ldap_config([
     'AUTH_LDAP_ENABLED' => '1',

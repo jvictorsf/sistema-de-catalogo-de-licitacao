@@ -25,8 +25,10 @@ function auth_start_session(): void
         return;
     }
 
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $forwardedProto = strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $forwardedProto === 'https';
 
+    ini_set('session.use_strict_mode', '1');
     session_name('catalogo_licitacao_session');
     session_set_cookie_params([
         'lifetime' => 0,
@@ -137,8 +139,11 @@ function auth_permission_labels(): array
         'system.view_diagnostics' => 'Visualizar diagnostico do ambiente',
         'system.view_logs' => 'Visualizar logs da aplicacao',
         'system.manage_editor_settings' => 'Configurar editor de texto e documentos',
+        'catalog.view' => 'Consultar catalogo e itens',
         'catalog.manage' => 'Gerenciar catalogo, kits e biblioteca',
+        'projects.view' => 'Consultar projetos e demandas',
         'projects.manage' => 'Gerenciar projetos, demandas, lotes e DOD',
+        'budgets.view' => 'Consultar orcamentos e documentos de cotacao',
         'budgets.manage' => 'Gerenciar orcamentos e banco de precos',
         'suppliers.manage' => 'Gerenciar fornecedores',
         'requesters.manage' => 'Gerenciar secretarias, unidades e colaboradores',
@@ -157,8 +162,11 @@ function auth_role_permissions(string $role): array
     return match ($role) {
         'admin' => $all,
         'manager' => [
+            'catalog.view',
             'catalog.manage',
+            'projects.view',
             'projects.manage',
+            'budgets.view',
             'budgets.manage',
             'suppliers.manage',
             'requesters.manage',
@@ -169,8 +177,11 @@ function auth_role_permissions(string $role): array
             'ai.use',
         ],
         'operator' => [
+            'catalog.view',
             'catalog.manage',
+            'projects.view',
             'projects.manage',
+            'budgets.view',
             'budgets.manage',
             'suppliers.manage',
             'requesters.manage',
@@ -179,12 +190,21 @@ function auth_role_permissions(string $role): array
             'hashes.view',
         ],
         'viewer' => [
+            'catalog.view',
+            'projects.view',
+            'budgets.view',
             'reports.view',
             'bi.view',
             'hashes.view',
         ],
         default => [],
     };
+}
+
+function auth_role_can(string $role, string $permission): bool
+{
+    return array_key_exists($permission, auth_permission_labels())
+        && in_array($permission, auth_role_permissions($role), true);
 }
 
 function auth_normalize_user_data(array $data, bool $requirePassword = false): array
@@ -264,7 +284,23 @@ function auth_can(string $permission): bool
         return false;
     }
 
-    return in_array($permission, auth_role_permissions((string) $user['role']), true);
+    return auth_role_can((string) $user['role'], $permission);
+}
+
+function auth_forbid(?string $permission = null, string $reason = 'permission_denied'): never
+{
+    $user = auth_current_user();
+
+    app_log('warning', 'Acesso negado', [
+        'reason' => $reason,
+        'permission' => $permission,
+        'page' => auth_current_page(),
+        'user_role' => $user['role'] ?? null,
+    ]);
+
+    http_response_code(403);
+    echo 'Acesso negado.';
+    exit;
 }
 
 function auth_require_permission(string $permission): void
@@ -273,51 +309,132 @@ function auth_require_permission(string $permission): void
         return;
     }
 
-    http_response_code(403);
-    echo 'Acesso negado.';
-    exit;
+    auth_forbid($permission);
 }
 
-function auth_route_required_permission(string $page): ?string
+function auth_authenticated_pages(): array
 {
-    $permissions = [
+    return [
+        'dashboard.php',
+        'profile.php',
+    ];
+}
+
+function auth_route_policies(): array
+{
+    static $policies = null;
+
+    if ($policies !== null) {
+        return $policies;
+    }
+
+    $permissionGroups = [
         'system.manage_users' => ['users.php', 'user_form.php', 'user_toggle.php'],
         'system.manage_data' => ['data.php', 'export_json.php', 'import_json.php', 'import_template_json.php'],
         'system.view_diagnostics' => ['environment_diagnostics.php'],
         'system.view_logs' => ['system_logs.php'],
         'system.manage_editor_settings' => ['editor_settings.php'],
+        'catalog.view' => [
+            'index.php', 'item_show.php', 'item_version_show.php', 'item_similar_check.php', 'item_similiar_check.php',
+        ],
         'catalog.manage' => [
-            'ai_suggest.php', 'item_form.php', 'item_delete.php', 'item_duplicate.php', 'item_image_delete.php',
+            'item_form.php', 'item_delete.php', 'item_duplicate.php', 'item_image_delete.php',
             'item_image_primary.php', 'item_version_create.php', 'item_version_restore.php', 'category_form.php',
             'category_delete.php', 'unit_type_form.php', 'unit_type_delete.php', 'kit_form.php', 'kit_delete.php',
             'kit_item_add.php', 'kit_item_delete.php', 'justification_template_form.php',
             'justification_template_delete.php', 'impact_template_form.php', 'impact_template_delete.php',
+            'categories.php', 'unit_types.php', 'kits.php', 'kit_show.php', 'library.php', 'similar_items.php',
         ],
+        'ai.use' => ['ai_suggest.php'],
+        'projects.view' => ['projects.php', 'project_show.php', 'demand_show.php'],
         'projects.manage' => [
-            'project_form.php', 'project_delete.php', 'project_duplicate.php', 'project_lots.php', 'project_lot_form.php',
-            'project_lot_assignments.php', 'project_licitation_numbers.php', 'direct_purchase_dod.php',
-            'demand_form.php', 'demand_delete.php', 'demand_item_add.php', 'demand_item_delete.php',
-            'demand_item_update.php', 'demand_kit_add.php', 'demand_approval.php', 'demand_approval_save.php',
+            'project_form.php', 'project_delete.php', 'project_duplicate.php', 'project_lot_form.php',
+            'project_licitation_numbers.php', 'direct_purchase_dod.php', 'demand_form.php', 'demand_delete.php',
+            'demand_item_add.php', 'demand_item_delete.php', 'demand_item_update.php', 'demand_kit_add.php',
+            'demand_approval.php', 'demand_approval_save.php',
         ],
+        'budgets.view' => ['demand_budget.php', 'project_budgets.php', 'supplier_quote_file.php'],
         'budgets.manage' => [
-            'demand_budget.php', 'demand_supplier_quote_form.php', 'demand_supplier_quote_delete.php',
-            'demand_price_bank.php', 'project_supplier_quote_form.php', 'project_budgets.php',
-            'project_global_price_bank.php',
+            'demand_supplier_quote_form.php', 'demand_supplier_quote_delete.php', 'demand_price_bank.php',
+            'project_supplier_quote_form.php', 'project_global_price_bank.php',
         ],
-        'suppliers.manage' => ['suppliers.php', 'supplier_form.php', 'supplier_delete.php', 'supplier_cnpj_lookup.php', 'supplier_cep_lookup.php', 'cnae_lookup.php'],
-        'requesters.manage' => ['requester_units.php', 'requester_unit_form.php', 'requester_unit_delete.php', 'secretariat_form.php', 'secretariat_delete.php', 'collaborators.php', 'collaborator_form.php', 'collaborator_toggle.php'],
-        'confirmations.manage' => ['demand_confirmation_form.php', 'demand_confirmation_revoke.php', 'demand_confirmation_file.php', 'signature_pending.php'],
+        'suppliers.manage' => [
+            'suppliers.php', 'supplier_form.php', 'supplier_delete.php', 'supplier_cnpj_lookup.php',
+            'supplier_cep_lookup.php', 'cnae_lookup.php',
+        ],
+        'requesters.manage' => [
+            'requester_units.php', 'requester_unit_form.php', 'requester_unit_delete.php',
+            'secretariat_form.php', 'secretariat_delete.php', 'collaborators.php', 'collaborator_form.php',
+            'collaborator_toggle.php',
+        ],
+        'confirmations.manage' => [
+            'demand_confirmation_form.php', 'demand_confirmation_revoke.php',
+            'demand_confirmation_file.php', 'signature_pending.php',
+        ],
+        'reports.view' => [
+            'catalog_export_word.php', 'catalog_pdf.php', 'demand_export_word.php', 'demand_pdf.php',
+            'direct_purchase_dod_export.php', 'project_demand_report.php', 'project_export_word.php',
+            'project_pdf.php', 'project_report.php', 'project_licitation_annex_i.php',
+            'project_licitation_annex_ii.php', 'project_licitation_annex_iii.php',
+            'project_licitation_annex_iv.php', 'project_lot_annex_i.php', 'project_lot_annex_ii.php',
+            'project_lot_annex_iii.php', 'project_lot_annex_iv.php', 'project_quote_request.php',
+            'project_quote_request_denominations.php', 'project_quote_request_excel.php',
+            'project_quote_request_excel_grouped.php',
+        ],
         'bi.view' => ['project_bi.php', 'annual_price_comparison.php', 'annual_price_comparison_export.php'],
         'hashes.view' => ['document_hash_validate.php'],
     ];
+    $policies = [];
 
-    foreach ($permissions as $permission => $pages) {
-        if (in_array($page, $pages, true)) {
-            return $permission;
+    foreach ($permissionGroups as $permission => $pages) {
+        foreach ($pages as $page) {
+            if (isset($policies[$page])) {
+                throw new LogicException('Politica de rota duplicada para ' . $page . '.');
+            }
+
+            $policies[$page] = $permission;
         }
     }
 
-    return null;
+    $readProjectWritePolicies = [
+        'GET' => 'projects.view',
+        'POST' => 'projects.manage',
+        '*' => 'projects.manage',
+    ];
+    $policies['project_lots.php'] = $readProjectWritePolicies;
+    $policies['project_lot_assignments.php'] = $readProjectWritePolicies;
+    $policies['project_quantity_memories.php'] = $readProjectWritePolicies;
+    $policies['project_quantity_memory_form.php'] = $readProjectWritePolicies;
+
+    return $policies;
+}
+
+function auth_route_is_registered(string $page): bool
+{
+    return in_array($page, auth_public_pages(), true)
+        || in_array($page, auth_authenticated_pages(), true)
+        || array_key_exists($page, auth_route_policies());
+}
+
+function auth_route_required_permission(string $page, ?string $method = null): ?string
+{
+    $policy = auth_route_policies()[$page] ?? null;
+
+    if (is_string($policy)) {
+        return $policy;
+    }
+
+    if (!is_array($policy)) {
+        return null;
+    }
+
+    $method = strtoupper($method ?? (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+
+    if ($method === 'HEAD') {
+        $method = 'GET';
+    }
+
+    return $policy[$method] ?? $policy['*'] ?? null;
 }
 
 function auth_attempt_local(string $login, string $password): bool
@@ -548,6 +665,10 @@ function auth_boot(): void
 
     if (!empty($user['must_change_password']) && $page !== 'profile.php') {
         auth_redirect('/profile.php?must_change=1');
+    }
+
+    if (!auth_route_is_registered($page)) {
+        auth_forbid(null, 'unmapped_route');
     }
 
     $permission = auth_route_required_permission($page);

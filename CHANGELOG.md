@@ -2,6 +2,25 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.30] - 2026-07-21
+
+### Seguranca
+- Todas as 119 rotas publicas passam a possuir politica explicita de acesso; paginas autenticadas nao mapeadas sao negadas por padrao e registradas em log.
+- Endpoints legados que carregam diretamente o repositorio agora inicializam a autenticacao antes de executar consultas ou alteracoes.
+- Separadas as permissoes de consulta e gestao para catalogo, projetos e orcamentos, preservando o perfil Consulta como somente leitura.
+- Sugestoes de IA passam a exigir `ai.use`, relatorios e anexos exigem `reports.view` e arquivos privados de cotacao exigem `budgets.view`.
+- Cookies de sessao reconhecem HTTPS encaminhado pelo Nginx e usam modo estrito de sessao.
+
+### Alterado
+- Lotes e memorias quantitativas aceitam consulta em `GET`, mas exigem gestao para qualquer alteracao.
+- Menus e acoes de itens, projetos, demandas, orcamentos, lotes, versoes e assinaturas ocultam comandos que o perfil atual nao pode executar.
+- Evidencias privadas de assinatura deixam de ser consultadas ou exibidas para perfis sem permissao de confirmacao.
+- README passa a documentar a matriz dos quatro perfis do sistema.
+
+### Testes
+- Criada auditoria automatizada da cobertura de autorizacao, do bootstrap de seguranca, da validade da matriz e da separacao entre leitura e escrita.
+- Testes de autenticacao ampliados para perfis, IA, relatorios, orcamentos, rotas desconhecidas e politicas dependentes do metodo HTTP.
+
 ## [1.6.29] - 2026-07-21
 
 ### Corrigido

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../app/helpers.php';
 require_once __DIR__ . '/../app/repository.php';
 
 $projects = get_projects();
+$canManageProjects = auth_can('projects.manage');
 
 require __DIR__ . '/../app/views/header.php';
 
@@ -20,9 +21,11 @@ require __DIR__ . '/../app/views/header.php';
         </p>
     </div>
 
+    <?php if ($canManageProjects): ?>
     <a href="/project_form.php" class="btn btn-primary">
         Novo projeto
     </a>
+    <?php endif; ?>
 </div>
 
 <div class="card">
@@ -75,6 +78,7 @@ require __DIR__ . '/../app/views/header.php';
                                 Abrir
                             </a>
 
+                            <?php if ($canManageProjects): ?>
                             <a href="/project_form.php?id=<?= (int) $project['id'] ?>" class="btn btn-sm btn-outline-secondary">
                                 Editar
                             </a>
@@ -101,6 +105,7 @@ require __DIR__ . '/../app/views/header.php';
                                         Excluir
                                     </button>
                                 </form>
+                            <?php endif; ?>
                             <?php endif; ?>
                         </td>
                     </tr>

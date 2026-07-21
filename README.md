@@ -81,6 +81,18 @@ Depois, restaurar `public/uploads/`, `storage/` e o brasao municipal, se houver.
 - Os impactos ambientais dos itens sao armazenados como lista estruturada.
 - As sugestoes de IA sao apoio inicial e precisam de revisao tecnica antes de uso em processo administrativo, compra direta ou licitatorio.
 
+## Perfis e Permissoes
+O controle de acesso usa uma matriz centralizada e separa consulta de alteracao. Todas as paginas em `public/` precisam possuir uma politica explicita; rotas novas ou desconhecidas sao negadas por padrao e registradas no log da aplicacao.
+
+| Perfil | Acesso principal |
+|---|---|
+| Administrador | Todas as funcoes, inclusive usuarios, dados, diagnostico, logs e configuracoes globais |
+| Gestor | Catalogo, projetos, demandas, orcamentos, fornecedores, relatorios, BI, assinaturas, hashes e IA |
+| Operador | Operacao do catalogo, projetos, demandas, orcamentos, fornecedores, relatorios, assinaturas e hashes |
+| Consulta | Leitura de catalogo, projetos, demandas, orcamentos, relatorios, BI e validacao de hashes |
+
+As evidencias privadas de assinatura exigem a permissao de gerenciamento de confirmacoes. Relatorios e anexos exigem permissao propria de consulta, enquanto alteracoes de lotes e memorias quantitativas sao autorizadas conforme o metodo da requisicao: leitura em `GET` e gestao em `POST`.
+
 ## Autenticacao AD/LDAP
 O sistema permite autenticacao hibrida: primeiro tenta AD/LDAP quando `AUTH_LDAP_ENABLED=true`; se falhar e `AUTH_LDAP_LOCAL_FALLBACK=true`, permite o login local do administrador cadastrado em `/setup_admin.php`.
 

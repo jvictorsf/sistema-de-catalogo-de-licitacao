@@ -28,6 +28,9 @@ $confirmationRequests = get_demand_confirmation_requests($id);
 $actionError = trim((string) ($_GET['error'] ?? ''));
 $approvalSuccess = trim((string) ($_GET['approval_success'] ?? ''));
 $budgetItemsByDemandItem = [];
+$canManageProject = auth_can('projects.manage');
+$canManageBudgets = auth_can('budgets.manage');
+$canManageConfirmations = auth_can('confirmations.manage');
 
 foreach ($budgetReport['items'] as $budgetItem) {
     $budgetItemsByDemandItem[(int) $budgetItem['id']] = $budgetItem;
@@ -53,13 +56,13 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 
     <div class="d-flex gap-2 flex-wrap justify-content-end">
-        <?php if (auth_can('projects.manage')): ?>
+        <?php if ($canManageProject): ?>
         <a href="/demand_approval.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-warning">
             <i class="bi bi-clipboard-check"></i><?= $projectLocked ? 'Consultar análise' : 'Analisar demanda' ?>
         </a>
         <?php endif; ?>
 
-        <?php if (!$projectLocked): ?>
+        <?php if (!$projectLocked && $canManageProject): ?>
         <a href="/demand_form.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-secondary">
             Editar dados
         </a>
@@ -129,7 +132,7 @@ require __DIR__ . '/../app/views/header.php';
             <?php endif; ?>
         </div>
 
-        <?php if (auth_can('projects.manage')): ?>
+        <?php if ($canManageProject): ?>
             <a href="/demand_approval.php?id=<?= (int) $demand['id'] ?>" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-clock-history"></i>Decisão e histórico
             </a>
@@ -176,12 +179,14 @@ require __DIR__ . '/../app/views/header.php';
             <div class="fw-semibold">Assinaturas da demanda</div>
             <div class="small text-muted">Fluxos, etapas, evidências privadas e hashes individuais.</div>
         </div>
+        <?php if ($canManageConfirmations): ?>
         <div class="d-flex gap-2">
             <a href="/signature_pending.php" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-check"></i>Pendências</a>
             <?php if (!$projectLocked): ?>
                 <a href="/demand_confirmation_form.php?demand_id=<?= (int) $demand['id'] ?>" class="btn btn-sm btn-primary"><i class="bi bi-pen"></i>Novo fluxo</a>
             <?php endif; ?>
         </div>
+        <?php endif; ?>
     </div>
 
     <div class="table-responsive">
@@ -203,7 +208,9 @@ require __DIR__ . '/../app/views/header.php';
                 <?php foreach ($confirmationRequests as $confirmationRequest): ?>
                     <?php
                         $confirmationStatus = $confirmationRequest['effective_status'] ?? $confirmationRequest['status'] ?? 'pending';
-                        $attachments = get_demand_confirmation_attachments((int) $confirmationRequest['id']);
+                        $attachments = $canManageConfirmations
+                            ? get_demand_confirmation_attachments((int) $confirmationRequest['id'])
+                            : [];
                     ?>
                     <tr>
                         <td>
@@ -226,7 +233,7 @@ require __DIR__ . '/../app/views/header.php';
                             </div>
                         </td>
                         <td>
-                            <?php if (!empty($confirmationRequest['signature_path'])): ?>
+                            <?php if ($canManageConfirmations && !empty($confirmationRequest['signature_path'])): ?>
                                 <div class="d-flex flex-wrap gap-1 mb-2">
                                     <a href="<?= e(demand_confirmation_file_url((int) $confirmationRequest['id'], 'signature')) ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pen"></i>Assinatura</a>
                                     <?php foreach ($attachments as $attachment): ?>
@@ -242,7 +249,7 @@ require __DIR__ . '/../app/views/header.php';
                             <?php else: ?><span class="small text-muted">Hash gerado após a assinatura</span><?php endif; ?>
                         </td>
                         <td class="text-end">
-                            <?php if (!$projectLocked && in_array($confirmationStatus, ['pending', 'waiting'], true)): ?>
+                            <?php if (!$projectLocked && $canManageConfirmations && in_array($confirmationStatus, ['pending', 'waiting'], true)): ?>
                                 <form action="/demand_confirmation_revoke.php" method="post" class="d-inline" onsubmit="return confirm('Revogar todo este fluxo de assinatura?')">
                                     <input type="hidden" name="id" value="<?= (int) $confirmationRequest['id'] ?>">
                                     <input type="hidden" name="demand_id" value="<?= (int) $demand['id'] ?>">
@@ -263,7 +270,7 @@ require __DIR__ . '/../app/views/header.php';
         </div>
 
         <div class="d-flex gap-2">
-            <?php if (!$projectLocked): ?>
+            <?php if (!$projectLocked && $canManageBudgets): ?>
             <a href="/demand_supplier_quote_form.php?demand_id=<?= (int) $demand['id'] ?>" class="btn btn-sm btn-primary">
                 <i class="bi bi-plus-lg"></i>Adicionar orçamento
             </a>
@@ -329,7 +336,7 @@ require __DIR__ . '/../app/views/header.php';
                             <?= render_supplier_quote_document_buttons($quote) ?>
                         </td>
                         <td class="text-end">
-                            <?php if (!$projectLocked): ?>
+                            <?php if (!$projectLocked && $canManageBudgets): ?>
                             <a href="/demand_supplier_quote_form.php?id=<?= $quoteId ?>" class="btn btn-sm btn-outline-primary">
                                 Editar
                             </a>
@@ -352,7 +359,7 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 </div>
 
-<?php if (!$projectLocked): ?>
+<?php if (!$projectLocked && $canManageProject): ?>
 <div class="card card-body mb-4">
     <h2 class="h5 mb-3">Adicionar item à demanda</h2>
 
@@ -608,7 +615,7 @@ require __DIR__ . '/../app/views/header.php';
                         </td>
 
                         <td class="text-end">
-                            <?php if (!$projectLocked): ?>
+                            <?php if (!$projectLocked && $canManageProject): ?>
                             <button
                                 type="button"
                                 class="btn btn-sm btn-outline-primary"

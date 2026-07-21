@@ -17,6 +17,7 @@ if (!$project) {
 $errors = [];
 $success = trim((string) ($_GET['success'] ?? ''));
 $projectLocked = project_is_locked($project);
+$canManageProject = auth_can('projects.manage');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
@@ -70,7 +71,7 @@ require __DIR__ . '/../app/views/header.php';
         <a href="/project_show.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i>Voltar
         </a>
-        <?php if (!$projectLocked): ?>
+        <?php if (!$projectLocked && $canManageProject): ?>
             <?php if (count($lots) > 1): ?>
                 <form method="post" onsubmit="return confirm('Renumerar os lotes pela ordem em que foram cadastrados?')">
                     <input type="hidden" name="project_id" value="<?= (int) $project['id'] ?>">
@@ -107,7 +108,7 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 </div>
 
-<?php if (!$projectLocked && $sourceProjects): ?>
+<?php if (!$projectLocked && $canManageProject && $sourceProjects): ?>
     <div class="card card-body mb-4">
         <form method="post" class="row g-3 align-items-end">
             <input type="hidden" name="project_id" value="<?= (int) $project['id'] ?>">
@@ -170,7 +171,7 @@ require __DIR__ . '/../app/views/header.php';
                         <tr>
                             <td colspan="5" class="text-center text-muted py-5">
                                 <div class="mb-3">Nenhuma denominacao cadastrada para este projeto.</div>
-                                <?php if (!$projectLocked): ?>
+                                <?php if (!$projectLocked && $canManageProject): ?>
                                     <a href="/project_lot_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
                                         <i class="bi bi-plus-lg"></i>Criar primeira denominacao
                                     </a>
@@ -199,7 +200,7 @@ require __DIR__ . '/../app/views/header.php';
                                         class="btn btn-sm btn-outline-success">
                                         <i class="bi bi-link-45deg"></i>Vinculos
                                     </a>
-                                    <?php if (!$projectLocked): ?>
+                                    <?php if (!$projectLocked && $canManageProject): ?>
                                     <a
                                         href="/project_lot_form.php?id=<?= (int) $lot['id'] ?>"
                                         class="btn btn-sm btn-outline-primary">

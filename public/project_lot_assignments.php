@@ -25,6 +25,7 @@ if (!$project) {
 $errors = [];
 $success = trim((string) ($_GET['success'] ?? ''));
 $projectLocked = project_is_locked($project);
+$canManageProject = auth_can('projects.manage');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
@@ -90,7 +91,7 @@ require __DIR__ . '/../app/views/header.php';
         <a href="/project_lots.php?id=<?= (int) $project['id'] ?>" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i>Voltar
         </a>
-        <?php if (!$projectLocked): ?>
+        <?php if (!$projectLocked && $canManageProject): ?>
             <a href="/project_lot_form.php?id=<?= (int) $lot['id'] ?>" class="btn btn-outline-primary">
                 <i class="bi bi-pencil-square"></i>Editar denominacao
             </a>
@@ -128,7 +129,7 @@ require __DIR__ . '/../app/views/header.php';
             </div>
         </div>
 
-        <?php if (!$projectLocked): ?>
+        <?php if (!$projectLocked && $canManageProject): ?>
         <form method="post" class="card">
             <input type="hidden" name="action" value="add_assignment">
             <input type="hidden" name="lot_id" value="<?= (int) $lot['id'] ?>">
@@ -239,7 +240,7 @@ require __DIR__ . '/../app/views/header.php';
                                     </td>
                                     <td><?= e($label !== '' ? $label : '-') ?></td>
                                     <td class="text-end">
-                                        <?php if (!$projectLocked): ?>
+                                        <?php if (!$projectLocked && $canManageProject): ?>
                                         <form method="post" class="d-inline" onsubmit="return confirm('Remover este vinculo?')">
                                             <input type="hidden" name="action" value="delete_assignment">
                                             <input type="hidden" name="lot_id" value="<?= (int) $lot['id'] ?>">

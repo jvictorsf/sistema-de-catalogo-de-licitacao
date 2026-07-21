@@ -8,6 +8,7 @@ require_once __DIR__ . '/../app/repository.php';
 
 $id = (int) ($_GET['id'] ?? 0);
 $item = find_item($id);
+$canManageCatalog = auth_can('catalog.manage');
 
 if (!$item) {
     http_response_code(404);
@@ -27,6 +28,7 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 
     <div class="d-flex gap-2">
+        <?php if ($canManageCatalog): ?>
         <a href="/item_form.php?id=<?= (int) $item['id'] ?>" class="btn btn-outline-primary">Editar</a>
         <form
             action="/item_duplicate.php"
@@ -40,6 +42,7 @@ require __DIR__ . '/../app/views/header.php';
                 Copiar item
             </button>
         </form>
+        <?php endif; ?>
         <a href="/" class="btn btn-outline-secondary">Voltar</a>
     </div>
 </div>
@@ -233,6 +236,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
             <span>Versionamento do Item</span>
 
+            <?php if ($canManageCatalog): ?>
             <button
                 type="button"
                 class="btn btn-sm btn-outline-primary"
@@ -240,6 +244,7 @@ require __DIR__ . '/../app/views/header.php';
                 data-bs-target="#createVersionModal">
                 Criar versão
             </button>
+            <?php endif; ?>
         </div>
 
         <div class="table-responsive">
@@ -314,6 +319,7 @@ require __DIR__ . '/../app/views/header.php';
                                     Ver
                                 </a>
 
+                                <?php if ($canManageCatalog): ?>
                                 <form
                                     action="/item_version_restore.php"
                                     method="post"
@@ -328,6 +334,7 @@ require __DIR__ . '/../app/views/header.php';
                                         Restaurar
                                     </button>
                                 </form>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

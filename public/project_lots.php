@@ -40,6 +40,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $copied = copy_project_lot_denominations_from_project($sourceProjectId, $projectId, $replaceExisting);
             redirect('/project_lots.php?id=' . $projectId . '&success=' . rawurlencode($copied . ' denominacao(oes) copiada(s).'));
         }
+
+        if ($action === 'renumber_lots') {
+            $changed = renumber_project_lots_by_insertion($projectId);
+            $message = $changed > 0
+                ? $changed . ' lote(s) renumerado(s) pela ordem de cadastro.'
+                : 'Os lotes ja estavam sequenciados pela ordem de cadastro.';
+            redirect('/project_lots.php?id=' . $projectId . '&success=' . rawurlencode($message));
+        }
     } catch (Throwable $exception) {
         $errors[] = $exception->getMessage();
     }
@@ -63,6 +71,15 @@ require __DIR__ . '/../app/views/header.php';
             <i class="bi bi-arrow-left"></i>Voltar
         </a>
         <?php if (!$projectLocked): ?>
+            <?php if (count($lots) > 1): ?>
+                <form method="post" onsubmit="return confirm('Renumerar os lotes pela ordem em que foram cadastrados?')">
+                    <input type="hidden" name="project_id" value="<?= (int) $project['id'] ?>">
+                    <input type="hidden" name="action" value="renumber_lots">
+                    <button class="btn btn-outline-primary" title="Recompor a sequencia numerica dos lotes">
+                        <i class="bi bi-sort-numeric-down"></i>Sequenciar lotes
+                    </button>
+                </form>
+            <?php endif; ?>
             <a href="/project_lot_form.php?project_id=<?= (int) $project['id'] ?>" class="btn btn-primary">
                 <i class="bi bi-plus-lg"></i>Nova denominacao
             </a>

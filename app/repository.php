@@ -4160,6 +4160,100 @@ function delete_project_lot_denomination(int $id): void
     invalidate_project_annex_versions((int) $lot['project_id']);
 }
 
+function renumber_project_lots_by_insertion(int $projectId): int
+{
+    assert_project_editable($projectId);
+
+    if (!database_table_exists('project_lot_denominations')) {
+        throw new RuntimeException('Atualize o schema do banco antes de sequenciar os lotes.');
+    }
+
+    $pdo = db();
+    $startedTransaction = !$pdo->inTransaction();
+
+    try {
+        if ($startedTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        $select = $pdo->prepare("
+            SELECT id, lot_number
+            FROM project_lot_denominations
+            WHERE project_id = :project_id
+            ORDER BY created_at, id
+            FOR UPDATE
+        ");
+        $select->execute(['project_id' => $projectId]);
+
+        $rowNumbers = [];
+        $sequence = 1;
+        $changed = 0;
+
+        foreach ($select->fetchAll() as $row) {
+            $rowNumbers[(int) $row['id']] = $sequence;
+
+            if ((int) $row['lot_number'] !== $sequence) {
+                $changed++;
+            }
+
+            $sequence++;
+        }
+
+        if ($changed > 0) {
+            $offsetStmt = $pdo->prepare("
+                SELECT COALESCE(MAX(lot_number), 0) + COUNT(*) + 1000
+                FROM project_lot_denominations
+                WHERE project_id = :project_id
+            ");
+            $offsetStmt->execute(['project_id' => $projectId]);
+            $offset = max(1000, (int) $offsetStmt->fetchColumn());
+
+            $shift = $pdo->prepare("
+                UPDATE project_lot_denominations
+                SET lot_number = lot_number + :offset
+                WHERE project_id = :project_id
+            ");
+            $shift->execute([
+                'project_id' => $projectId,
+                'offset' => $offset,
+            ]);
+
+            $update = $pdo->prepare("
+                UPDATE project_lot_denominations
+                SET lot_number = :lot_number
+                WHERE id = :id
+                  AND project_id = :project_id
+            ");
+
+            foreach ($rowNumbers as $rowId => $lotNumber) {
+                $update->execute([
+                    'id' => $rowId,
+                    'project_id' => $projectId,
+                    'lot_number' => $lotNumber,
+                ]);
+            }
+
+            invalidate_project_annex_versions($projectId);
+        }
+
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
+
+        return $changed;
+    } catch (Throwable $exception) {
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        if (is_missing_database_relation($exception)) {
+            throw new RuntimeException('Atualize o schema do banco antes de sequenciar os lotes.');
+        }
+
+        throw $exception;
+    }
+}
+
 function get_project_lot_assignments(int $projectId): array
 {
     if (!database_table_exists('project_lot_assignments')) {

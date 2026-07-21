@@ -2,6 +2,17 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.28] - 2026-07-21
+
+### Adicionado
+- Acao para sequenciar automaticamente os lotes pela ordem de cadastro, recompondo a numeracao continua apos exclusoes ou alteracoes manuais.
+
+### Alterado
+- Renumeracao de lotes passa a ser transacional, respeita o bloqueio do projeto, evita conflitos com numeros existentes e invalida anexos somente quando houver mudanca.
+
+### Testes
+- Suite passa a verificar a ordenacao por data de criacao e identificador, o tratamento da restricao unica e a disponibilidade da nova acao na interface.
+
 ## [1.6.27] - 2026-07-21
 
 ### Documentacao

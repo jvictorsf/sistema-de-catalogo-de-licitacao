@@ -2,6 +2,19 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.29] - 2026-07-21
+
+### Corrigido
+- Valor total estimado do `project_show` passa a usar a mesma regra de media por fonte aplicada aos Anexos II e IV.
+- Cotacoes repetidas do mesmo fornecedor em demandas diferentes sao consolidadas antes da media global do item, evitando ponderacoes divergentes.
+
+### Alterado
+- Calculo consolidado de precos permanece em consulta em lote, sem restaurar as consultas repetidas que prejudicavam o desempenho do projeto.
+- Regra de arredondamento, fallback de valor manual e contagem de fontes foi centralizada para uso pelo projeto e pelos anexos.
+
+### Testes
+- Adicionado teste de regressao que exige igualdade entre a media e o total exibidos no projeto e os valores dos Anexos II e IV.
+
 ## [1.6.28] - 2026-07-21
 
 ### Adicionado

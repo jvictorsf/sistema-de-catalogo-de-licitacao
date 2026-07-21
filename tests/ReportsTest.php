@@ -119,6 +119,23 @@ reports_test_assert_contains('<th style="width: 18%;">Quantidade</th>', $simpleA
 $schemaSource = file_get_contents(__DIR__ . '/../database/schema.sql') ?: '';
 reports_test_assert_contains("'annex_iv'", $schemaSource, 'Schema deve permitir o versionamento do anexo simplificado.');
 
+$repositorySource = file_get_contents(__DIR__ . '/../app/repository.php') ?: '';
+reports_test_assert_contains(
+    'function get_project_item_price_estimates',
+    $repositorySource,
+    'Repositorio deve calcular as estimativas consolidadas do projeto em lote.'
+);
+reports_test_assert_contains(
+    'apply_project_item_price_estimates($items, $itemPriceEstimates)',
+    $repositorySource,
+    'Consolidado exibido no projeto deve aplicar a mesma regra dos anexos.'
+);
+reports_test_assert_contains(
+    'GROUP BY procurement_item_id, source_key',
+    $repositorySource,
+    'Consulta consolidada deve retornar somente uma media por item e fonte.'
+);
+
 foreach ($expectedLotAnnexTitles as $annexType => $expectedTitle) {
     reports_test_assert_same($expectedTitle, $annexTypes[$annexType] ?? null, 'Nome do anexo por lote deve seguir o padrao institucional.');
     $source = file_get_contents(__DIR__ . '/../public/project_' . $annexType . '.php') ?: '';

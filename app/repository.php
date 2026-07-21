@@ -6649,6 +6649,113 @@ function get_project_demand_budget_items(int $projectId): array
     return $cache[$projectId];
 }
 
+function get_project_item_price_estimates(int $projectId): array
+{
+    static $cache = [];
+
+    if (array_key_exists($projectId, $cache)) {
+        return $cache[$projectId];
+    }
+
+    $historicalUnion = database_table_exists('demand_price_references')
+        ? "
+            UNION ALL
+
+            SELECT
+                project_items.procurement_item_id,
+                'historical:' || reference.source_quote_item_id::text AS source_key,
+                source_quote_item.unit_price,
+                NULL::numeric AS manual_unit_price
+            FROM project_items
+            INNER JOIN demand_price_references reference
+                ON reference.demand_item_id = project_items.demand_item_id
+            INNER JOIN demand_supplier_quote_items source_quote_item
+                ON source_quote_item.id = reference.source_quote_item_id
+            WHERE source_quote_item.unit_price IS NOT NULL
+        "
+        : '';
+    $stmt = db()->prepare("
+        WITH project_items AS (
+            SELECT
+                di.id AS demand_item_id,
+                di.procurement_item_id,
+                di.estimated_unit_price
+            FROM demand_items di
+            INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+            WHERE dl.project_id = :project_id
+        ),
+        estimate_values AS (
+            SELECT
+                project_items.procurement_item_id,
+                'supplier:' || quote.supplier_id::text AS source_key,
+                quote_item.unit_price,
+                NULL::numeric AS manual_unit_price
+            FROM project_items
+            INNER JOIN demand_supplier_quote_items quote_item
+                ON quote_item.demand_item_id = project_items.demand_item_id
+            INNER JOIN demand_supplier_quotes quote
+                ON quote.id = quote_item.demand_supplier_quote_id
+            WHERE quote_item.unit_price IS NOT NULL
+              AND COALESCE(quote.status, 'received') <> 'discarded'
+
+            {$historicalUnion}
+
+            UNION ALL
+
+            SELECT
+                project_items.procurement_item_id,
+                NULL::text AS source_key,
+                NULL::numeric AS unit_price,
+                project_items.estimated_unit_price AS manual_unit_price
+            FROM project_items
+            WHERE project_items.estimated_unit_price IS NOT NULL
+        )
+        SELECT
+            procurement_item_id,
+            source_key,
+            AVG(unit_price) AS unit_price,
+            AVG(manual_unit_price) AS manual_unit_price
+        FROM estimate_values
+        GROUP BY procurement_item_id, source_key
+    ");
+    $stmt->execute(['project_id' => $projectId]);
+    $valuesByItem = [];
+
+    foreach ($stmt->fetchAll() as $row) {
+        $procurementItemId = (int) $row['procurement_item_id'];
+
+        if (!isset($valuesByItem[$procurementItemId])) {
+            $valuesByItem[$procurementItemId] = [
+                'source_price_values' => [],
+                'manual_price_values' => [],
+            ];
+        }
+
+        $sourceKey = trim((string) ($row['source_key'] ?? ''));
+
+        if ($sourceKey !== '' && $row['unit_price'] !== null) {
+            $valuesByItem[$procurementItemId]['source_price_values'][$sourceKey][] = (float) $row['unit_price'];
+        }
+
+        if ($row['manual_unit_price'] !== null) {
+            $valuesByItem[$procurementItemId]['manual_price_values'][] = (float) $row['manual_unit_price'];
+        }
+    }
+
+    $estimates = [];
+
+    foreach ($valuesByItem as $procurementItemId => $values) {
+        $estimates[$procurementItemId] = calculate_licitation_item_price_estimate(
+            $values['source_price_values'],
+            $values['manual_price_values']
+        );
+    }
+
+    $cache[$projectId] = $estimates;
+
+    return $cache[$projectId];
+}
+
 function calculated_project_budget_values(array $demandItem, array $budgetItems): array
 {
     $budgetItem = $budgetItems[(int) ($demandItem['demand_item_id'] ?? $demandItem['id'] ?? 0)] ?? [];
@@ -6755,50 +6862,14 @@ function get_project_consolidated_items(int $projectId): array
         return $cache[$projectId];
     }
 
-    $budgetItems = get_project_demand_budget_items($projectId);
+    $itemPriceEstimates = get_project_item_price_estimates($projectId);
     $licitationNumbers = get_project_licitation_number_map($projectId);
     $quantityMemoryMap = get_project_quantity_memory_map($projectId);
-    $itemTotals = [];
-
-    $stmt = db()->prepare("
-        SELECT
-            di.id AS demand_item_id,
-            di.procurement_item_id,
-            di.quantity,
-            COALESCE(di.approved_quantity, di.quantity) AS approved_quantity,
-            di.estimated_unit_price,
-            (COALESCE(di.approved_quantity, di.quantity) * COALESCE(di.estimated_unit_price, 0)) AS estimated_total
-        FROM demand_items di
-        INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
-        WHERE dl.project_id = :project_id
-    ");
-
-    $stmt->execute(['project_id' => $projectId]);
-
-    foreach ($stmt->fetchAll() as $demandItem) {
-        $procurementItemId = (int) $demandItem['procurement_item_id'];
-        $values = calculated_project_budget_values($demandItem, $budgetItems);
-
-        if (!isset($itemTotals[$procurementItemId])) {
-            $itemTotals[$procurementItemId] = [
-                'estimated_total' => 0.0,
-                'uses_supplier_average' => false,
-            ];
-        }
-
-        $itemTotals[$procurementItemId]['estimated_total'] += $values['calculated_total'];
-        $itemTotals[$procurementItemId]['uses_supplier_average'] = $itemTotals[$procurementItemId]['uses_supplier_average']
-            || $values['uses_supplier_average'];
-    }
 
     foreach ($items as $index => $item) {
         $procurementItemId = (int) $item['procurement_item_id'];
-        $total = $itemTotals[$procurementItemId]['estimated_total'] ?? (float) $item['estimated_total'];
         $approvedQuantity = (float) ($item['total_approved_quantity'] ?? 0);
         $quantityMemory = $quantityMemoryMap[$procurementItemId] ?? null;
-        $averageUnitPrice = $approvedQuantity > 0
-            ? $total / $approvedQuantity
-            : (float) ($item['average_unit_price'] ?? 0);
         $memoryFields = $quantityMemory ? [
             'quantity_memory_id' => (int) $quantityMemory['id'],
             'quantity_memory' => $quantityMemory,
@@ -6836,12 +6907,9 @@ function get_project_consolidated_items(int $projectId): array
         $items[$index]['licitation_number'] = $licitationNumbers[$procurementItemId] ?? null;
         $items[$index] = array_merge($items[$index], $memoryFields);
         $items[$index]['effective_quantity'] = project_item_effective_quantity($items[$index]);
-        $items[$index]['average_unit_price'] = $averageUnitPrice;
-        $items[$index]['estimated_total'] = round_money_value(
-            $averageUnitPrice * (float) $items[$index]['effective_quantity']
-        );
-        $items[$index]['uses_supplier_average'] = $itemTotals[$procurementItemId]['uses_supplier_average'] ?? false;
     }
+
+    $items = apply_project_item_price_estimates($items, $itemPriceEstimates);
 
     usort($items, static function (array $left, array $right): int {
         $leftNumber = (int) ($left['licitation_number'] ?? 0);

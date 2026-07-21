@@ -3431,6 +3431,69 @@ function round_money_value(float $value): float
     return round($value, 2);
 }
 
+function calculate_licitation_item_price_estimate(
+    array $sourcePriceValues,
+    array $manualPriceValues = []
+): array {
+    $sourceAverages = [];
+
+    foreach ($sourcePriceValues as $sourceKey => $values) {
+        $validValues = array_values(array_filter(
+            is_array($values) ? $values : [$values],
+            static fn (mixed $value): bool => $value !== null && is_numeric($value)
+        ));
+
+        if (!$validValues) {
+            continue;
+        }
+
+        $sourceAverages[(string) $sourceKey] = round_money_value(
+            array_sum(array_map('floatval', $validValues)) / count($validValues)
+        );
+    }
+
+    $manualValues = array_values(array_filter(
+        $manualPriceValues,
+        static fn (mixed $value): bool => $value !== null && is_numeric($value)
+    ));
+    $estimatedUnitPrice = $sourceAverages
+        ? round_money_value(array_sum($sourceAverages) / count($sourceAverages))
+        : ($manualValues
+            ? round_money_value(array_sum(array_map('floatval', $manualValues)) / count($manualValues))
+            : null);
+
+    return [
+        'source_averages' => $sourceAverages,
+        'estimated_unit_price' => $estimatedUnitPrice,
+        'uses_supplier_average' => (bool) $sourceAverages,
+        'price_count' => count($sourceAverages),
+    ];
+}
+
+function apply_project_item_price_estimates(array $items, array $estimates): array
+{
+    foreach ($items as $index => $item) {
+        $procurementItemId = (int) ($item['procurement_item_id'] ?? 0);
+        $estimate = $estimates[$procurementItemId] ?? null;
+        $estimatedUnitPrice = is_array($estimate) && ($estimate['estimated_unit_price'] ?? null) !== null
+            ? (float) $estimate['estimated_unit_price']
+            : (float) ($item['average_unit_price'] ?? 0);
+
+        $items[$index]['average_unit_price'] = round_money_value($estimatedUnitPrice);
+        $items[$index]['estimated_total'] = round_money_value(
+            $estimatedUnitPrice * project_item_effective_quantity($item)
+        );
+        $items[$index]['uses_supplier_average'] = is_array($estimate)
+            ? !empty($estimate['uses_supplier_average'])
+            : !empty($item['uses_supplier_average']);
+        $items[$index]['price_count'] = is_array($estimate)
+            ? (int) ($estimate['price_count'] ?? 0)
+            : (int) ($item['price_count'] ?? 0);
+    }
+
+    return $items;
+}
+
 function price_outlier_flags(array $supplierPrices, float $threshold = 0.30): array
 {
     $prices = array_values(array_filter(
@@ -3587,35 +3650,23 @@ function build_licitation_annex_ii_groups_from_rows(array $rows): array
         });
 
         foreach ($rawItems as $item) {
-            $unitPrices = [];
+            $estimate = calculate_licitation_item_price_estimate(
+                $item['supplier_price_values'] ?? [],
+                $item['manual_price_values'] ?? []
+            );
 
             foreach ($groups[$groupKey]['suppliers'] as $supplier) {
                 $supplierKey = (string) $supplier['key'];
-                $priceValues = $item['supplier_price_values'][$supplierKey] ?? [];
-                $unitPrice = $priceValues
-                    ? round_money_value(array_sum($priceValues) / count($priceValues))
-                    : null;
+                $unitPrice = $estimate['source_averages'][$supplierKey] ?? null;
 
                 $item['supplier_prices'][$supplierKey] = $unitPrice;
-
-                if ($unitPrice !== null) {
-                    $unitPrices[] = $unitPrice;
-                }
             }
 
             $itemSequence = (int) ($item['licitation_number'] ?? $item['sequence'] ?? 0);
             $item['sequence'] = $itemSequence > 0 ? $itemSequence : $sequence++;
             $sequence = max($sequence, (int) $item['sequence'] + 1);
-            $item['estimated_unit_price'] = $unitPrices
-                ? round_money_value(array_sum($unitPrices) / count($unitPrices))
-                : null;
+            $item['estimated_unit_price'] = $estimate['estimated_unit_price'];
             $item['supplier_price_alerts'] = price_outlier_flags($item['supplier_prices']);
-
-            if ($item['estimated_unit_price'] === null && $item['manual_price_values']) {
-                $item['estimated_unit_price'] = round_money_value(
-                    array_sum($item['manual_price_values']) / count($item['manual_price_values'])
-                );
-            }
 
             $item['estimated_total'] = $item['estimated_unit_price'] !== null
                 ? round_money_value($item['estimated_unit_price'] * (float) $item['annex_quantity'])

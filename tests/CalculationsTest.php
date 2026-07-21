@@ -60,6 +60,31 @@ assert_close(16.5, $arithmeticItem['estimated_unit_price'], 'Valor unitario esti
 assert_close(82.5, $arithmeticItem['estimated_total'], 'Total estimado por media aritmetica incorreto.');
 assert_close(82.5, $arithmetic['global_total'], 'Valor global estimado por media aritmetica incorreto.');
 
+$projectEstimate = calculate_licitation_item_price_estimate([
+    'supplier:1' => [10, 20],
+    'supplier:2' => [14, 22],
+]);
+$projectItems = apply_project_item_price_estimates([[
+    'procurement_item_id' => 1,
+    'total_approved_quantity' => 5,
+    'average_unit_price' => 0,
+]], [1 => $projectEstimate]);
+
+assert_close(
+    $arithmeticItem['estimated_unit_price'],
+    $projectItems[0]['average_unit_price'],
+    'Project show e Anexo II devem usar a mesma media unitaria por fonte.'
+);
+assert_close(
+    $arithmetic['global_total'],
+    $projectItems[0]['estimated_total'],
+    'Project show e Anexos II/IV devem apresentar o mesmo valor total.'
+);
+assert_true(
+    (int) $projectItems[0]['price_count'] === 2,
+    'Quantidade de precos deve considerar as fontes consolidadas.'
+);
+
 $split = build_licitation_annex_ii_groups_from_rows([
     [
         'procurement_item_id' => 1,

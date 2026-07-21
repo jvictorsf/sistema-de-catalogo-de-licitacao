@@ -185,6 +185,21 @@ header('Content-Type: text/html; charset=utf-8');
 </p>
 
 <p>
+    <strong>Decisão da demanda:</strong>
+    <?= e(demand_approval_status_label($demand['approval_status'] ?? null)) ?>
+    <?php if (!empty($demand['approval_decided_at'])): ?>
+        em <?= date('d/m/Y H:i', strtotime((string) $demand['approval_decided_at'])) ?>
+    <?php endif; ?>
+    <?php if (!empty($demand['approval_decided_by_name'])): ?>
+        por <?= e($demand['approval_decided_by_name']) ?>
+    <?php endif; ?>
+</p>
+
+<?php if (!empty($demand['approval_notes'])): ?>
+    <p><strong>Justificativa da decisão:</strong> <?= nl2br(e($demand['approval_notes'])) ?></p>
+<?php endif; ?>
+
+<p>
     <strong>Observações:</strong>
     <?= nl2br(e($demand['notes'])) ?>
 </p>

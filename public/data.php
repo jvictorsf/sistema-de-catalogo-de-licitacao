@@ -14,7 +14,7 @@ $scopeDetails = [
     'all' => [
         'badge' => 'text-bg-dark',
         'icon' => 'bi-archive',
-        'description' => 'Backup operacional em JSON de cadastros, projetos, demandas, orcamentos, DOD, anexos, fornecedores, colaboradores, configuracoes do editor, kits e bibliotecas.',
+        'description' => 'Backup operacional em JSON de cadastros, projetos, demandas, decisões e quantitativos aprovados, orçamentos, DOD, anexos, fornecedores, colaboradores, configurações do editor, kits e bibliotecas.',
         'tables' => 'Todos os escopos abaixo',
         'notes' => 'Nao substitui dump PostgreSQL nem backup dos arquivos gravados em storage/uploads.',
     ],
@@ -28,8 +28,8 @@ $scopeDetails = [
     'projects' => [
         'badge' => 'text-bg-primary',
         'icon' => 'bi-folder2-open',
-        'description' => 'Projetos de licitacao e compra direta com demandas, orcamentos, documentos, anexos, hashes, DOD e denominacoes de lote.',
-        'tables' => 'procurement_projects, demand_lists, demand_items, demand_supplier_quotes, anexos, DOD, lotes e eventos de status',
+        'description' => 'Projetos de licitação e compra direta com demandas, aprovações, orçamentos, documentos, anexos, hashes, DOD e denominações de lote.',
+        'tables' => 'procurement_projects, demand_lists, demand_items, demand_approval_events, demand_supplier_quotes, anexos, DOD, lotes e eventos de status',
         'notes' => 'Inclui dependencias administrativas, fornecedores e colaboradores usados nos projetos.',
     ],
     'requesters' => [

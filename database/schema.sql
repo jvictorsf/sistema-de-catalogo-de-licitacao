@@ -522,9 +522,60 @@ CREATE TABLE IF NOT EXISTS demand_lists (
     responsible_name VARCHAR(255),
     quote_collector_name VARCHAR(255),
     notes TEXT,
+    approval_status VARCHAR(40),
+    approval_notes TEXT,
+    approval_decided_by_user_id INTEGER NULL REFERENCES app_users(id) ON DELETE SET NULL,
+    approval_decided_at TIMESTAMP NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE demand_lists ADD COLUMN IF NOT EXISTS approval_status VARCHAR(40);
+ALTER TABLE demand_lists ALTER COLUMN approval_status SET DEFAULT 'PENDING';
+ALTER TABLE demand_lists ADD COLUMN IF NOT EXISTS approval_notes TEXT;
+ALTER TABLE demand_lists ADD COLUMN IF NOT EXISTS approval_decided_by_user_id INTEGER NULL;
+ALTER TABLE demand_lists ADD COLUMN IF NOT EXISTS approval_decided_at TIMESTAMP NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_demand_lists_approval_user') THEN
+        ALTER TABLE demand_lists
+        ADD CONSTRAINT fk_demand_lists_approval_user
+        FOREIGN KEY (approval_decided_by_user_id) REFERENCES app_users(id) ON DELETE SET NULL;
+    END IF;
+END
+$$;
+
+ALTER TABLE demand_lists DROP CONSTRAINT IF EXISTS ck_demand_lists_approval;
+ALTER TABLE demand_lists
+ADD CONSTRAINT ck_demand_lists_approval CHECK (
+    approval_status IS NULL
+    OR (
+        approval_status IN ('PENDING', 'APPROVED', 'APPROVED_WITH_RESERVATIONS', 'REJECTED')
+        AND (
+            approval_status NOT IN ('APPROVED_WITH_RESERVATIONS', 'REJECTED')
+            OR NULLIF(BTRIM(approval_notes), '') IS NOT NULL
+        )
+    )
+);
+
+CREATE TABLE IF NOT EXISTS demand_approval_events (
+    id SERIAL PRIMARY KEY,
+    demand_list_id INTEGER NOT NULL REFERENCES demand_lists(id) ON DELETE CASCADE,
+    approval_status VARCHAR(40) NOT NULL,
+    notes TEXT,
+    item_quantities JSONB NOT NULL DEFAULT '[]'::jsonb,
+    decided_by_user_id INTEGER NULL REFERENCES app_users(id) ON DELETE SET NULL,
+    decided_by_name VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (approval_status IN ('PENDING', 'APPROVED', 'APPROVED_WITH_RESERVATIONS', 'REJECTED'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_demand_lists_project_approval
+ON demand_lists (project_id, approval_status);
+
+CREATE INDEX IF NOT EXISTS idx_demand_approval_events_demand
+ON demand_approval_events (demand_list_id, created_at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS demand_signature_flows (
     id SERIAL PRIMARY KEY,
@@ -3291,6 +3342,7 @@ SELECT setval(pg_get_serial_sequence('requester_units', 'id'), GREATEST(COALESCE
 SELECT setval(pg_get_serial_sequence('collaborators', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM collaborators), 0), 1), COALESCE((SELECT MAX(id) FROM collaborators), 0) > 0);
 SELECT setval(pg_get_serial_sequence('suppliers', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM suppliers), 0), 1), COALESCE((SELECT MAX(id) FROM suppliers), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_lists', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_lists), 0), 1), COALESCE((SELECT MAX(id) FROM demand_lists), 0) > 0);
+SELECT setval(pg_get_serial_sequence('demand_approval_events', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_approval_events), 0), 1), COALESCE((SELECT MAX(id) FROM demand_approval_events), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_signature_flows', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_signature_flows), 0), 1), COALESCE((SELECT MAX(id) FROM demand_signature_flows), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_confirmation_requests', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_confirmation_requests), 0), 1), COALESCE((SELECT MAX(id) FROM demand_confirmation_requests), 0) > 0);
 SELECT setval(pg_get_serial_sequence('demand_confirmation_attachments', 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM demand_confirmation_attachments), 0), 1), COALESCE((SELECT MAX(id) FROM demand_confirmation_attachments), 0) > 0);

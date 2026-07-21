@@ -114,6 +114,19 @@ send_download_headers('application/msword; charset=utf-8', $filename);
 <p><strong>Unidade/Setor:</strong> <?= e($demand['requester_department']) ?></p>
 <p><strong>Secretaria:</strong> <?= e($demand['secretariat_name'] ?? 'Sem secretaria vinculada') ?></p>
 <p><strong>Responsável:</strong> <?= e($demand['responsible_name']) ?></p>
+<p>
+    <strong>Decisão da demanda:</strong>
+    <?= e(demand_approval_status_label($demand['approval_status'] ?? null)) ?>
+    <?php if (!empty($demand['approval_decided_at'])): ?>
+        em <?= date('d/m/Y H:i', strtotime((string) $demand['approval_decided_at'])) ?>
+    <?php endif; ?>
+    <?php if (!empty($demand['approval_decided_by_name'])): ?>
+        por <?= e($demand['approval_decided_by_name']) ?>
+    <?php endif; ?>
+</p>
+<?php if (!empty($demand['approval_notes'])): ?>
+    <p><strong>Justificativa da decisão:</strong> <?= nl2br(e($demand['approval_notes'])) ?></p>
+<?php endif; ?>
 <p><strong>Observações:</strong> <?= nl2br(e($demand['notes'])) ?></p>
 
 <table>

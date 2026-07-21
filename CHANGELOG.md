@@ -2,6 +2,29 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.24] - 2026-07-21
+
+### Adicionado
+- Fluxo administrativo para aprovar, negar ou aprovar demandas com ressalva, com justificativa obrigatoria nas decisoes restritivas.
+- Aprovacao quantitativa por item, permitindo registrar quantidades diferentes das solicitadas somente em decisoes com ressalva.
+- Historico auditavel das decisoes, com responsavel, data, justificativa e snapshot dos quantitativos solicitados e aprovados.
+- Situacao da aprovacao exibida na demanda, na listagem do projeto e nos relatorios PDF e Word.
+- Exportacao e importacao JSON das decisoes, validacoes dos itens e historico de aprovacao.
+
+### Alterado
+- Alteracoes posteriores nos dados, itens ou quantitativos da demanda voltam sua analise para pendente, preservam o historico e invalidam os anexos do projeto.
+- `project_show.php` passa a reutilizar o consolidado ja carregado e deixa de recalcular o conteudo e o hash de todos os anexos a cada abertura.
+- Calculo dos valores medios do projeto passa de consultas repetidas por demanda para uma consulta agregada por conjunto, com cache durante a requisicao.
+- Projetos de compra direta deixam de consultar situacoes de anexos exclusivos de licitacao.
+
+### Banco de Dados
+- Schema adiciona os campos da decisao em `demand_lists` e a tabela imutavel `demand_approval_events`, com constraints, indices e ajuste de sequencia idempotentes.
+- Registros de demandas existentes permanecem sem decisao formal ate serem analisados; novas demandas iniciam com situacao pendente.
+
+### Testes
+- Suite passa a cobrir aprovacao integral, ressalva quantitativa, negativa, validacoes obrigatorias, historico no JSON e estados dos anexos.
+- Testes de regressao protegem a consulta unica das versoes dos anexos, a agregacao de orcamentos e o reaproveitamento do consolidado no projeto.
+
 ## [1.6.23] - 2026-07-20
 
 ### Adicionado

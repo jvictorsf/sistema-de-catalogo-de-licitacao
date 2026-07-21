@@ -297,7 +297,7 @@ function auth_route_required_permission(string $page): ?string
             'project_form.php', 'project_delete.php', 'project_duplicate.php', 'project_lots.php', 'project_lot_form.php',
             'project_lot_assignments.php', 'project_licitation_numbers.php', 'direct_purchase_dod.php',
             'demand_form.php', 'demand_delete.php', 'demand_item_add.php', 'demand_item_delete.php',
-            'demand_item_update.php', 'demand_kit_add.php',
+            'demand_item_update.php', 'demand_kit_add.php', 'demand_approval.php', 'demand_approval_save.php',
         ],
         'budgets.manage' => [
             'demand_budget.php', 'demand_supplier_quote_form.php', 'demand_supplier_quote_delete.php',

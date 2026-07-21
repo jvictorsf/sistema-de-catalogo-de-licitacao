@@ -42,6 +42,7 @@ $primaryNavItems = [
             'project_form.php',
             'project_show.php',
             'demand_show.php',
+            'demand_approval.php',
             'project_report.php',
             'project_demand_report.php',
             'project_export_word.php',

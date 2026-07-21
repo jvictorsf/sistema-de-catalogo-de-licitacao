@@ -15,6 +15,11 @@ if (!$project) {
     exit('Projeto não encontrado.');
 }
 
+$projectLocked = project_is_locked($project);
+$isDirectPurchase = project_is_direct_purchase($project);
+$projectInRectification = project_is_rectification($project);
+$projectCanceled = project_is_canceled($project);
+$projectReopened = project_is_reopened($project);
 $demands = get_project_demands($id);
 $consolidatedItems = get_project_consolidated_items($id);
 $quoteRequestLotGroups = get_project_lot_groups($id, $consolidatedItems);
@@ -22,15 +27,10 @@ $hasQuoteRequestLotGroups = array_filter(
     $quoteRequestLotGroups,
     static fn (array $group): bool => empty($group['is_unassigned']) && (int) ($group['lot_id'] ?? 0) > 0
 ) !== [];
-$financialSummary = get_project_financial_summary($id);
-$annexStatuses = get_project_annex_statuses($id);
+$financialSummary = get_project_financial_summary($id, $consolidatedItems);
+$annexStatuses = $isDirectPurchase ? [] : get_project_annex_statuses($id);
 $quoteSuccess = trim($_GET['quote_success'] ?? '');
 $projectError = trim($_GET['project_error'] ?? '');
-$projectLocked = project_is_locked($project);
-$isDirectPurchase = project_is_direct_purchase($project);
-$projectInRectification = project_is_rectification($project);
-$projectCanceled = project_is_canceled($project);
-$projectReopened = project_is_reopened($project);
 $statusEvents = get_project_status_events($id);
 $closureHash = trim((string) ($project['closure_hash'] ?? ''));
 $closureShortHash = $closureHash !== '' ? substr($closureHash, 0, 12) : '';
@@ -686,7 +686,12 @@ require __DIR__ . '/../app/views/header.php';
                             ?>
                             <div class="project-demand-item" data-demand-search="<?= e(mb_strtolower($searchText)) ?>">
                                 <div class="project-demand-content">
-                                    <div class="project-demand-name"><?= e($demand['name']) ?></div>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <div class="project-demand-name"><?= e($demand['name']) ?></div>
+                                        <span class="badge <?= e(demand_approval_status_badge_class($demand['approval_status'] ?? null)) ?>">
+                                            <?= e(demand_approval_status_label($demand['approval_status'] ?? null)) ?>
+                                        </span>
+                                    </div>
 
                                     <div class="project-demand-secretariat">
                                         <?= e($demand['secretariat_name'] ?? 'Sem secretaria') ?>

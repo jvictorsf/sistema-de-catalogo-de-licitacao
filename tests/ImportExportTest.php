@@ -23,6 +23,19 @@ import_test_assert_true(array_key_exists('change_summary', $template['data']['pr
 
 $allTemplate = catalog_json_import_template('all');
 import_test_assert_true(isset($allTemplate['data']['rich_text_editor_settings'][0]), 'Template geral deve incluir configuracoes do editor.');
+import_test_assert_true(isset($allTemplate['data']['demand_approval_events'][0]), 'Template geral deve incluir historico de aprovacao das demandas.');
+import_test_assert_true(
+    array_key_exists('approval_status', $allTemplate['data']['demand_lists'][0]),
+    'Template geral deve incluir a decisao da demanda.'
+);
+import_test_assert_true(
+    array_key_exists('validation_status', $allTemplate['data']['demand_items'][0]),
+    'Template geral deve incluir a validacao e o quantitativo aprovado dos itens.'
+);
+import_test_assert_true(
+    is_array($allTemplate['data']['demand_approval_events'][0]['item_quantities'] ?? null),
+    'Historico da aprovacao deve preservar o snapshot dos quantitativos em JSON.'
+);
 import_test_assert_true(
     ($allTemplate['data']['rich_text_editor_settings'][0]['default_text_align'] ?? null) === 'justify',
     'Template geral deve exportar padrao de alinhamento.'

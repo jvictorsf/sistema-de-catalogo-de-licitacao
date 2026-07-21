@@ -26,6 +26,7 @@ $supplierQuotes = get_demand_supplier_quotes($id);
 $budgetReport = get_demand_budget_report($id);
 $confirmationRequests = get_demand_confirmation_requests($id);
 $actionError = trim((string) ($_GET['error'] ?? ''));
+$approvalSuccess = trim((string) ($_GET['approval_success'] ?? ''));
 $budgetItemsByDemandItem = [];
 
 foreach ($budgetReport['items'] as $budgetItem) {
@@ -52,6 +53,12 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 
     <div class="d-flex gap-2 flex-wrap justify-content-end">
+        <?php if (auth_can('projects.manage')): ?>
+        <a href="/demand_approval.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-warning">
+            <i class="bi bi-clipboard-check"></i><?= $projectLocked ? 'Consultar análise' : 'Analisar demanda' ?>
+        </a>
+        <?php endif; ?>
+
         <?php if (!$projectLocked): ?>
         <a href="/demand_form.php?id=<?= (int) $demand['id'] ?>" class="btn btn-outline-secondary">
             Editar dados
@@ -87,11 +94,55 @@ require __DIR__ . '/../app/views/header.php';
     </div>
 <?php endif; ?>
 
+<?php if ($approvalSuccess): ?>
+    <div class="alert alert-success">
+        <?= e($approvalSuccess) ?>
+    </div>
+<?php endif; ?>
+
 <?php if ($projectLocked): ?>
     <div class="alert alert-warning">
         <?= e(project_locked_edit_message($project)) ?>
     </div>
 <?php endif; ?>
+
+<div class="card card-body mb-4 border-start border-4 <?= match ($demand['approval_status'] ?? null) {
+    'APPROVED' => 'border-success',
+    'APPROVED_WITH_RESERVATIONS' => 'border-warning',
+    'REJECTED' => 'border-danger',
+    default => 'border-secondary',
+} ?>">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
+            <div class="text-muted small mb-1">Decisão administrativa da demanda</div>
+            <span class="badge <?= e(demand_approval_status_badge_class($demand['approval_status'] ?? null)) ?>">
+                <?= e(demand_approval_status_label($demand['approval_status'] ?? null)) ?>
+            </span>
+
+            <?php if (!empty($demand['approval_decided_at'])): ?>
+                <div class="small text-muted mt-2">
+                    Decidida em <?= date('d/m/Y H:i', strtotime((string) $demand['approval_decided_at'])) ?>
+                    <?php if (!empty($demand['approval_decided_by_name'])): ?>
+                        por <?= e($demand['approval_decided_by_name']) ?>
+                    <?php endif; ?>.
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <?php if (auth_can('projects.manage')): ?>
+            <a href="/demand_approval.php?id=<?= (int) $demand['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-clock-history"></i>Decisão e histórico
+            </a>
+        <?php endif; ?>
+    </div>
+
+    <?php if (!empty($demand['approval_notes'])): ?>
+        <div class="mt-3">
+            <div class="small text-muted">Justificativa ou ressalva</div>
+            <div><?= nl2br(e((string) $demand['approval_notes'])) ?></div>
+        </div>
+    <?php endif; ?>
+</div>
 
 <div class="card card-body mb-4">
     <div class="row g-3">

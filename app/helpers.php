@@ -1277,6 +1277,140 @@ function demand_validation_status_badge_class(?string $value): string
     };
 }
 
+function demand_approval_status_options(): array
+{
+    return [
+        'PENDING' => 'Pendente de análise',
+        'APPROVED' => 'Aprovada',
+        'APPROVED_WITH_RESERVATIONS' => 'Aprovada com ressalva',
+        'REJECTED' => 'Negada',
+    ];
+}
+
+function demand_approval_decision_options(): array
+{
+    return array_intersect_key(
+        demand_approval_status_options(),
+        array_flip(['APPROVED', 'APPROVED_WITH_RESERVATIONS', 'REJECTED'])
+    );
+}
+
+function demand_approval_status_label(?string $value): string
+{
+    if ($value === null || trim($value) === '') {
+        return 'Não analisada (legado)';
+    }
+
+    return demand_approval_status_options()[$value] ?? 'Situação desconhecida';
+}
+
+function demand_approval_status_badge_class(?string $value): string
+{
+    return match ($value) {
+        'APPROVED' => 'text-bg-success',
+        'APPROVED_WITH_RESERVATIONS' => 'text-bg-warning',
+        'REJECTED' => 'text-bg-danger',
+        'PENDING' => 'text-bg-secondary',
+        default => 'text-bg-light text-dark border',
+    };
+}
+
+function prepare_demand_approval_decision(array $data, array $items): array
+{
+    $status = strtoupper(trim((string) ($data['approval_status'] ?? '')));
+    $notes = trim((string) ($data['approval_notes'] ?? ''));
+    $approvedQuantities = is_array($data['approved_quantities'] ?? null)
+        ? $data['approved_quantities']
+        : [];
+    $itemNotes = is_array($data['item_notes'] ?? null)
+        ? $data['item_notes']
+        : [];
+
+    if (!isset(demand_approval_decision_options()[$status])) {
+        throw new InvalidArgumentException('Selecione uma decisão válida para a demanda.');
+    }
+
+    if (!$items) {
+        throw new InvalidArgumentException('Adicione ao menos um item antes de analisar a demanda.');
+    }
+
+    if (in_array($status, ['APPROVED_WITH_RESERVATIONS', 'REJECTED'], true) && $notes === '') {
+        throw new InvalidArgumentException('Informe a justificativa da ressalva ou da negativa.');
+    }
+
+    $preparedItems = [];
+    $hasQuantitativeReservation = false;
+
+    foreach ($items as $item) {
+        $itemId = (int) ($item['id'] ?? 0);
+        $requestedQuantity = max(0.0, (float) ($item['quantity'] ?? 0));
+        $rawApprovedQuantity = $approvedQuantities[$itemId] ?? $approvedQuantities[(string) $itemId] ?? null;
+
+        if ($itemId <= 0) {
+            throw new InvalidArgumentException('A demanda contém um item inválido.');
+        }
+
+        if ($status !== 'REJECTED' && ($rawApprovedQuantity === null || trim((string) $rawApprovedQuantity) === '')) {
+            throw new InvalidArgumentException('Informe a quantidade aprovada de todos os itens.');
+        }
+
+        $normalizedApprovedQuantity = str_replace(',', '.', trim((string) $rawApprovedQuantity));
+
+        if ($status !== 'REJECTED' && !is_numeric($normalizedApprovedQuantity)) {
+            throw new InvalidArgumentException('Informe uma quantidade aprovada valida para todos os itens.');
+        }
+
+        $approvedQuantity = $status === 'REJECTED'
+            ? 0.0
+            : (float) $normalizedApprovedQuantity;
+
+        if ($approvedQuantity < 0) {
+            throw new InvalidArgumentException('A quantidade aprovada não pode ser negativa.');
+        }
+
+        $itemNote = trim((string) ($itemNotes[$itemId] ?? $itemNotes[(string) $itemId] ?? ''));
+        $quantityChanged = abs($approvedQuantity - $requestedQuantity) > 0.00001;
+
+        if ($status === 'APPROVED' && $quantityChanged) {
+            throw new InvalidArgumentException(
+                'Há quantitativos diferentes do solicitado. Selecione "Aprovar com ressalva" e justifique os ajustes.'
+            );
+        }
+
+        if ($status === 'REJECTED' || $approvedQuantity <= 0) {
+            $itemStatus = 'REJECTED';
+            $itemNote = $itemNote !== '' ? $itemNote : $notes;
+        } elseif ($quantityChanged) {
+            $itemStatus = 'APPROVED_WITH_ADJUSTMENT';
+            $itemNote = $itemNote !== '' ? $itemNote : $notes;
+            $hasQuantitativeReservation = true;
+        } else {
+            $itemStatus = 'APPROVED';
+        }
+
+        if (in_array($itemStatus, ['REJECTED', 'APPROVED_WITH_ADJUSTMENT'], true) && $itemNote === '') {
+            throw new InvalidArgumentException('Justifique os itens negados ou com quantitativo ajustado.');
+        }
+
+        $preparedItems[] = [
+            'id' => $itemId,
+            'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+            'item_name' => (string) ($item['item_name'] ?? ''),
+            'requested_quantity' => round($requestedQuantity, 2),
+            'approved_quantity' => round($approvedQuantity, 2),
+            'validation_status' => $itemStatus,
+            'validation_notes' => $itemNote !== '' ? $itemNote : null,
+        ];
+    }
+
+    return [
+        'approval_status' => $status,
+        'approval_notes' => $notes !== '' ? $notes : null,
+        'has_quantitative_reservation' => $hasQuantitativeReservation,
+        'items' => $preparedItems,
+    ];
+}
+
 function prepare_demand_item_details(array $data, bool $strict = true): array
 {
     $quantity = max(0.0, (float) ($data['quantity'] ?? 0));

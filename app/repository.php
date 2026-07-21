@@ -49,6 +49,25 @@ function database_table_exists(string $tableName): bool
     return $relation !== false && $relation !== null;
 }
 
+function database_column_exists(string $tableName, string $columnName): bool
+{
+    $stmt = db()->prepare("
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = :table_name
+              AND column_name = :column_name
+        )
+    ");
+    $stmt->execute([
+        'table_name' => $tableName,
+        'column_name' => $columnName,
+    ]);
+
+    return boolish($stmt->fetchColumn(), false);
+}
+
 function item_sort_options(): array
 {
     return [
@@ -3031,11 +3050,13 @@ function get_project_demands(int $projectId): array
             COALESCE(NULLIF(ru.phone, ''), parent_ru.phone) AS requester_unit_phone,
             COALESCE(NULLIF(ru.branch, ''), parent_ru.branch) AS requester_unit_branch,
             COALESCE(NULLIF(ru.email, ''), parent_ru.email) AS requester_unit_email,
-            s.name AS secretariat_name
+            s.name AS secretariat_name,
+            approval_user.name AS approval_decided_by_name
         FROM demand_lists dl
         LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
         LEFT JOIN requester_units parent_ru ON parent_ru.id = ru.parent_id
         LEFT JOIN secretariats s ON s.id = dl.secretariat_id
+        LEFT JOIN app_users approval_user ON approval_user.id = dl.approval_decided_by_user_id
         WHERE dl.project_id = :project_id
         ORDER BY s.name NULLS LAST, dl.name
     ");
@@ -3060,11 +3081,13 @@ function find_demand_list(int $id): ?array
             COALESCE(NULLIF(ru.phone, ''), parent_ru.phone) AS requester_unit_phone,
             COALESCE(NULLIF(ru.branch, ''), parent_ru.branch) AS requester_unit_branch,
             COALESCE(NULLIF(ru.email, ''), parent_ru.email) AS requester_unit_email,
-            s.name AS secretariat_name
+            s.name AS secretariat_name,
+            approval_user.name AS approval_decided_by_name
         FROM demand_lists dl
         LEFT JOIN requester_units ru ON ru.id = dl.requester_unit_id
         LEFT JOIN requester_units parent_ru ON parent_ru.id = ru.parent_id
         LEFT JOIN secretariats s ON s.id = dl.secretariat_id
+        LEFT JOIN app_users approval_user ON approval_user.id = dl.approval_decided_by_user_id
         WHERE dl.id = :id
     ");
 
@@ -3073,6 +3096,223 @@ function find_demand_list(int $id): ?array
     $demand = $stmt->fetch();
 
     return $demand ?: null;
+}
+
+function get_demand_approval_events(int $demandListId): array
+{
+    if (!database_table_exists('demand_approval_events')) {
+        return [];
+    }
+
+    $stmt = db()->prepare("
+        SELECT *
+        FROM demand_approval_events
+        WHERE demand_list_id = :demand_list_id
+        ORDER BY created_at DESC, id DESC
+    ");
+    $stmt->execute(['demand_list_id' => $demandListId]);
+
+    return array_map(static function (array $event): array {
+        $decoded = json_decode((string) ($event['item_quantities'] ?? '[]'), true);
+        $event['item_quantities'] = is_array($decoded) ? $decoded : [];
+
+        return $event;
+    }, $stmt->fetchAll());
+}
+
+function record_demand_approval_event(
+    int $demandListId,
+    string $status,
+    ?string $notes,
+    array $items,
+    ?array $user = null
+): void {
+    if (!database_table_exists('demand_approval_events')) {
+        throw new RuntimeException('Atualize o schema do banco para registrar a aprovação da demanda.');
+    }
+
+    $stmt = db()->prepare("
+        INSERT INTO demand_approval_events (
+            demand_list_id,
+            approval_status,
+            notes,
+            item_quantities,
+            decided_by_user_id,
+            decided_by_name
+        ) VALUES (
+            :demand_list_id,
+            :approval_status,
+            :notes,
+            CAST(:item_quantities AS JSONB),
+            :decided_by_user_id,
+            :decided_by_name
+        )
+    ");
+    $stmt->execute([
+        'demand_list_id' => $demandListId,
+        'approval_status' => $status,
+        'notes' => $notes,
+        'item_quantities' => json_encode(
+            array_values($items),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        ),
+        'decided_by_user_id' => $user['id'] ?? null,
+        'decided_by_name' => $user['name'] ?? null,
+    ]);
+}
+
+function invalidate_demand_approval(int $demandListId, string $reason): void
+{
+    if (!database_column_exists('demand_lists', 'approval_status')) {
+        return;
+    }
+
+    $stmt = db()->prepare("
+        SELECT project_id, approval_status
+        FROM demand_lists
+        WHERE id = :id
+    ");
+    $stmt->execute(['id' => $demandListId]);
+    $demand = $stmt->fetch();
+    $currentStatus = (string) ($demand['approval_status'] ?? '');
+
+    if (!$demand || $currentStatus === '' || $currentStatus === 'PENDING') {
+        return;
+    }
+
+    $items = array_map(static fn (array $item): array => [
+        'id' => (int) $item['id'],
+        'procurement_item_id' => (int) $item['procurement_item_id'],
+        'item_name' => (string) ($item['item_name'] ?? ''),
+        'requested_quantity' => (float) ($item['quantity'] ?? 0),
+        'approved_quantity' => (float) ($item['approved_quantity'] ?? $item['quantity'] ?? 0),
+        'validation_status' => (string) ($item['validation_status'] ?? 'PENDING'),
+        'validation_notes' => $item['validation_notes'] ?? null,
+    ], get_demand_items($demandListId));
+    $user = function_exists('auth_current_user') ? auth_current_user() : null;
+    $pdo = db();
+    $startedTransaction = !$pdo->inTransaction();
+
+    try {
+        if ($startedTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        $update = $pdo->prepare("
+            UPDATE demand_lists
+            SET approval_status = 'PENDING',
+                approval_notes = NULL,
+                approval_decided_by_user_id = NULL,
+                approval_decided_at = NULL
+            WHERE id = :id
+        ");
+        $update->execute(['id' => $demandListId]);
+
+        record_demand_approval_event($demandListId, 'PENDING', $reason, $items, $user);
+        invalidate_project_annex_versions((int) $demand['project_id']);
+
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
+    } catch (Throwable $exception) {
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $exception;
+    }
+}
+
+function save_demand_approval(int $demandListId, array $data): array
+{
+    if (
+        !database_column_exists('demand_lists', 'approval_status')
+        || !database_table_exists('demand_approval_events')
+    ) {
+        throw new RuntimeException('Atualize o schema do banco antes de analisar demandas.');
+    }
+
+    $demand = find_demand_list($demandListId);
+
+    if (!$demand) {
+        throw new RuntimeException('Demanda não encontrada.');
+    }
+
+    $projectId = (int) $demand['project_id'];
+    assert_project_editable($projectId);
+    $items = get_demand_items($demandListId);
+    $decision = prepare_demand_approval_decision($data, $items);
+    $user = function_exists('auth_current_user') ? auth_current_user() : null;
+    $pdo = db();
+    $startedTransaction = !$pdo->inTransaction();
+
+    try {
+        if ($startedTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        $updateItem = $pdo->prepare("
+            UPDATE demand_items
+            SET approved_quantity = :approved_quantity,
+                validation_status = :validation_status,
+                validation_notes = :validation_notes,
+                validated_by_user_id = :validated_by_user_id,
+                validated_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+              AND demand_list_id = :demand_list_id
+        ");
+
+        foreach ($decision['items'] as $item) {
+            $updateItem->execute([
+                'id' => $item['id'],
+                'demand_list_id' => $demandListId,
+                'approved_quantity' => $item['approved_quantity'],
+                'validation_status' => $item['validation_status'],
+                'validation_notes' => $item['validation_notes'],
+                'validated_by_user_id' => $user['id'] ?? null,
+            ]);
+        }
+
+        $updateDemand = $pdo->prepare("
+            UPDATE demand_lists
+            SET approval_status = :approval_status,
+                approval_notes = :approval_notes,
+                approval_decided_by_user_id = :approval_decided_by_user_id,
+                approval_decided_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+        ");
+        $updateDemand->execute([
+            'id' => $demandListId,
+            'approval_status' => $decision['approval_status'],
+            'approval_notes' => $decision['approval_notes'],
+            'approval_decided_by_user_id' => $user['id'] ?? null,
+        ]);
+
+        record_demand_approval_event(
+            $demandListId,
+            $decision['approval_status'],
+            $decision['approval_notes'],
+            $decision['items'],
+            $user
+        );
+        invalidate_project_annex_versions($projectId);
+
+        foreach (array_unique(array_column($decision['items'], 'procurement_item_id')) as $procurementItemId) {
+            refresh_project_quantity_memories_after_demand_change($projectId, (int) $procurementItemId);
+        }
+
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
+    } catch (Throwable $exception) {
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $exception;
+    }
+
+    return $decision;
 }
 
 function create_demand_list(array $data): int
@@ -3119,7 +3359,8 @@ function create_demand_list(array $data): int
 
 function update_demand_list(int $id, array $data): void
 {
-    assert_project_editable(find_project_id_by_demand_list($id));
+    $projectId = find_project_id_by_demand_list($id);
+    assert_project_editable($projectId);
     $data = normalize_demand_requester_data($data);
 
     $stmt = db()->prepare("
@@ -3144,6 +3385,9 @@ function update_demand_list(int $id, array $data): void
         'quote_collector_name' => $data['quote_collector_name'] ?? null,
         'notes' => $data['notes'] ?? null,
     ]);
+
+    invalidate_demand_approval($id, 'Aprovação invalidada pela alteração dos dados da demanda.');
+    invalidate_project_annex_versions($projectId);
 }
 
 function delete_demand_list(int $id): void
@@ -3307,6 +3551,10 @@ function add_demand_item(array $data): void
         'notes' => $data['notes'] ?? null,
     ]);
 
+    invalidate_demand_approval(
+        (int) $data['demand_list_id'],
+        'Aprovação invalidada pela inclusão ou consolidação de item.'
+    );
     invalidate_project_annex_versions($projectId);
     refresh_project_quantity_memories_after_demand_change((int) $projectId, (int) $data['procurement_item_id']);
 }
@@ -3315,9 +3563,11 @@ function delete_demand_item(int $id): void
 {
     $projectId = find_project_id_by_demand_item($id);
     assert_project_editable($projectId);
-    $itemStmt = db()->prepare("SELECT procurement_item_id FROM demand_items WHERE id = :id");
+    $itemStmt = db()->prepare("SELECT procurement_item_id, demand_list_id FROM demand_items WHERE id = :id");
     $itemStmt->execute(['id' => $id]);
-    $procurementItemId = (int) $itemStmt->fetchColumn();
+    $item = $itemStmt->fetch() ?: [];
+    $procurementItemId = (int) ($item['procurement_item_id'] ?? 0);
+    $demandListId = (int) ($item['demand_list_id'] ?? 0);
 
     $stmt = db()->prepare("
         DELETE FROM demand_items
@@ -3325,6 +3575,7 @@ function delete_demand_item(int $id): void
     ");
 
     $stmt->execute(['id' => $id]);
+    invalidate_demand_approval($demandListId, 'Aprovação invalidada pela remoção de item.');
     invalidate_project_annex_versions($projectId);
     refresh_project_quantity_memories_after_demand_change((int) $projectId, $procurementItemId);
 }
@@ -3336,9 +3587,11 @@ function update_demand_item(int $id, array $data): void
     $details = prepare_demand_item_details($data, true);
     $user = function_exists('auth_current_user') ? auth_current_user() : null;
     $validated = ($details['validation_status'] ?? 'PENDING') !== 'PENDING';
-    $itemStmt = db()->prepare("SELECT procurement_item_id FROM demand_items WHERE id = :id");
+    $itemStmt = db()->prepare("SELECT procurement_item_id, demand_list_id FROM demand_items WHERE id = :id");
     $itemStmt->execute(['id' => $id]);
-    $procurementItemId = (int) $itemStmt->fetchColumn();
+    $item = $itemStmt->fetch() ?: [];
+    $procurementItemId = (int) ($item['procurement_item_id'] ?? 0);
+    $demandListId = (int) ($item['demand_list_id'] ?? 0);
 
     $stmt = db()->prepare("
         UPDATE demand_items SET
@@ -3385,6 +3638,7 @@ function update_demand_item(int $id, array $data): void
         'notes' => $data['notes'] ?? null,
     ]);
 
+    invalidate_demand_approval($demandListId, 'Aprovação invalidada pela alteração de item ou quantitativo.');
     invalidate_project_annex_versions($projectId);
     refresh_project_quantity_memories_after_demand_change((int) $projectId, $procurementItemId);
 }
@@ -4688,60 +4942,68 @@ function register_project_annex_version(int $projectId, string $annexType): arra
     }
 }
 
-function get_project_annex_statuses(int $projectId): array
+function build_project_annex_statuses_from_latest(array $latestVersions): array
 {
+    $latestByType = [];
+
+    foreach ($latestVersions as $version) {
+        $annexType = (string) ($version['annex_type'] ?? '');
+
+        if ($annexType !== '') {
+            $latestByType[$annexType] = $version;
+        }
+    }
+
     $statuses = [];
 
     foreach (project_annex_types() as $annexType => $label) {
-        $payload = project_annex_payload($projectId, $annexType);
-        $hash = project_annex_hash($payload);
-
-        refresh_project_annex_version_status($projectId, $annexType, $hash);
-
-        try {
-            if (!database_table_exists('project_annex_versions')) {
-                $latest = null;
-            } else {
-                $stmt = db()->prepare("
-                    SELECT *
-                    FROM project_annex_versions
-                    WHERE project_id = :project_id
-                      AND annex_type = :annex_type
-                    ORDER BY version_number DESC
-                    LIMIT 1
-                ");
-                $stmt->execute([
-                    'project_id' => $projectId,
-                    'annex_type' => $annexType,
-                ]);
-                $latest = $stmt->fetch() ?: null;
-            }
-        } catch (Throwable $exception) {
-            if (!is_missing_database_relation($exception)) {
-                throw $exception;
-            }
-
-            log_optional_schema_issue('versoes de anexos', $exception);
-            $latest = null;
-        }
-
-        $isCurrent = $latest
-            && ($latest['content_hash'] ?? '') === $hash
-            && ($latest['status'] ?? '') === 'valid';
+        $latest = $latestByType[$annexType] ?? null;
+        $hash = (string) ($latest['content_hash'] ?? '');
+        $hasVersion = $latest && !empty($latest['version_number']);
+        $isCurrent = $hasVersion && ($latest['status'] ?? '') === 'valid';
 
         $statuses[$annexType] = [
             'label' => $label,
-            'status' => $latest ? ($isCurrent ? 'valid' : 'stale') : 'pending',
+            'status' => $hasVersion ? ($isCurrent ? 'valid' : 'stale') : 'pending',
             'current_hash' => $hash,
             'short_hash' => substr($hash, 0, 12),
             'version_number' => $latest['version_number'] ?? null,
             'generated_at' => $latest['generated_at'] ?? null,
-            'item_count' => project_annex_payload_item_count($annexType, $payload),
-            'total_value' => project_annex_payload_total($annexType, $payload),
+            'item_count' => (int) ($latest['item_count'] ?? 0),
+            'total_value' => isset($latest['total_value'])
+                ? (float) $latest['total_value']
+                : null,
         ];
     }
 
     return $statuses;
+}
+
+function get_project_annex_statuses(int $projectId): array
+{
+    if (!database_table_exists('project_annex_versions')) {
+        return build_project_annex_statuses_from_latest([]);
+    }
+
+    try {
+        $stmt = db()->prepare("
+            SELECT DISTINCT ON (annex_type) *
+            FROM project_annex_versions
+            WHERE project_id = :project_id
+            ORDER BY annex_type, version_number DESC, generated_at DESC, id DESC
+        ");
+        $stmt->execute(['project_id' => $projectId]);
+
+        return build_project_annex_statuses_from_latest($stmt->fetchAll());
+    } catch (Throwable $exception) {
+        if (!is_missing_database_relation($exception)) {
+            throw $exception;
+        }
+
+        log_optional_schema_issue('versoes de anexos', $exception);
+
+        return build_project_annex_statuses_from_latest([]);
+    }
 }
 
 function get_demand_supplier_quotes(int $demandListId): array
@@ -6210,17 +6472,87 @@ function get_direct_purchase_budget_evaluation(int $projectId): array
 }
 function get_project_demand_budget_items(int $projectId): array
 {
-    $budgetItems = [];
+    static $cache = [];
 
-    foreach (get_project_demands($projectId) as $demand) {
-        $budget = get_demand_budget_report((int) $demand['id']);
-
-        foreach ($budget['items'] as $item) {
-            $budgetItems[(int) $item['id']] = $item;
-        }
+    if (array_key_exists($projectId, $cache)) {
+        return $cache[$projectId];
     }
 
-    return $budgetItems;
+    $historicalUnion = database_table_exists('demand_price_references')
+        ? "
+            UNION ALL
+
+            SELECT
+                project_items.demand_item_id,
+                source_quote_item.unit_price
+            FROM project_items
+            INNER JOIN demand_price_references reference
+                ON reference.demand_item_id = project_items.demand_item_id
+            INNER JOIN demand_supplier_quote_items source_quote_item
+                ON source_quote_item.id = reference.source_quote_item_id
+            WHERE source_quote_item.unit_price IS NOT NULL
+        "
+        : '';
+    $stmt = db()->prepare("
+        WITH project_items AS (
+            SELECT
+                di.id AS demand_item_id,
+                COALESCE(di.approved_quantity, di.quantity) AS approved_quantity
+            FROM demand_items di
+            INNER JOIN demand_lists dl ON dl.id = di.demand_list_id
+            WHERE dl.project_id = :project_id
+        ),
+        price_values AS (
+            SELECT
+                project_items.demand_item_id,
+                quote_item.unit_price
+            FROM project_items
+            INNER JOIN demand_supplier_quote_items quote_item
+                ON quote_item.demand_item_id = project_items.demand_item_id
+            INNER JOIN demand_supplier_quotes quote
+                ON quote.id = quote_item.demand_supplier_quote_id
+            WHERE quote_item.unit_price IS NOT NULL
+              AND COALESCE(quote.status, 'received') <> 'discarded'
+
+            {$historicalUnion}
+        ),
+        price_summary AS (
+            SELECT
+                demand_item_id,
+                AVG(unit_price) AS average_unit_price,
+                COUNT(*) AS price_count
+            FROM price_values
+            GROUP BY demand_item_id
+        )
+        SELECT
+            project_items.demand_item_id AS id,
+            price_summary.average_unit_price,
+            CASE
+                WHEN price_summary.average_unit_price IS NULL THEN NULL
+                ELSE project_items.approved_quantity * price_summary.average_unit_price
+            END AS average_total,
+            COALESCE(price_summary.price_count, 0) AS price_count
+        FROM project_items
+        LEFT JOIN price_summary
+            ON price_summary.demand_item_id = project_items.demand_item_id
+    ");
+    $stmt->execute(['project_id' => $projectId]);
+    $budgetItems = [];
+
+    foreach ($stmt->fetchAll() as $item) {
+        $item['average_unit_price'] = $item['average_unit_price'] !== null
+            ? (float) $item['average_unit_price']
+            : null;
+        $item['average_total'] = $item['average_total'] !== null
+            ? (float) $item['average_total']
+            : null;
+        $item['price_count'] = (int) ($item['price_count'] ?? 0);
+        $budgetItems[(int) $item['id']] = $item;
+    }
+
+    $cache[$projectId] = $budgetItems;
+
+    return $cache[$projectId];
 }
 
 function calculated_project_budget_values(array $demandItem, array $budgetItems): array
@@ -6245,6 +6577,12 @@ function calculated_project_budget_values(array $demandItem, array $budgetItems)
 
 function get_project_consolidated_items(int $projectId): array
 {
+    static $cache = [];
+
+    if (array_key_exists($projectId, $cache)) {
+        return $cache[$projectId];
+    }
+
     $trackingCodeSql = item_tracking_code_sql('pi');
 
     $stmt = db()->prepare("
@@ -6319,7 +6657,8 @@ function get_project_consolidated_items(int $projectId): array
     $items = $stmt->fetchAll();
 
     if (!$items) {
-        return [];
+        $cache[$projectId] = [];
+        return $cache[$projectId];
     }
 
     $budgetItems = get_project_demand_budget_items($projectId);
@@ -6422,11 +6761,19 @@ function get_project_consolidated_items(int $projectId): array
             ?: strcasecmp((string) ($left['item_name'] ?? ''), (string) ($right['item_name'] ?? ''));
     });
 
-    return $items;
+    $cache[$projectId] = $items;
+
+    return $cache[$projectId];
 }
 
 function get_project_items_by_demand(int $projectId): array
 {
+    static $cache = [];
+
+    if (array_key_exists($projectId, $cache)) {
+        return $cache[$projectId];
+    }
+
     $trackingCodeSql = item_tracking_code_sql('pi');
 
     $stmt = db()->prepare("
@@ -6491,7 +6838,9 @@ function get_project_items_by_demand(int $projectId): array
             ?: strcasecmp((string) ($left['item_name'] ?? ''), (string) ($right['item_name'] ?? ''));
     });
 
-    return $items;
+    $cache[$projectId] = $items;
+
+    return $cache[$projectId];
 }
 
 function get_project_licitation_annex_i_items(int $projectId): array
@@ -6698,7 +7047,7 @@ function get_project_licitation_annex_iii_summary(int $projectId): array
     ];
 }
 
-function get_project_financial_summary(int $projectId): array
+function get_project_financial_summary(int $projectId, ?array $consolidatedItems = null): array
 {
     $stmt = db()->prepare("
         SELECT
@@ -6722,21 +7071,18 @@ function get_project_financial_summary(int $projectId): array
 
     $summary['total_requested_quantity'] = $summary['total_requested_quantity'] ?? 0;
     $summary['total_approved_quantity'] = $summary['total_approved_quantity'] ?? 0;
-    $annex = get_project_licitation_annex_ii_groups($projectId);
-    $summary['total_estimated_value'] = (float) ($annex['global_total'] ?? 0);
-    $effectiveQuantities = [];
+    $consolidatedItems ??= get_project_consolidated_items($projectId);
+    $summary['total_estimated_value'] = 0.0;
+    $summary['total_effective_quantity'] = 0.0;
     $summary['uses_supplier_average'] = false;
 
-    foreach ($annex['groups'] ?? [] as $group) {
-        foreach ($group['items'] ?? [] as $item) {
-            $effectiveQuantities[(int) ($item['procurement_item_id'] ?? 0)] = (float) ($item['annex_quantity'] ?? 0);
-            if (array_filter($item['supplier_prices'] ?? [], static fn (mixed $price): bool => $price !== null)) {
-                $summary['uses_supplier_average'] = true;
-            }
-        }
+    foreach ($consolidatedItems as $item) {
+        $summary['total_estimated_value'] += (float) ($item['estimated_total'] ?? 0);
+        $summary['total_effective_quantity'] += project_item_effective_quantity($item);
+        $summary['uses_supplier_average'] = $summary['uses_supplier_average']
+            || !empty($item['uses_supplier_average']);
     }
-    unset($effectiveQuantities[0]);
-    $summary['total_effective_quantity'] = array_sum($effectiveQuantities);
+    $summary['total_estimated_value'] = round_money_value($summary['total_estimated_value']);
 
     return $summary;
 }
@@ -9728,6 +10074,9 @@ function catalog_json_table_definitions(): array
                 'responsible_name',
                 'quote_collector_name',
                 'notes',
+                'approval_status',
+                'approval_notes',
+                'approval_decided_at',
                 'created_at',
                 'updated_at',
             ],
@@ -9742,11 +10091,37 @@ function catalog_json_table_definitions(): array
                 'quantity',
                 'approved_quantity',
                 'estimated_unit_price',
+                'need_type',
+                'need_justification',
+                'intended_use',
+                'destination',
+                'priority',
+                'needed_by_date',
+                'related_assets',
+                'related_project',
+                'evidence_references',
+                'validation_status',
+                'validation_notes',
+                'validated_at',
+                'demand_details_migrated_at',
                 'notes',
                 'created_at',
                 'updated_at',
             ],
             'json' => [],
+        ],
+        'demand_approval_events' => [
+            'label' => 'Histórico de aprovação das demandas',
+            'columns' => [
+                'id',
+                'demand_list_id',
+                'approval_status',
+                'notes',
+                'item_quantities',
+                'decided_by_name',
+                'created_at',
+            ],
+            'json' => ['item_quantities'],
         ],
         'demand_supplier_quotes' => [
             'label' => 'Orcamentos de fornecedores',
@@ -9918,6 +10293,7 @@ function catalog_json_scope_tables(string $scope): array
             'suppliers',
             'demand_lists',
             'demand_items',
+            'demand_approval_events',
             'demand_supplier_quotes',
             'demand_supplier_quote_attachments',
             'demand_supplier_quote_items',
@@ -9949,6 +10325,7 @@ function catalog_json_scope_tables(string $scope): array
             'suppliers',
             'demand_lists',
             'demand_items',
+            'demand_approval_events',
             'demand_supplier_quotes',
             'demand_supplier_quote_attachments',
             'demand_supplier_quote_items',
@@ -10200,7 +10577,11 @@ function catalog_json_sample_row(string $table, array $columns): array
             'name' => 'Nome da demanda',
             'requester_department' => 'Unidade solicitante',
             'responsible_name' => 'Responsavel',
+            'quote_collector_name' => 'Servidor responsável pela cotação',
             'notes' => null,
+            'approval_status' => 'PENDING',
+            'approval_notes' => null,
+            'approval_decided_at' => null,
         ]);
     }
 
@@ -10211,7 +10592,38 @@ function catalog_json_sample_row(string $table, array $columns): array
             'quantity' => 1,
             'approved_quantity' => 1,
             'estimated_unit_price' => 0,
+            'need_type' => 'OTHER',
+            'need_justification' => 'Justificativa da necessidade.',
+            'intended_use' => null,
+            'destination' => null,
+            'priority' => 'MEDIUM',
+            'needed_by_date' => null,
+            'related_assets' => null,
+            'related_project' => null,
+            'evidence_references' => null,
+            'validation_status' => 'PENDING',
+            'validation_notes' => null,
+            'validated_at' => null,
+            'demand_details_migrated_at' => date('Y-m-d H:i:s'),
             'notes' => null,
+        ]);
+    }
+
+    if ($table === 'demand_approval_events') {
+        return array_merge($row, [
+            'demand_list_id' => 1,
+            'approval_status' => 'APPROVED_WITH_RESERVATIONS',
+            'notes' => 'Demanda aprovada com ajuste de quantitativo.',
+            'item_quantities' => [[
+                'id' => 1,
+                'procurement_item_id' => 1,
+                'item_name' => 'Nome do item',
+                'requested_quantity' => 2,
+                'approved_quantity' => 1,
+                'validation_status' => 'APPROVED_WITH_ADJUSTMENT',
+                'validation_notes' => 'Quantidade ajustada após análise.',
+            ]],
+            'decided_by_name' => 'Administrador',
         ]);
     }
 

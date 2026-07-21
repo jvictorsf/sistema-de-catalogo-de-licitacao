@@ -257,7 +257,10 @@ require __DIR__ . '/../app/views/header.php';
 
         <div class="vstack gap-3" data-section-list data-next-index="<?= count($sections) ?>">
             <?php foreach ($sections as $sectionIndex => $section): ?>
-                <?php $isAutoSection = !empty($section['auto_generated']); ?>
+                <?php
+                    $isAutoSection = !empty($section['auto_generated']);
+                    $isHybridSection = in_array((string) ($section['id'] ?? ''), ['quantidades', 'requisitos'], true);
+                ?>
                 <div class="border rounded p-3 <?= $isAutoSection ? 'bg-light-subtle' : '' ?>" data-section-row>
                     <input type="hidden" name="sections[<?= (int) $sectionIndex ?>][id]" value="<?= e($section['id'] ?? '') ?>">
                     <input type="hidden" name="sections[<?= (int) $sectionIndex ?>][auto_generated]" value="<?= $isAutoSection ? '1' : '0' ?>">
@@ -292,23 +295,171 @@ require __DIR__ . '/../app/views/header.php';
                             <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
                                 <label class="form-label mb-0">Orientação/modelo</label>
                                 <?php if ($isAutoSection): ?>
-                                    <span class="badge text-bg-info">Automático</span>
+                                    <span class="badge text-bg-info"><?= $isHybridSection ? 'Automático + editável' : 'Automático' ?></span>
                                 <?php endif; ?>
                             </div>
                             <textarea name="sections[<?= (int) $sectionIndex ?>][guidance]" rows="2" class="form-control"><?= e($section['guidance'] ?? '') ?></textarea>
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Texto do tópico</label>
-                            <?php if ($isAutoSection): ?>
-                                <div class="form-text mb-2">Este conteúdo é gerado na exportação a partir das demandas, orçamento geral e impactos dos itens.</div>
-                            <?php endif; ?>
-                            <?php if ($isAutoSection): ?>
+                            <?php if (($section['id'] ?? '') === 'quantidades'): ?>
+                                <?php $sectionNumber = rtrim((string) ($section['number'] ?? '4'), '.'); ?>
+                                <h3 class="h6 mb-3"><?= e($sectionNumber) ?>.1. Estimativa de quantidade</h3>
+                                <div class="table-responsive border rounded mb-4">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th class="text-center" style="width: 72px;">Item</th>
+                                                <th>Descrição</th>
+                                                <th>Tipo de unidade</th>
+                                                <th class="text-center" style="width: 120px;">Quantidade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php if (!$consolidatedItems): ?>
+                                                <tr><td colspan="4" class="text-center text-muted py-3">Nenhum item cadastrado nas demandas.</td></tr>
+                                            <?php endif; ?>
+                                            <?php foreach (array_values($consolidatedItems) as $itemIndex => $item): ?>
+                                                <tr>
+                                                    <td class="text-center"><?= $itemIndex + 1 ?></td>
+                                                    <td class="fw-semibold"><?= e($item['item_name'] ?? 'Item sem nome') ?></td>
+                                                    <td><?= e(direct_purchase_dod_unit_type_text($item)) ?></td>
+                                                    <td class="text-center"><?= e(format_decimal_quantity(project_item_effective_quantity($item))) ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <h3 class="h6 mb-2"><?= e($sectionNumber) ?>.2. Metodologia</h3>
+                                <?= render_rich_text_editor(
+                                    'sections[' . (int) $sectionIndex . '][methodology]',
+                                    (string) ($section['methodology'] ?? direct_purchase_dod_default_quantity_methodology()),
+                                    [
+                                        'id' => 'dod-quantity-methodology-' . (int) $sectionIndex,
+                                        'rows' => 6,
+                                        'max_length' => 20000,
+                                        'aria_label' => 'Metodologia da estimativa de quantidades',
+                                    ]
+                                ) ?>
+                            <?php elseif (($section['id'] ?? '') === 'requisitos'): ?>
+                                <?php
+                                    $sectionNumber = rtrim((string) ($section['number'] ?? '5'), '.');
+                                    $requirementSettings = direct_purchase_dod_normalize_requirement_settings($section['requirements'] ?? []);
+                                ?>
+                                <h3 class="h6 mb-2"><?= e($sectionNumber) ?>.1. Requisitos técnicos mínimos</h3>
+                                <div class="vstack gap-2 mb-4">
+                                    <?php if (!$consolidatedItems): ?>
+                                        <div class="text-muted border rounded p-3">Nenhum item cadastrado para compor os requisitos técnicos.</div>
+                                    <?php endif; ?>
+                                    <?php foreach (array_values($consolidatedItems) as $itemIndex => $item): ?>
+                                        <?php $technicalSections = direct_purchase_dod_technical_requirement_sections($item); ?>
+                                        <details class="border rounded bg-white p-3">
+                                            <summary class="fw-semibold">
+                                                <?= e($sectionNumber) ?>.1.<?= $itemIndex + 1 ?>. Do item: <?= e($item['item_name'] ?? 'Item sem nome') ?>
+                                            </summary>
+                                            <div class="mt-3">
+                                                <?php if (!$technicalSections): ?>
+                                                    <div class="text-muted">Nenhum requisito técnico específico cadastrado.</div>
+                                                <?php endif; ?>
+                                                <?php foreach ($technicalSections as $technicalSection): ?>
+                                                    <div class="mb-2">
+                                                        <strong><?= e($technicalSection['label'] ?? '') ?>:</strong>
+                                                        <?php if (!empty($technicalSection['list'])): ?>
+                                                            <ul class="mb-0">
+                                                                <?php foreach (($technicalSection['values'] ?? []) as $value): ?>
+                                                                    <li><?= e($value) ?></li>
+                                                                <?php endforeach; ?>
+                                                            </ul>
+                                                        <?php else: ?>
+                                                            <?= e(implode('; ', $technicalSection['values'] ?? [])) ?>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        </details>
+                                    <?php endforeach; ?>
+                                </div>
+
+                                <div class="border-top pt-3 mb-4">
+                                    <h3 class="h6 mb-3"><?= e($sectionNumber) ?>.2. Prazo de entrega</h3>
+                                    <div class="row g-3">
+                                        <div class="col-sm-3 col-lg-2">
+                                            <label class="form-label">Prazo</label>
+                                            <input type="number" min="1" max="365" class="form-control" name="sections[<?= (int) $sectionIndex ?>][requirements][delivery_days]" value="<?= (int) $requirementSettings['delivery_days'] ?>" required>
+                                        </div>
+                                        <div class="col-sm-4 col-lg-3">
+                                            <label class="form-label">Contagem</label>
+                                            <select class="form-select" name="sections[<?= (int) $sectionIndex ?>][requirements][delivery_day_type]">
+                                                <?php foreach (direct_purchase_dod_day_type_options() as $value => $label): ?>
+                                                    <option value="<?= e($value) ?>" <?= $requirementSettings['delivery_day_type'] === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-sm-5 col-lg-4">
+                                            <label class="form-label">Marco inicial</label>
+                                            <select class="form-select" name="sections[<?= (int) $sectionIndex ?>][requirements][delivery_trigger]">
+                                                <?php foreach (direct_purchase_dod_delivery_trigger_options() as $value => $label): ?>
+                                                    <option value="<?= e($value) ?>" <?= $requirementSettings['delivery_trigger'] === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Texto do prazo</label>
+                                            <textarea class="form-control" rows="3" name="sections[<?= (int) $sectionIndex ?>][requirements][delivery_text_template]" required><?= e($requirementSettings['delivery_text_template']) ?></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="border-top pt-3 mb-4">
+                                    <h3 class="h6 mb-3"><?= e($sectionNumber) ?>.3. Condições de recebimento</h3>
+                                    <div class="row g-3">
+                                        <div class="col-sm-3 col-lg-2">
+                                            <label class="form-label">Prazo</label>
+                                            <input type="number" min="1" max="365" class="form-control" name="sections[<?= (int) $sectionIndex ?>][requirements][receipt_days]" value="<?= (int) $requirementSettings['receipt_days'] ?>" required>
+                                        </div>
+                                        <div class="col-sm-4 col-lg-3">
+                                            <label class="form-label">Contagem</label>
+                                            <select class="form-select" name="sections[<?= (int) $sectionIndex ?>][requirements][receipt_day_type]">
+                                                <?php foreach (direct_purchase_dod_day_type_options() as $value => $label): ?>
+                                                    <option value="<?= e($value) ?>" <?= $requirementSettings['receipt_day_type'] === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Texto do recebimento</label>
+                                            <textarea class="form-control" rows="3" name="sections[<?= (int) $sectionIndex ?>][requirements][receipt_text_template]" required><?= e($requirementSettings['receipt_text_template']) ?></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="border-top pt-3 mb-4">
+                                    <h3 class="h6 mb-2"><?= e($sectionNumber) ?>.4. Suporte técnico</h3>
+                                    <textarea class="form-control" rows="3" name="sections[<?= (int) $sectionIndex ?>][requirements][support_text]" required><?= e($requirementSettings['support_text']) ?></textarea>
+                                </div>
+
+                                <div class="border-top pt-3">
+                                    <label class="form-label"><?= e($sectionNumber) ?>.5. Requisitos adicionais <span class="text-muted fw-normal">(opcional)</span></label>
+                                    <?= render_rich_text_editor(
+                                        'sections[' . (int) $sectionIndex . '][additional_requirements]',
+                                        (string) ($section['additional_requirements'] ?? ''),
+                                        [
+                                            'id' => 'dod-additional-requirements-' . (int) $sectionIndex,
+                                            'rows' => 6,
+                                            'max_length' => 30000,
+                                            'aria_label' => 'Requisitos adicionais da contratação',
+                                        ]
+                                    ) ?>
+                                </div>
+                            <?php elseif ($isAutoSection): ?>
+                                <label class="form-label">Texto do tópico</label>
+                                <div class="form-text mb-2">Este conteúdo é atualizado automaticamente na exportação.</div>
                                 <textarea
                                     name="sections[<?= (int) $sectionIndex ?>][content]"
                                     rows="6"
                                     class="form-control bg-light"
                                     readonly><?= e($section['content'] ?? '') ?></textarea>
                             <?php else: ?>
+                                <label class="form-label">Texto do tópico</label>
                                 <?= render_rich_text_editor(
                                     'sections[' . (int) $sectionIndex . '][content]',
                                     (string) ($section['content'] ?? ''),

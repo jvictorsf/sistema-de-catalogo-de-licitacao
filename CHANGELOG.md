@@ -2,6 +2,21 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.25] - 2026-07-21
+
+### Adicionado
+- Topico 4 do DOD dividido em estimativa automatica e metodologia editavel, com tabela sequencial de item, descricao, tipo de unidade e quantidade efetiva consolidada.
+- Topico 5 do DOD estruturado em requisitos tecnicos minimos por item, prazo de entrega, condicoes de recebimento e suporte tecnico.
+- Parametros editaveis de prazo, tipo de dia e marco inicial da entrega, mantendo os padroes de 7 dias para entrega e 5 dias para recebimento.
+
+### Alterado
+- Requisitos tecnicos do DOD passam a aproveitar automaticamente especificacoes, criterios de aceitacao, documentacao, certificados, observacoes, garantia e validade cadastrados nos itens.
+- Conteudos manuais existentes nos topicos de quantidade e requisitos sao preservados como metodologia e requisitos adicionais.
+- Pre-visualizacao e impressao do DOD passam a usar dimensoes A4, cabecalho e rodape mais estaveis, tabelas com colunas controladas e melhor quebra de pagina.
+
+### Testes
+- Suite do DOD passa a cobrir tabela automatica de quantidades, configuracoes dos requisitos, valores padrao, validacoes e estilos essenciais da exportacao.
+
 ## [1.6.24] - 2026-07-21
 
 ### Adicionado

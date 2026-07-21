@@ -2144,7 +2144,7 @@ function save_direct_purchase_dod(int $projectId, array $data): void
 
     $header = direct_purchase_dod_normalize_header($data['header'] ?? [], $project);
     $footer = direct_purchase_dod_normalize_footer($data['footer'] ?? []);
-    $sections = direct_purchase_dod_normalize_sections($data['sections'] ?? []);
+    $sections = direct_purchase_dod_normalize_sections($data['sections'] ?? [], true);
 
     $stmt = db()->prepare("
         INSERT INTO direct_purchase_dod_documents (

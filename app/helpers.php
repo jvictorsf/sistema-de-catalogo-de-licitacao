@@ -832,6 +832,150 @@ function direct_purchase_dod_logo_paths_text(array $paths): string
 {
     return implode(PHP_EOL, direct_purchase_dod_normalize_logo_paths($paths));
 }
+
+function direct_purchase_dod_default_quantity_methodology(): string
+{
+    return '<p>' . direct_purchase_dod_text(
+        'A estimativa foi elaborada a partir das demandas aprovadas e consolidadas no sistema, '
+        . 'considerando a mem\u{00F3}ria de c\u{00E1}lculo e a quantidade final estimada de cada item.'
+    ) . '</p>';
+}
+
+function direct_purchase_dod_day_type_options(): array
+{
+    return [
+        'business' => direct_purchase_dod_text('Dias \u{00FA}teis'),
+        'calendar' => 'Dias corridos',
+    ];
+}
+
+function direct_purchase_dod_day_type_word(?string $value): string
+{
+    return $value === 'calendar' ? 'corridos' : direct_purchase_dod_text('\u{00FA}teis');
+}
+
+function direct_purchase_dod_delivery_trigger_options(): array
+{
+    return [
+        'purchase_authorization' => direct_purchase_dod_text('Autoriza\u{00E7}\u{00E3}o de compra'),
+        'commitment_note' => direct_purchase_dod_text('Emiss\u{00E3}o da nota de empenho'),
+        'contract_signature' => 'Assinatura do contrato',
+        'equivalent_document' => direct_purchase_dod_text('Emiss\u{00E3}o de documento equivalente'),
+    ];
+}
+
+function direct_purchase_dod_delivery_trigger_text(?string $value): string
+{
+    return match ($value) {
+        'commitment_note' => direct_purchase_dod_text('emiss\u{00E3}o da nota de empenho'),
+        'contract_signature' => 'assinatura do contrato',
+        'equivalent_document' => direct_purchase_dod_text('emiss\u{00E3}o de documento equivalente'),
+        default => direct_purchase_dod_text('autoriza\u{00E7}\u{00E3}o de compra'),
+    };
+}
+
+function direct_purchase_dod_default_requirement_settings(): array
+{
+    return [
+        'delivery_days' => 7,
+        'delivery_day_type' => 'business',
+        'delivery_trigger' => 'purchase_authorization',
+        'delivery_text_template' => direct_purchase_dod_text(
+            'M\u{00E1}ximo de {dias} ({dias_extenso}) dias {tipo_dias}, contados da {marco}.'
+        ),
+        'receipt_days' => 5,
+        'receipt_day_type' => 'business',
+        'receipt_text_template' => direct_purchase_dod_text(
+            'Os equipamentos ser\u{00E3}o recebidos provisoriamente no ato da entrega e definitivamente '
+            . 'ap\u{00F3}s verifica\u{00E7}\u{00E3}o de conformidade com as especifica\u{00E7}\u{00F5}es t\u{00E9}cnicas '
+            . 'no prazo de at\u{00E9} {dias} ({dias_extenso}) dias {tipo_dias}.'
+        ),
+        'support_text' => direct_purchase_dod_text(
+            'O fornecedor dever\u{00E1} disponibilizar canal de atendimento para suporte durante o per\u{00ED}odo de garantia.'
+        ),
+    ];
+}
+
+function direct_purchase_dod_requirement_days(
+    mixed $value,
+    int $default,
+    string $label,
+    bool $strict
+): int {
+    $normalized = trim((string) $value);
+
+    if ($normalized === '') {
+        return $default;
+    }
+
+    if (!ctype_digit($normalized) || (int) $normalized < 1 || (int) $normalized > 365) {
+        if ($strict) {
+            throw new InvalidArgumentException($label . ' deve ficar entre 1 e 365 dias.');
+        }
+
+        return $default;
+    }
+
+    return (int) $normalized;
+}
+
+function direct_purchase_dod_normalize_requirement_settings(mixed $settings, bool $strict = false): array
+{
+    $defaults = direct_purchase_dod_default_requirement_settings();
+    $settings = array_merge($defaults, is_array($settings) ? $settings : []);
+    $dayTypes = direct_purchase_dod_day_type_options();
+    $deliveryTriggers = direct_purchase_dod_delivery_trigger_options();
+    $deliveryDayType = trim((string) ($settings['delivery_day_type'] ?? ''));
+    $receiptDayType = trim((string) ($settings['receipt_day_type'] ?? ''));
+    $deliveryTrigger = trim((string) ($settings['delivery_trigger'] ?? ''));
+
+    if (!isset($dayTypes[$deliveryDayType])) {
+        if ($strict) {
+            throw new InvalidArgumentException(direct_purchase_dod_text('Selecione um tipo de prazo de entrega v\u{00E1}lido.'));
+        }
+        $deliveryDayType = (string) $defaults['delivery_day_type'];
+    }
+
+    if (!isset($dayTypes[$receiptDayType])) {
+        if ($strict) {
+            throw new InvalidArgumentException(direct_purchase_dod_text('Selecione um tipo de prazo de recebimento v\u{00E1}lido.'));
+        }
+        $receiptDayType = (string) $defaults['receipt_day_type'];
+    }
+
+    if (!isset($deliveryTriggers[$deliveryTrigger])) {
+        if ($strict) {
+            throw new InvalidArgumentException(direct_purchase_dod_text('Selecione um marco inicial de entrega v\u{00E1}lido.'));
+        }
+        $deliveryTrigger = (string) $defaults['delivery_trigger'];
+    }
+
+    $deliveryTemplate = trim((string) ($settings['delivery_text_template'] ?? ''));
+    $receiptTemplate = trim((string) ($settings['receipt_text_template'] ?? ''));
+    $supportText = trim((string) ($settings['support_text'] ?? ''));
+
+    return [
+        'delivery_days' => direct_purchase_dod_requirement_days(
+            $settings['delivery_days'] ?? null,
+            (int) $defaults['delivery_days'],
+            'O prazo de entrega',
+            $strict
+        ),
+        'delivery_day_type' => $deliveryDayType,
+        'delivery_trigger' => $deliveryTrigger,
+        'delivery_text_template' => $deliveryTemplate !== '' ? $deliveryTemplate : (string) $defaults['delivery_text_template'],
+        'receipt_days' => direct_purchase_dod_requirement_days(
+            $settings['receipt_days'] ?? null,
+            (int) $defaults['receipt_days'],
+            'O prazo de recebimento definitivo',
+            $strict
+        ),
+        'receipt_day_type' => $receiptDayType,
+        'receipt_text_template' => $receiptTemplate !== '' ? $receiptTemplate : (string) $defaults['receipt_text_template'],
+        'support_text' => $supportText !== '' ? $supportText : (string) $defaults['support_text'],
+    ];
+}
+
 function direct_purchase_dod_default_sections(): array
 {
     $rows = [
@@ -839,7 +983,7 @@ function direct_purchase_dod_default_sections(): array
         ['necessidade', direct_purchase_dod_text('Descri\u{00E7}\u{00E3}o da Necessidade'), direct_purchase_dod_text('Explicar o problema administrativo, operacional ou p\u{00FA}blico que justifica a demanda.'), false],
         ['justificativa', direct_purchase_dod_text('Justificativa da Contrata\u{00E7}\u{00E3}o do Objeto'), direct_purchase_dod_text('Relacionar a contrata\u{00E7}\u{00E3}o ao interesse p\u{00FA}blico, continuidade do servi\u{00E7}o e finalidade institucional.'), false],
         ['quantidades', 'Estimativa de Quantidades e Metodologia', direct_purchase_dod_text('Gerado automaticamente a partir dos itens e quantidades cadastrados nas demandas do projeto.'), true],
-        ['requisitos', direct_purchase_dod_text('Requisitos da Contrata\u{00E7}\u{00E3}o'), direct_purchase_dod_text('Listar requisitos m\u{00ED}nimos, padr\u{00F5}es de qualidade, prazos, garantia, suporte e crit\u{00E9}rios de aceita\u{00E7}\u{00E3}o.'), false],
+        ['requisitos', direct_purchase_dod_text('Requisitos da Contrata\u{00E7}\u{00E3}o'), direct_purchase_dod_text('Os requisitos t\u{00E9}cnicos s\u{00E3}o obtidos do cadastro dos itens; prazos, recebimento e suporte podem ser personalizados.'), true],
         ['valor', 'Estimativa de Valor', direct_purchase_dod_text('Gerado automaticamente a partir do Or\u{00E7}amento Geral da compra direta e do crit\u{00E9}rio de julgamento configurado.'), true],
         ['conclusao', direct_purchase_dod_text('Conclus\u{00E3}o da Contrata\u{00E7}\u{00E3}o'), direct_purchase_dod_text('Concluir quanto \u{00E0} necessidade, oportunidade e adequa\u{00E7}\u{00E3}o da compra direta.'), false],
         ['providencias', direct_purchase_dod_text('Provid\u{00EA}ncias a serem Tomadas pela Administra\u{00E7}\u{00E3}o'), direct_purchase_dod_text('Registrar provid\u{00EA}ncias internas, fiscais, autoriza\u{00E7}\u{00F5}es, dota\u{00E7}\u{00E3}o, prazos e encaminhamentos.'), false],
@@ -859,6 +1003,9 @@ function direct_purchase_dod_default_sections(): array
             'auto_generated' => $autoGenerated,
             'content' => '',
             'guidance' => $guidance,
+            'methodology' => $id === 'quantidades' ? direct_purchase_dod_default_quantity_methodology() : '',
+            'requirements' => $id === 'requisitos' ? direct_purchase_dod_default_requirement_settings() : [],
+            'additional_requirements' => '',
         ];
     }
 
@@ -1011,10 +1158,10 @@ function direct_purchase_dod_section_id(string $title, int $index): string
 
 function direct_purchase_dod_auto_section_ids(): array
 {
-    return ['quantidades', 'valor', 'impactos_ambientais'];
+    return ['quantidades', 'requisitos', 'valor', 'impactos_ambientais'];
 }
 
-function direct_purchase_dod_normalize_sections(mixed $sections): array
+function direct_purchase_dod_normalize_sections(mixed $sections, bool $strict = false): array
 {
     $source = is_array($sections) && $sections ? $sections : direct_purchase_dod_default_sections();
     $defaultsById = [];
@@ -1051,6 +1198,20 @@ function direct_purchase_dod_normalize_sections(mixed $sections): array
             || boolish($section['auto_generated'] ?? ($default['auto_generated'] ?? false), false);
 
         $content = normalize_rich_text_content((string) ($section['content'] ?? ''));
+        $methodology = $id === 'quantidades'
+            ? normalize_rich_text_content((string) ($section['methodology'] ?? ($default['methodology'] ?? direct_purchase_dod_default_quantity_methodology())))
+            : '';
+        $additionalRequirementsSource = $section['additional_requirements']
+            ?? ($id === 'requisitos' ? ($section['content'] ?? '') : '');
+        $additionalRequirements = $id === 'requisitos'
+            ? normalize_rich_text_content((string) $additionalRequirementsSource)
+            : '';
+        $requirements = $id === 'requisitos'
+            ? direct_purchase_dod_normalize_requirement_settings(
+                $section['requirements'] ?? ($default['requirements'] ?? []),
+                $strict
+            )
+            : [];
 
         $normalized[] = [
             'id' => $id !== '' ? $id : direct_purchase_dod_section_id($title, $index + 1),
@@ -1062,6 +1223,9 @@ function direct_purchase_dod_normalize_sections(mixed $sections): array
             'auto_generated' => $autoGenerated,
             'content' => $content,
             'guidance' => $guidance !== '' ? $guidance : trim((string) ($default['guidance'] ?? '')),
+            'methodology' => $methodology !== '' ? $methodology : ($id === 'quantidades' ? direct_purchase_dod_default_quantity_methodology() : ''),
+            'requirements' => $requirements,
+            'additional_requirements' => $additionalRequirements,
         ];
     }
 
@@ -2072,6 +2236,213 @@ function direct_purchase_dod_quantity_methodology_text(array $items): string
     return implode(PHP_EOL, $lines);
 }
 
+function direct_purchase_dod_content_fragment(string $content): string
+{
+    $content = trim($content);
+
+    if ($content === '') {
+        return '';
+    }
+
+    return rich_text_contains_html($content)
+        ? sanitize_rich_text_html($content)
+        : direct_purchase_dod_render_content($content);
+}
+
+function direct_purchase_dod_unit_type_text(array $item): string
+{
+    $unit = trim((string) ($item['unit_type_name'] ?? ''));
+    if ($unit === '') {
+        $unit = trim((string) ($item['unit_type_abbreviation'] ?? ''));
+    }
+
+    return $unit !== '' ? licitation_annex_repair_text($unit) : '-';
+}
+
+function direct_purchase_dod_quantity_methodology_html(
+    array $items,
+    string $methodology = '',
+    string $sectionNumber = '4'
+): string {
+    $sectionNumber = rtrim(trim($sectionNumber), '.') ?: '4';
+    $html = '<h3>' . e($sectionNumber . '.1. ' . direct_purchase_dod_text('Estimativa de quantidade')) . '</h3>';
+    $html .= '<table class=dod-quantity-table><thead><tr>';
+    $html .= '<th style="text-align: center;">Item</th>';
+    $html .= '<th>' . e(direct_purchase_dod_text('Descri\u{00E7}\u{00E3}o')) . '</th>';
+    $html .= '<th>' . e('Tipo de unidade') . '</th>';
+    $html .= '<th style="text-align: center;">Quantidade</th>';
+    $html .= '</tr></thead><tbody>';
+
+    if (!$items) {
+        $html .= '<tr><td colspan="4">' . e(direct_purchase_dod_text(
+            'N\u{00E3}o h\u{00E1} itens cadastrados nas demandas do projeto.'
+        )) . '</td></tr>';
+    }
+
+    foreach (array_values($items) as $index => $item) {
+        $description = trim((string) ($item['item_name'] ?? '')) ?: 'Item sem nome';
+        $unit = direct_purchase_dod_unit_type_text($item);
+        $quantity = format_decimal_quantity(project_item_effective_quantity($item));
+        $html .= '<tr>';
+        $html .= '<td style="text-align: center;">' . ($index + 1) . '</td>';
+        $html .= '<td>' . e($description) . '</td>';
+        $html .= '<td>' . e($unit) . '</td>';
+        $html .= '<td style="text-align: center;">' . e($quantity !== '' ? $quantity : '0') . '</td>';
+        $html .= '</tr>';
+    }
+
+    $html .= '</tbody></table>';
+    $html .= '<h3>' . e($sectionNumber . '.2. Metodologia') . '</h3>';
+    $html .= direct_purchase_dod_content_fragment(
+        $methodology !== '' ? $methodology : direct_purchase_dod_default_quantity_methodology()
+    );
+
+    return sanitize_rich_text_html($html);
+}
+
+function direct_purchase_dod_technical_requirement_sections(array $item): array
+{
+    $specification = item_specification_array_from_value($item['specification'] ?? []);
+    $warranty = trim((string) ($item['warranty'] ?? ''));
+    $minimumValidity = trim((string) ($item['minimum_validity_text'] ?? ''));
+
+    return array_values(array_filter([
+        [
+            'label' => direct_purchase_dod_text('Descri\u{00E7}\u{00E3}o m\u{00ED}nima'),
+            'values' => licitation_annex_specification_values($specification['descricao_minima'] ?? null),
+            'list' => false,
+        ],
+        [
+            'label' => direct_purchase_dod_text('Caracter\u{00ED}sticas m\u{00ED}nimas'),
+            'values' => licitation_annex_specification_values($specification['caracteristicas_minimas'] ?? null),
+            'list' => true,
+        ],
+        [
+            'label' => direct_purchase_dod_text('Crit\u{00E9}rios de aceita\u{00E7}\u{00E3}o'),
+            'values' => licitation_annex_specification_values($specification['criterios_aceitacao'] ?? null),
+            'list' => true,
+        ],
+        [
+            'label' => direct_purchase_dod_text('Documenta\u{00E7}\u{00E3}o exigida'),
+            'values' => licitation_annex_specification_values($specification['documentacao_exigida'] ?? null),
+            'list' => true,
+        ],
+        [
+            'label' => direct_purchase_dod_text('Certificados m\u{00ED}nimos'),
+            'values' => licitation_annex_specification_values($specification['certificados'] ?? null),
+            'list' => true,
+        ],
+        [
+            'label' => direct_purchase_dod_text('Observa\u{00E7}\u{00F5}es'),
+            'values' => licitation_annex_specification_values($specification['observacoes'] ?? null),
+            'list' => true,
+        ],
+        [
+            'label' => direct_purchase_dod_text('Garantia m\u{00ED}nima'),
+            'values' => licitation_annex_specification_values($warranty),
+            'list' => false,
+        ],
+        [
+            'label' => direct_purchase_dod_text('Validade m\u{00ED}nima'),
+            'values' => licitation_annex_specification_values($minimumValidity),
+            'list' => false,
+        ],
+    ], static fn (array $section): bool => (bool) ($section['values'] ?? [])));
+}
+
+function direct_purchase_dod_configured_requirement_text(
+    string $template,
+    int $days,
+    string $dayType,
+    ?string $deliveryTrigger = null
+): string {
+    $replacements = [
+        '{dias}' => (string) $days,
+        '{dias_extenso}' => direct_purchase_dod_int_to_words_pt_br($days),
+        '{tipo_dias}' => direct_purchase_dod_day_type_word($dayType),
+        '{marco}' => direct_purchase_dod_delivery_trigger_text($deliveryTrigger),
+    ];
+
+    return strtr($template, $replacements);
+}
+
+function direct_purchase_dod_requirements_html(
+    array $items,
+    mixed $settings = [],
+    string $additionalRequirements = '',
+    string $sectionNumber = '5'
+): string {
+    $sectionNumber = rtrim(trim($sectionNumber), '.') ?: '5';
+    $settings = direct_purchase_dod_normalize_requirement_settings($settings);
+    $html = '<h3>' . e($sectionNumber . '.1. ' . direct_purchase_dod_text('Requisitos t\u{00E9}cnicos m\u{00ED}nimos')) . '</h3>';
+
+    if (!$items) {
+        $html .= '<p>' . e(direct_purchase_dod_text(
+            'N\u{00E3}o h\u{00E1} itens cadastrados para compor os requisitos t\u{00E9}cnicos.'
+        )) . '</p>';
+    }
+
+    foreach (array_values($items) as $index => $item) {
+        $itemName = trim((string) ($item['item_name'] ?? '')) ?: 'Item sem nome';
+        $trackingCode = trim((string) ($item['tracking_code'] ?? ''));
+        $itemLabel = $itemName . ($trackingCode !== '' ? ' (' . $trackingCode . ')' : '');
+        $html .= '<h4>' . e(
+            $sectionNumber . '.1.' . ($index + 1) . '. '
+            . direct_purchase_dod_text('Do item: ') . $itemLabel
+        ) . '</h4>';
+        $technicalSections = direct_purchase_dod_technical_requirement_sections($item);
+
+        if (!$technicalSections) {
+            $html .= '<p>' . e(direct_purchase_dod_text(
+                'N\u{00E3}o foram cadastrados requisitos t\u{00E9}cnicos espec\u{00ED}ficos para este item.'
+            )) . '</p>';
+            continue;
+        }
+
+        foreach ($technicalSections as $technicalSection) {
+            $values = $technicalSection['values'] ?? [];
+            $html .= '<p><strong>' . e((string) $technicalSection['label']) . ':</strong></p>';
+
+            if (!empty($technicalSection['list'])) {
+                $html .= '<ul>';
+                foreach ($values as $value) {
+                    $html .= '<li>' . e((string) $value) . '</li>';
+                }
+                $html .= '</ul>';
+            } else {
+                foreach ($values as $value) {
+                    $html .= '<p>' . e((string) $value) . '</p>';
+                }
+            }
+        }
+    }
+
+    $deliveryText = direct_purchase_dod_configured_requirement_text(
+        (string) $settings['delivery_text_template'],
+        (int) $settings['delivery_days'],
+        (string) $settings['delivery_day_type'],
+        (string) $settings['delivery_trigger']
+    );
+    $receiptText = direct_purchase_dod_configured_requirement_text(
+        (string) $settings['receipt_text_template'],
+        (int) $settings['receipt_days'],
+        (string) $settings['receipt_day_type']
+    );
+    $html .= '<h3>' . e($sectionNumber . '.2. Prazo de entrega') . '</h3>';
+    $html .= direct_purchase_dod_content_fragment($deliveryText);
+    $html .= '<h3>' . e($sectionNumber . '.3. ' . direct_purchase_dod_text('Condi\u{00E7}\u{00F5}es de recebimento')) . '</h3>';
+    $html .= direct_purchase_dod_content_fragment($receiptText);
+    $html .= '<h3>' . e($sectionNumber . '.4. ' . direct_purchase_dod_text('Suporte t\u{00E9}cnico')) . '</h3>';
+    $html .= direct_purchase_dod_content_fragment((string) $settings['support_text']);
+
+    if (trim($additionalRequirements) !== '') {
+        $html .= '<h3>' . e($sectionNumber . '.5. Requisitos adicionais') . '</h3>';
+        $html .= direct_purchase_dod_content_fragment($additionalRequirements);
+    }
+
+    return sanitize_rich_text_html($html);
+}
+
 function direct_purchase_dod_value_estimate_text(array $project, array $budgetEvaluation): string
 {
     $criterion = normalize_direct_purchase_award_criterion($project['direct_purchase_award_criterion'] ?? 'global_lowest');
@@ -2157,10 +2528,27 @@ function direct_purchase_dod_environmental_impacts_text(array $items): string
     return implode(PHP_EOL, $lines);
 }
 
-function direct_purchase_dod_auto_content_for_section(string $sectionId, array $project, array $demands, array $items, array $budgetEvaluation = []): ?string
+function direct_purchase_dod_auto_content_for_section(
+    string $sectionId,
+    array $project,
+    array $demands,
+    array $items,
+    array $budgetEvaluation = [],
+    array $section = []
+): ?string
 {
     return match ($sectionId) {
-        'quantidades' => direct_purchase_dod_quantity_methodology_text($items),
+        'quantidades' => direct_purchase_dod_quantity_methodology_html(
+            $items,
+            (string) ($section['methodology'] ?? ''),
+            (string) ($section['number'] ?? '4')
+        ),
+        'requisitos' => direct_purchase_dod_requirements_html(
+            $items,
+            $section['requirements'] ?? [],
+            (string) ($section['additional_requirements'] ?? ''),
+            (string) ($section['number'] ?? '5')
+        ),
         'valor' => direct_purchase_dod_value_estimate_text($project, $budgetEvaluation),
         'impactos_ambientais' => direct_purchase_dod_environmental_impacts_text($items),
         default => null,
@@ -2172,7 +2560,14 @@ function direct_purchase_dod_apply_auto_content(array $project, array $demands, 
     $sections = direct_purchase_dod_normalize_sections($dod['sections'] ?? []);
 
     foreach ($sections as $index => $section) {
-        $content = direct_purchase_dod_auto_content_for_section((string) ($section['id'] ?? ''), $project, $demands, $items, $budgetEvaluation);
+        $content = direct_purchase_dod_auto_content_for_section(
+            (string) ($section['id'] ?? ''),
+            $project,
+            $demands,
+            $items,
+            $budgetEvaluation,
+            $section
+        );
 
         if ($content !== null) {
             $sections[$index]['content'] = $content;
@@ -2326,7 +2721,7 @@ function rich_text_editor_css_number(mixed $value, int $precision = 2): string
 
 function rich_text_contains_html(string $content): bool
 {
-    return preg_match('/<(?:p|h[1-3]|strong|b|em|i|u|ul|ol|li|blockquote|br|hr|a|table|thead|tbody|tfoot|tr|th|td)\b/i', $content) === 1;
+    return preg_match('/<(?:p|h[1-4]|strong|b|em|i|u|ul|ol|li|blockquote|br|hr|a|table|thead|tbody|tfoot|tr|th|td)\b/i', $content) === 1;
 }
 
 function rich_text_plain_length(string $content): int
@@ -2352,7 +2747,7 @@ function sanitize_rich_text_html(string $html): string
     }
 
     $allowedTags = [
-        'p', 'h1', 'h2', 'h3', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li',
+        'p', 'h1', 'h2', 'h3', 'h4', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li',
         'blockquote', 'br', 'hr', 'a', 'table', 'thead', 'tbody', 'tfoot', 'tr',
         'th', 'td', 'colgroup', 'col',
     ];
@@ -2403,6 +2798,10 @@ function sanitize_rich_text_html(string $html): string
                 $child->removeAttributeNode($child->attributes->item(0));
             }
 
+            if ($tagName === 'table' && ($attributes['class'] ?? '') === 'dod-quantity-table') {
+                $child->setAttribute('class', 'dod-quantity-table');
+            }
+
             if ($tagName === 'a') {
                 $href = trim((string) ($attributes['href'] ?? ''));
                 $isSafeHref = $href !== ''
@@ -2418,7 +2817,7 @@ function sanitize_rich_text_html(string $html): string
                 }
             }
 
-            if (in_array($tagName, ['p', 'h1', 'h2', 'h3', 'th', 'td'], true)) {
+            if (in_array($tagName, ['p', 'h1', 'h2', 'h3', 'h4', 'th', 'td'], true)) {
                 $style = (string) ($attributes['style'] ?? '');
                 if (preg_match('/(?:^|;)\s*text-align\s*:\s*(left|center|right|justify)\s*(?:;|$)/i', $style, $matches)) {
                     $child->setAttribute('style', 'text-align: ' . strtolower($matches[1]) . ';');

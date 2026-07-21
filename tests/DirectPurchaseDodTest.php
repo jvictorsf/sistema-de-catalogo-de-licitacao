@@ -39,6 +39,15 @@ $items = [
         'total_approved_quantity' => 2,
         'demand_count' => 1,
         'unit_type_abbreviation' => 'UN',
+        'specification' => json_encode([
+            'descricao_minima' => 'Notebook corporativo.',
+            'caracteristicas_minimas' => ['Memoria minima de 16 GB', 'SSD de 512 GB'],
+            'criterios_aceitacao' => ['Equipamento sem avarias'],
+            'documentacao_exigida' => ['Manual tecnico'],
+            'certificados' => ['Certificacao aplicavel'],
+            'observacoes' => ['Equipamento novo e de primeiro uso'],
+        ], JSON_UNESCAPED_UNICODE),
+        'warranty' => '12 meses',
         'environmental_impacts' => json_encode(['Consumo de energia', 'Uso de embalagens'], JSON_UNESCAPED_UNICODE),
     ],
     [
@@ -54,6 +63,49 @@ $items = [
 $quantityText = direct_purchase_dod_quantity_methodology_text($items);
 dod_test_contains($quantityText, 'IT001 - Notebook: 2 UN', 'Estimativa de quantidade deve listar item consolidado.');
 dod_test_contains($quantityText, '2 demandas', 'Estimativa de quantidade deve exibir quantidade de demandas origem.');
+
+$quantityHtml = direct_purchase_dod_quantity_methodology_html(
+    $items,
+    '<p>Metodologia definida pelo usuario.</p>',
+    '4'
+);
+dod_test_contains($quantityHtml, '<h3>4.1. Estimativa de quantidade</h3>', 'Topico 4.1 deve identificar a estimativa automatica.');
+dod_test_contains($quantityHtml, 'dod-quantity-table', 'Estimativa de quantidade deve ser exibida em tabela propria.');
+dod_test_contains($quantityHtml, 'Tipo de unidade', 'Tabela deve identificar o tipo de unidade.');
+dod_test_contains($quantityHtml, 'Notebook', 'Tabela deve exibir a descricao do item.');
+dod_test_contains($quantityHtml, '<h3>4.2. Metodologia</h3>', 'Topico 4.2 deve identificar a metodologia editavel.');
+dod_test_contains($quantityHtml, 'Metodologia definida pelo usuario.', 'Metodologia personalizada deve ser preservada.');
+
+$requirementSettings = direct_purchase_dod_normalize_requirement_settings([
+    'delivery_days' => 9,
+    'delivery_day_type' => 'calendar',
+    'delivery_trigger' => 'contract_signature',
+    'receipt_days' => 6,
+    'receipt_day_type' => 'business',
+    'support_text' => 'Suporte personalizado durante a garantia.',
+], true);
+$requirementsHtml = direct_purchase_dod_requirements_html($items, $requirementSettings, '', '5');
+dod_test_contains($requirementsHtml, '5.1. Requisitos técnicos mínimos', 'Topico 5.1 deve listar os requisitos tecnicos.');
+dod_test_contains($requirementsHtml, '5.1.1. Do item: Notebook', 'Cada item deve gerar um sub-subtopico proprio.');
+dod_test_contains($requirementsHtml, 'Memoria minima de 16 GB', 'Requisitos devem usar as caracteristicas cadastradas no item.');
+dod_test_contains($requirementsHtml, 'Documentação exigida', 'Requisitos devem incluir a documentacao cadastrada.');
+dod_test_contains($requirementsHtml, 'Certificados mínimos', 'DOD deve incluir certificados tecnicos cadastrados no item.');
+dod_test_contains($requirementsHtml, '9 (nove) dias corridos', 'Prazo de entrega deve aplicar numero por extenso e tipo de dia.');
+dod_test_contains($requirementsHtml, 'assinatura do contrato', 'Prazo de entrega deve aplicar o marco inicial selecionado.');
+dod_test_contains($requirementsHtml, '6 (seis) dias úteis', 'Recebimento deve aplicar prazo editavel por extenso.');
+dod_test_contains($requirementsHtml, 'Suporte personalizado durante a garantia.', 'Suporte tecnico personalizado deve ser preservado.');
+
+$defaultRequirementSettings = direct_purchase_dod_normalize_requirement_settings([]);
+dod_test_assert_true($defaultRequirementSettings['delivery_days'] === 7, 'Prazo de entrega padrao deve ser de sete dias.');
+dod_test_assert_true($defaultRequirementSettings['receipt_days'] === 5, 'Prazo de recebimento padrao deve ser de cinco dias.');
+
+$invalidRequirementSettingsFailed = false;
+try {
+    direct_purchase_dod_normalize_requirement_settings(['delivery_days' => 0], true);
+} catch (InvalidArgumentException) {
+    $invalidRequirementSettingsFailed = true;
+}
+dod_test_assert_true($invalidRequirementSettingsFailed, 'Prazo fora do intervalo permitido deve ser rejeitado.');
 
 $impactText = direct_purchase_dod_environmental_impacts_text($items);
 dod_test_assert_true(substr_count(mb_strtolower($impactText, 'UTF-8'), 'consumo de energia') === 1, 'Impactos iguais devem ser mesclados sem duplicidade.');
@@ -103,6 +155,26 @@ $normalizedSections = direct_purchase_dod_normalize_sections([[
     'content' => '<p onclick="alert(1)">Texto seguro</p>',
 ]]);
 dod_test_not_contains($normalizedSections[0]['content'], 'onclick', 'Normalizacao deve sanear HTML antes da persistencia.');
+
+$structuredSections = direct_purchase_dod_normalize_sections([
+    [
+        'id' => 'quantidades',
+        'title' => 'Estimativa de Quantidades e Metodologia',
+        'methodology' => '<p>Metodologia persistida.</p>',
+    ],
+    [
+        'id' => 'requisitos',
+        'title' => direct_purchase_dod_text('Requisitos da Contrata\u{00E7}\u{00E3}o'),
+        'requirements' => ['delivery_days' => 12, 'receipt_days' => 8],
+    ],
+]);
+dod_test_assert_true($structuredSections[0]['auto_generated'] === true, 'Topico 4 deve permanecer automatico e editavel.');
+dod_test_contains($structuredSections[0]['methodology'], 'Metodologia persistida.', 'Metodologia deve ser persistida separadamente.');
+dod_test_assert_true($structuredSections[1]['auto_generated'] === true, 'Topico 5 deve ser hibrido e gerar requisitos automaticamente.');
+dod_test_assert_true($structuredSections[1]['requirements']['delivery_days'] === 12, 'Prazo de entrega personalizado deve ser persistido.');
+
+$headingFour = sanitize_rich_text_html('<h4>5.1.1. Do item</h4>');
+dod_test_contains($headingFour, '<h4>', 'Saneamento deve preservar sub-subtopicos de quarto nivel.');
 
 $legacyFooter = direct_purchase_dod_normalize_footer(['show_page_numbers' => true]);
 dod_test_assert_true(!array_key_exists('show_page_numbers', $legacyFooter), 'Rodape deve descartar configuracao antiga de numeracao.');
@@ -171,6 +243,14 @@ dod_test_contains($exportSource, 'print-color-adjust: exact', 'Faixas devem pres
 dod_test_contains($exportSource, 'border-top-color: #ff0000', 'Faixa vermelha deve possuir borda imprimivel.');
 dod_test_contains($exportSource, 'border-top-color: #0070c0', 'Faixa azul deve possuir borda imprimivel.');
 dod_test_contains($exportSource, 'border-top-color: #ffff00', 'Faixa amarela deve possuir borda imprimivel.');
+dod_test_contains($exportSource, 'width: 210mm', 'Pre-visualizacao do DOD deve usar largura fisica A4.');
+dod_test_contains($exportSource, 'table-header-group', 'Cabecalho das tabelas deve se repetir em quebras de pagina.');
+dod_test_contains($exportSource, 'page-break-inside: avoid', 'Linhas, titulos e assinaturas devem evitar cortes na impressao.');
+dod_test_contains($exportSource, '$headerHeight', 'Impressao deve reservar altura controlada para o cabecalho.');
+dod_test_contains($formSource, '[methodology]', 'Formulario deve permitir editar a metodologia do topico 4.2.');
+dod_test_contains($formSource, '[requirements][delivery_days]', 'Formulario deve parametrizar o prazo de entrega.');
+dod_test_contains($formSource, '[requirements][receipt_days]', 'Formulario deve parametrizar o recebimento.');
+dod_test_contains($formSource, '[requirements][support_text]', 'Formulario deve permitir editar o suporte tecnico.');
 dod_test_contains($editorSource, '@tiptap/core@3', 'Editor deve usar a integracao TipTap.');
 dod_test_contains($editorSource, 'toggleUnderline', 'Editor deve oferecer sublinhado.');
 dod_test_contains($editorSource, 'insertTable', 'Editor deve oferecer tabelas.');

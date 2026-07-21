@@ -49,21 +49,35 @@ function direct_purchase_dod_export_logo(?string $path, string $class, string $a
 
 function direct_purchase_dod_export_header_html(array $header, array $additionalLogoPaths, string $entityName): string
 {
+    $leftAdditionalLogos = [];
+    $rightAdditionalLogos = [];
+
+    foreach (array_values($additionalLogoPaths) as $index => $additionalLogoPath) {
+        if ($index % 2 === 0) {
+            $leftAdditionalLogos[] = $additionalLogoPath;
+        } else {
+            $rightAdditionalLogos[] = $additionalLogoPath;
+        }
+    }
+
     ob_start();
     ?>
     <header class="official-header">
         <div class="logo-row">
-            <div class="logo-slot"><?= direct_purchase_dod_export_logo($header['logo_left_path'] ?? '', 'logo-side', 'Município Agro') ?></div>
-            <div class="logo-slot"><?= direct_purchase_dod_export_logo($header['logo_center_path'] ?? '', 'logo-center', 'Brasão do Município') ?></div>
-            <div class="logo-slot"><?= direct_purchase_dod_export_logo($header['logo_right_path'] ?? '', 'logo-side', 'Município Verde Azul') ?></div>
-        </div>
-        <?php if ($additionalLogoPaths): ?>
-            <div class="extra-logo-row">
-                <?php foreach ($additionalLogoPaths as $extraLogoPath): ?>
+            <div class="logo-slot logo-group logo-group-left">
+                <?= direct_purchase_dod_export_logo($header['logo_left_path'] ?? '', 'logo-side', 'Município Agro') ?>
+                <?php foreach ($leftAdditionalLogos as $extraLogoPath): ?>
                     <?= direct_purchase_dod_export_logo($extraLogoPath, 'logo-extra', 'Logo adicional') ?>
                 <?php endforeach; ?>
             </div>
-        <?php endif; ?>
+            <div class="logo-slot"><?= direct_purchase_dod_export_logo($header['logo_center_path'] ?? '', 'logo-center', 'Brasão do Município') ?></div>
+            <div class="logo-slot logo-group logo-group-right">
+                <?= direct_purchase_dod_export_logo($header['logo_right_path'] ?? '', 'logo-side', 'Município Verde Azul') ?>
+                <?php foreach ($rightAdditionalLogos as $extraLogoPath): ?>
+                    <?= direct_purchase_dod_export_logo($extraLogoPath, 'logo-extra', 'Logo adicional') ?>
+                <?php endforeach; ?>
+            </div>
+        </div>
         <div class="header-line header-entity"><?= e($entityName) ?></div>
         <?php if (!empty($header['state_name'])): ?>
             <div class="header-line header-state"><?= e($header['state_name']) ?></div>
@@ -167,8 +181,10 @@ $marginTop = rich_text_editor_css_number($editorSettings['page_margin_top_mm']);
 $marginRight = rich_text_editor_css_number($editorSettings['page_margin_right_mm']);
 $marginBottom = rich_text_editor_css_number($editorSettings['page_margin_bottom_mm']);
 $marginLeft = rich_text_editor_css_number($editorSettings['page_margin_left_mm']);
-$headerOffset = rich_text_editor_css_number(max(0, (float) $editorSettings['page_margin_top_mm']));
-$footerOffset = rich_text_editor_css_number(max(0, (float) $editorSettings['page_margin_bottom_mm'] - 5));
+$headerOffset = rich_text_editor_css_number(max(0, (float) $editorSettings['page_margin_top_mm'] - 4));
+$footerOffset = rich_text_editor_css_number(max(0, (float) $editorSettings['page_margin_bottom_mm'] - 4));
+$headerHeight = rich_text_editor_css_number(max(35, (float) $editorSettings['page_margin_top_mm'] - 7));
+$footerHeight = rich_text_editor_css_number(max(18, (float) $editorSettings['page_margin_bottom_mm'] - 7));
 $showPageNumbers = (bool) $editorSettings['show_page_numbers'];
 $headerHtml = direct_purchase_dod_export_header_html($header, $additionalLogoPaths, $entityName);
 $footerHtml = direct_purchase_dod_export_footer_html($footer);
@@ -188,24 +204,25 @@ if ($format === 'word') {
     <style>
         :root { color-scheme: light; }
         * { box-sizing: border-box; }
-        body { font-family: <?= e($fontCss) ?>; font-size: <?= e($fontSize) ?>pt; line-height: <?= e($lineHeight) ?>; color: #111827; margin: 0; background: #f3f4f6; }
+        html { background: #e5e7eb; }
+        body { font-family: <?= e($fontCss) ?>; font-size: <?= e($fontSize) ?>pt; line-height: <?= e($lineHeight) ?>; color: #111827; margin: 0; background: #e5e7eb; orphans: 3; widows: 3; }
         .toolbar { position: sticky; top: 0; z-index: 3; display: flex; justify-content: flex-end; gap: 8px; padding: 12px; background: #111827; }
         .toolbar a, .toolbar button { border: 0; border-radius: 6px; padding: 8px 12px; background: #fff; color: #111827; text-decoration: none; cursor: pointer; font-size: 14px; }
-        .page { width: min(100%, 900px); margin: 24px auto; padding: 34px 44px 28px; background: #fff; box-shadow: 0 12px 40px rgba(15, 23, 42, .14); }
-        .official-header { text-align: center; margin-bottom: 22px; }
-        .logo-row { display: grid; grid-template-columns: 1fr 120px 1fr; align-items: center; gap: 18px; margin-bottom: 8px; }
-        .logo-side { max-width: 86px; max-height: 58px; object-fit: contain; }
-        .logo-center { max-width: 112px; max-height: 96px; object-fit: contain; }
-        .logo-slot:first-child { text-align: right; }
-        .logo-slot:last-child { text-align: left; }
-        .logo-placeholder { display: inline-block; width: 82px; min-height: 1px; }
-        .extra-logo-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin: 4px 0 8px; }
-        .logo-extra { max-width: 78px; max-height: 50px; object-fit: contain; }
-        .header-line { margin: 1px 0; font-weight: 700; text-transform: uppercase; line-height: 1.25; }
-        .header-entity { font-size: 16px; }
-        .header-state, .header-secretariat, .header-department { font-size: 13px; }
-        .stripes { width: 100%; margin-top: 10px; }
-        .stripe { height: 3px; width: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page { width: 210mm; max-width: calc(100% - 24px); min-height: 297mm; margin: 18px auto; padding: 14mm 18mm 16mm; background: #fff; box-shadow: 0 8px 30px rgba(15, 23, 42, .16); }
+        .official-header { text-align: center; margin-bottom: 8mm; }
+        .logo-row { display: grid; grid-template-columns: minmax(0, 1fr) 30mm minmax(0, 1fr); align-items: center; gap: 4mm; margin-bottom: 1.5mm; min-height: 23mm; }
+        .logo-group { display: flex; align-items: center; gap: 2.5mm; min-width: 0; }
+        .logo-group-left { justify-content: flex-end; }
+        .logo-group-right { justify-content: flex-start; }
+        .logo-side { max-width: 22mm; max-height: 14mm; object-fit: contain; }
+        .logo-center { max-width: 29mm; max-height: 23mm; object-fit: contain; }
+        .logo-placeholder { display: inline-block; width: 18mm; min-height: 1px; }
+        .logo-extra { max-width: 16mm; max-height: 11mm; object-fit: contain; }
+        .header-line { margin: .4mm 0; font-weight: 700; text-transform: uppercase; line-height: 1.1; }
+        .header-entity { font-size: 11pt; }
+        .header-state, .header-secretariat, .header-department { font-size: 9pt; }
+        .stripes { width: 100%; margin-top: 2mm; }
+        .stripe { height: 1mm; width: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .stripe-red { background: #ff0000; }
         .stripe-blue { background: #0070c0; }
         .stripe-yellow { background: #ffff00; }
@@ -213,30 +230,36 @@ if ($format === 'word') {
         .meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; margin: 18px 0 24px; font-size: 13px; }
         .meta div { border-bottom: 1px solid #d1d5db; padding-bottom: 5px; }
         .meta strong { display: block; color: #374151; font-size: 11px; text-transform: uppercase; margin-bottom: 2px; }
-        .section { break-inside: auto; margin: 0 0 22px; }
-        .section h2 { font-size: 15px; margin: 0 0 8px; text-transform: uppercase; }
+        .section { break-inside: auto; margin: 0 0 7mm; }
+        .section h2 { break-after: avoid-page; font-size: 13pt; margin: 0 0 3mm; text-transform: uppercase; }
         .section p { margin: 0 0 <?= e($paragraphSpacing) ?>pt; line-height: <?= e($lineHeight) ?>; text-align: <?= e($editorSettings['default_text_align']) ?>; }
         .section ul, .section ol { margin: 0 0 10px 22px; padding: 0; }
         .section li { margin: 0 0 5px; line-height: <?= e($lineHeight) ?>; text-align: <?= e($editorSettings['default_text_align']) ?>; }
         .rich-text-content h1 { font-size: 17px; margin: 16px 0 8px; }
         .rich-text-content h2 { font-size: 15px; margin: 14px 0 8px; text-transform: none; }
-        .rich-text-content h3 { font-size: 14px; margin: 12px 0 7px; }
+        .rich-text-content h3 { break-after: avoid-page; font-size: 11.5pt; margin: 5mm 0 2mm; }
+        .rich-text-content h4 { break-after: avoid-page; font-size: 10.5pt; margin: 4mm 0 2mm; }
         .rich-text-content blockquote { border-left: 3px solid #9ca3af; color: #374151; margin: 10px 0; padding-left: 10px; }
         .rich-text-content a { color: #075db8; text-decoration: underline; }
-        .rich-text-content table { border-collapse: collapse; margin: 10px 0; table-layout: fixed; width: 100%; }
-        .rich-text-content th, .rich-text-content td { border: 1px solid #6b7280; padding: 6px; text-align: left; vertical-align: top; }
+        .rich-text-content table { border-collapse: collapse; margin: 3mm 0 5mm; table-layout: fixed; width: 100%; }
+        .rich-text-content thead { display: table-header-group; }
+        .rich-text-content tr { break-inside: avoid; page-break-inside: avoid; }
+        .rich-text-content th, .rich-text-content td { border: 1px solid #4b5563; overflow-wrap: anywhere; padding: 2mm; text-align: left; vertical-align: top; }
         .rich-text-content th { background: #e5e7eb; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .rich-text-content .dod-quantity-table th:first-child, .rich-text-content .dod-quantity-table td:first-child { width: 10%; }
+        .rich-text-content .dod-quantity-table th:nth-child(3), .rich-text-content .dod-quantity-table td:nth-child(3) { width: 24%; }
+        .rich-text-content .dod-quantity-table th:last-child, .rich-text-content .dod-quantity-table td:last-child { width: 16%; }
         .empty { color: #6b7280; font-style: italic; }
         .issue-place { margin-top: 28px; text-align: right; font-size: 13px; }
         .footer-meta { margin-top: 18px; font-size: 13px; }
-        .signatures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 52px 34px; margin-top: 64px; }
-        .signature { text-align: center; min-height: 74px; break-inside: avoid; }
+        .signatures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18mm 12mm; margin-top: 20mm; }
+        .signature { text-align: center; min-height: 22mm; break-inside: avoid; page-break-inside: avoid; }
         .signature-line { border-top: 1px solid #111827; margin-bottom: 8px; }
         .signature strong { display: block; font-size: 13px; }
         .signature span, .signature small { display: block; color: #4b5563; font-size: 12px; }
-        .official-footer { margin-top: 42px; text-align: center; font-size: 12px; color: #111827; }
-        .official-footer .stripes { margin-bottom: 8px; }
-        .official-footer p { margin: 2px 0; }
+        .official-footer { margin-top: 12mm; text-align: center; font-size: 8.5pt; line-height: 1.15; color: #111827; }
+        .official-footer .stripes { margin-bottom: 1.5mm; }
+        .official-footer p { margin: .5mm 0; }
         .word-header-container { mso-element: header; }
         .word-footer-container { mso-element: footer; }
         .word-section { page: Section1; }
@@ -252,27 +275,40 @@ if ($format === 'word') {
             text-align: <?= e($editorSettings['default_text_align']) ?> !important;
         }
         <?php endif; ?>
+        @media (max-width: 720px) {
+            .page { max-width: calc(100% - 12px); margin: 6px auto; min-height: 0; padding: 18px; }
+            .meta { grid-template-columns: 1fr; }
+            .logo-row { grid-template-columns: 1fr 24mm 1fr; gap: 2mm; }
+            .logo-extra { display: none; }
+            .signatures { grid-template-columns: 1fr; }
+        }
         @media print {
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            body { background: #fff; }
+            html, body { background: #fff; width: auto; }
             .toolbar { display: none; }
-            .page { width: auto; margin: 0; padding: 0; box-shadow: none; }
+            .page { width: auto; max-width: none; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
             .official-header {
+                height: <?= e($headerHeight) ?>mm;
                 left: 0;
                 margin: 0;
+                overflow: hidden;
+                padding-top: 0;
                 position: fixed;
                 right: 0;
                 top: -<?= e($headerOffset) ?>mm;
             }
             .official-footer {
                 bottom: -<?= e($footerOffset) ?>mm;
+                height: <?= e($footerHeight) ?>mm;
                 left: 0;
                 margin: 0;
+                overflow: hidden;
                 position: fixed;
                 right: 0;
             }
-            .section h2, .signature { break-inside: avoid; }
-            .stripe { background: transparent !important; border-top: 3px solid transparent; height: 0; }
+            .section h2, .section h3, .section h4, .signature { break-inside: avoid; page-break-inside: avoid; }
+            .section h2, .section h3, .section h4 { break-after: avoid-page; page-break-after: avoid; }
+            .stripe { background: transparent !important; border-top: 1mm solid transparent; height: 0; }
             .stripe-red { border-top-color: #ff0000 !important; }
             .stripe-blue { border-top-color: #0070c0 !important; }
             .stripe-yellow { border-top-color: #ffff00 !important; }

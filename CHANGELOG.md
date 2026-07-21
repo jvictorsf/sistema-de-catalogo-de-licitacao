@@ -2,6 +2,12 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.27] - 2026-07-21
+
+### Documentacao
+- `.env.example` reorganizado por secoes, com comentarios curtos sobre finalidade, formato e valores aceitos em cada configuracao.
+- Incluidos alertas para credenciais, cores, ambiente, PostgreSQL, OpenAI, toolkit e autenticacao AD/LDAP.
+
 ## [1.6.26] - 2026-07-21
 
 ### Adicionado

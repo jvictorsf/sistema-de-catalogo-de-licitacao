@@ -73,6 +73,15 @@ defined('DOD_ENTITY_CNPJ') || define('DOD_ENTITY_CNPJ', env_value('DOD_ENTITY_CN
 defined('DOD_LOGO_LEFT_PATH') || define('DOD_LOGO_LEFT_PATH', env_value('DOD_LOGO_LEFT_PATH', '/assets/municipio-agro.png'));
 defined('DOD_LOGO_RIGHT_PATH') || define('DOD_LOGO_RIGHT_PATH', env_value('DOD_LOGO_RIGHT_PATH', '/assets/municipio-verde-azul.png'));
 
+defined('TOOLKIT_ENABLED') || define('TOOLKIT_ENABLED', env_bool('TOOLKIT_ENABLED', true));
+defined('TOOLKIT_SCRIPT_URL') || define('TOOLKIT_SCRIPT_URL', env_value('TOOLKIT_SCRIPT_URL', 'https://assets.esturvo.intra/toolkit/current/toolkit.min.js'));
+defined('TOOLKIT_TITLE') || define('TOOLKIT_TITLE', env_value('TOOLKIT_TITLE', 'Ferramentas rápidas'));
+defined('TOOLKIT_SUBTITLE') || define('TOOLKIT_SUBTITLE', env_value('TOOLKIT_SUBTITLE', 'Apoio ao trabalho diário'));
+defined('TOOLKIT_ACCENT') || define('TOOLKIT_ACCENT', env_value('TOOLKIT_ACCENT', '#2f6f4f'));
+defined('TOOLKIT_ACCENT_DARK') || define('TOOLKIT_ACCENT_DARK', env_value('TOOLKIT_ACCENT_DARK', '#245a3f'));
+defined('TOOLKIT_POSITION') || define('TOOLKIT_POSITION', env_value('TOOLKIT_POSITION', 'right'));
+defined('TOOLKIT_SHORTCUT') || define('TOOLKIT_SHORTCUT', env_value('TOOLKIT_SHORTCUT', 'Alt+T'));
+
 defined('DB_HOST') || define('DB_HOST', env_value('DB_HOST', 'localhost'));
 defined('DB_PORT') || define('DB_PORT', env_value('DB_PORT', '5432'));
 defined('DB_NAME') || define('DB_NAME', env_value('DB_NAME', 'catalogo_licitacao'));

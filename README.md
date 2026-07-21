@@ -162,6 +162,22 @@ DOD_LOGO_RIGHT_PATH=/assets/municipio-verde-azul.png
 
 Logos especificas de secretaria ou departamento podem ser adicionadas na propria tela do DOD, uma por linha.
 
+## Toolkit Flutuante
+O toolkit de ferramentas rapidas e carregado nas telas internas pelo layout compartilhado. A integracao pode ser configurada no `.env`:
+
+```env
+TOOLKIT_ENABLED=true
+TOOLKIT_SCRIPT_URL=https://assets.esturvo.intra/toolkit/current/toolkit.min.js
+TOOLKIT_TITLE=Ferramentas rápidas
+TOOLKIT_SUBTITLE=Apoio ao trabalho diário
+TOOLKIT_ACCENT=#2f6f4f
+TOOLKIT_ACCENT_DARK=#245a3f
+TOOLKIT_POSITION=right
+TOOLKIT_SHORTCUT=Alt+T
+```
+
+Use `TOOLKIT_ENABLED=false` para desativar a integracao. `TOOLKIT_POSITION` aceita `left` ou `right`, e as cores devem usar o formato hexadecimal completo `#RRGGBB`.
+
 ## Padroes do Editor e dos Documentos
 Administradores podem acessar `Administracao > Editor e documentos` ou
 `/editor_settings.php` para configurar os padroes globais do TipTap e do DOD:

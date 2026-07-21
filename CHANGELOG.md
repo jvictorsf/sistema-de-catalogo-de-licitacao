@@ -2,6 +2,16 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.26] - 2026-07-21
+
+### Adicionado
+- Toolkit flutuante de ferramentas rapidas integrado ao layout compartilhado das telas internas.
+- Variaveis de ambiente para ativacao, URL do script, textos, cores, posicao e atalho do toolkit.
+- Validacao de posicao e cores antes da inicializacao, com configuracao serializada de forma segura para JavaScript.
+
+### Documentacao
+- `.env.example` e README passam a documentar a configuracao completa do toolkit.
+
 ## [1.6.25] - 2026-07-21
 
 ### Adicionado

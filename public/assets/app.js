@@ -185,4 +185,35 @@ document.addEventListener('DOMContentLoaded', () => {
         filterKitItems();
     }
 
+    const appSidebar = document.getElementById('appSidebar');
+    const sidebarScroll = document.querySelector('[data-sidebar-scroll]');
+    const activeSidebarLink = document.querySelector('.app-sidebar-link.active');
+
+    if (sidebarScroll && activeSidebarLink) {
+        const linkTop = activeSidebarLink.offsetTop;
+        const linkBottom = linkTop + activeSidebarLink.offsetHeight;
+        const visibleTop = sidebarScroll.scrollTop;
+        const visibleBottom = visibleTop + sidebarScroll.clientHeight;
+
+        if (linkTop < visibleTop || linkBottom > visibleBottom) {
+            sidebarScroll.scrollTop = Math.max(0, linkTop - (sidebarScroll.clientHeight / 2));
+        }
+    }
+
+    if (appSidebar) {
+        appSidebar.querySelectorAll('[data-sidebar-link]').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth >= 992 || !window.bootstrap?.Offcanvas) {
+                    return;
+                }
+
+                const sidebarInstance = window.bootstrap.Offcanvas.getInstance(appSidebar);
+
+                if (sidebarInstance) {
+                    sidebarInstance.hide();
+                }
+            });
+        });
+    }
+
 });

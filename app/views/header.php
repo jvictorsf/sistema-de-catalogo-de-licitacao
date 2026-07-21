@@ -32,7 +32,7 @@ $primaryNavItems = [
         'label' => 'Itens',
         'icon' => 'bi-box-seam',
         'permission' => 'catalog.view',
-        'active' => ['index.php', 'item_form.php', 'item_show.php'],
+        'active' => ['index.php', 'item_form.php', 'item_show.php', 'item_version_show.php'],
     ],
     [
         'href' => '/projects.php',
@@ -72,6 +72,9 @@ $primaryNavItems = [
             'project_supplier_quote_form.php',
             'direct_purchase_dod.php',
             'direct_purchase_dod_export.php',
+            'demand_budget.php',
+            'demand_price_bank.php',
+            'demand_supplier_quote_form.php',
         ],
     ],
     [
@@ -121,7 +124,7 @@ $navGroups = [
                 'label' => 'Fornecedores',
                 'icon' => 'bi-truck',
                 'permission' => 'suppliers.manage',
-                'active' => ['suppliers.php', 'supplier_form.php', 'demand_supplier_quote_form.php', 'demand_budget.php', 'demand_price_bank.php'],
+                'active' => ['suppliers.php', 'supplier_form.php'],
             ],
             [
                 'href' => '/library.php',
@@ -188,6 +191,24 @@ $navGroups = [
         ],
     ],
 ];
+
+$visiblePrimaryNavItems = array_values(array_filter(
+    $primaryNavItems,
+    static fn (array $navItem): bool => empty($navItem['permission']) || auth_can((string) $navItem['permission'])
+));
+$visibleNavGroups = [];
+
+foreach ($navGroups as $navGroup) {
+    $visibleItems = array_values(array_filter(
+        $navGroup['items'],
+        static fn (array $navItem): bool => empty($navItem['permission']) || auth_can((string) $navItem['permission'])
+    ));
+
+    if ($visibleItems) {
+        $navGroup['items'] = $visibleItems;
+        $visibleNavGroups[] = $navGroup;
+    }
+}
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -227,124 +248,112 @@ $navGroups = [
 </head>
 
 <body>
-    <nav class="navbar navbar-expand-xl navbar-dark bg-dark app-navbar mb-4">
-        <div class="container-fluid px-4">
-            <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="/">
-                <i class="bi bi-boxes"></i>
+    <div class="app-layout">
+        <header class="app-mobile-header d-lg-none">
+            <button
+                type="button"
+                class="app-mobile-menu-button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#appSidebar"
+                aria-controls="appSidebar"
+                aria-label="Abrir menu principal"
+                title="Abrir menu">
+                <i class="bi bi-list" aria-hidden="true"></i>
+            </button>
+
+            <a class="app-mobile-brand" href="/dashboard.php">
+                <i class="bi bi-boxes" aria-hidden="true"></i>
                 <span><?= e(APP_NAME) ?></span>
             </a>
 
-            <button
-                class="navbar-toggler"
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#mainNavbar"
-                aria-controls="mainNavbar"
-                aria-expanded="false"
-                aria-label="Alternar navegacao">
-                <span class="navbar-toggler-icon"></span>
-            </button>
+            <?php if ($currentUser): ?>
+                <a href="/profile.php" class="app-mobile-profile" aria-label="Abrir perfil" title="Meu perfil">
+                    <i class="bi bi-person-circle" aria-hidden="true"></i>
+                </a>
+            <?php endif; ?>
+        </header>
 
-            <div class="collapse navbar-collapse" id="mainNavbar">
-                <div class="navbar-nav ms-auto">
-                    <?php foreach ($primaryNavItems as $navItem): ?>
-                        <?php
-                            if (!empty($navItem['permission']) && !auth_can((string) $navItem['permission'])) {
-                                continue;
-                            }
+        <aside
+            class="offcanvas-lg offcanvas-start app-sidebar"
+            tabindex="-1"
+            id="appSidebar"
+            aria-label="Menu principal">
+            <div class="app-sidebar-header">
+                <a class="app-sidebar-brand" href="/dashboard.php">
+                    <span class="app-sidebar-brand-icon"><i class="bi bi-boxes" aria-hidden="true"></i></span>
+                    <span class="app-sidebar-brand-name"><?= e(APP_NAME) ?></span>
+                </a>
 
-                            $active = in_array($currentPage, $navItem['active'], true);
-                        ?>
-                        <a
-                            href="<?= e($navItem['href']) ?>"
-                            class="nav-link d-flex align-items-center gap-2 <?= $active ? 'active' : '' ?>"
-                            <?= $active ? 'aria-current="page"' : '' ?>>
-                            <i class="bi <?= e($navItem['icon']) ?>"></i>
-                            <span><?= e($navItem['label']) ?></span>
-                        </a>
-                    <?php endforeach; ?>
-
-                    <?php foreach ($navGroups as $navGroup): ?>
-                        <?php
-                            $visibleItems = array_values(array_filter(
-                                $navGroup['items'],
-                                static fn (array $navItem): bool => empty($navItem['permission']) || auth_can((string) $navItem['permission'])
-                            ));
-
-                            if (!$visibleItems) {
-                                continue;
-                            }
-
-                            $groupActive = false;
-
-                            foreach ($visibleItems as $navItem) {
-                                if (in_array($currentPage, $navItem['active'], true)) {
-                                    $groupActive = true;
-                                    break;
-                                }
-                            }
-                        ?>
-                        <div class="nav-item dropdown">
-                            <a
-                                href="#"
-                                class="nav-link dropdown-toggle d-flex align-items-center gap-2 <?= $groupActive ? 'active' : '' ?>"
-                                role="button"
-                                data-bs-toggle="dropdown"
-                                aria-expanded="false"
-                                <?= $groupActive ? 'aria-current="page"' : '' ?>>
-                                <i class="bi <?= e($navGroup['icon']) ?>"></i>
-                                <span><?= e($navGroup['label']) ?></span>
-                            </a>
-
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <?php foreach ($visibleItems as $navItem): ?>
-                                    <?php $active = in_array($currentPage, $navItem['active'], true); ?>
-                                    <li>
-                                        <a
-                                            href="<?= e($navItem['href']) ?>"
-                                            class="dropdown-item d-flex align-items-center gap-2 <?= $active ? 'active' : '' ?>">
-                                            <i class="bi <?= e($navItem['icon']) ?>"></i>
-                                            <span><?= e($navItem['label']) ?></span>
-                                        </a>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                    <?php endforeach; ?>
-                    <?php if ($currentUser): ?>
-                        <div class="nav-item dropdown">
-                            <a
-                                href="#"
-                                class="nav-link dropdown-toggle d-flex align-items-center gap-2"
-                                role="button"
-                                data-bs-toggle="dropdown"
-                                aria-expanded="false">
-                                <i class="bi bi-person-circle"></i>
-                                <span><?= e($currentUser['name'] ?? 'Usuario') ?></span>
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li>
-                                    <span class="dropdown-item-text small text-muted">
-                                        <?= e(auth_role_label($currentUser['role'] ?? '')) ?>
-                                    </span>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <a href="/profile.php" class="dropdown-item d-flex align-items-center gap-2">
-                                        <i class="bi bi-key"></i><span>Minha senha</span>
-                                    </a>
-                                </li>
-                                <li>
-                                    <a href="/logout.php" class="dropdown-item d-flex align-items-center gap-2">
-                                        <i class="bi bi-box-arrow-right"></i><span>Sair</span>
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
-                    <?php endif; ?>
-                </div>
+                <button
+                    type="button"
+                    class="btn-close btn-close-white d-lg-none"
+                    data-bs-dismiss="offcanvas"
+                    data-bs-target="#appSidebar"
+                    aria-label="Fechar menu"
+                    title="Fechar menu"></button>
             </div>
-        </div>
-    </nav>
 
-    <main class="container-fluid app-shell mb-5">
+            <div class="app-sidebar-scroll" data-sidebar-scroll>
+                <nav class="app-sidebar-nav" aria-label="Navegação principal">
+                    <section class="app-sidebar-section" aria-labelledby="sidebar-main-title">
+                        <div class="app-sidebar-section-title" id="sidebar-main-title">Navegação</div>
+
+                        <?php foreach ($visiblePrimaryNavItems as $navItem): ?>
+                            <?php $active = in_array($currentPage, $navItem['active'], true); ?>
+                            <a
+                                href="<?= e($navItem['href']) ?>"
+                                class="app-sidebar-link <?= $active ? 'active' : '' ?>"
+                                data-sidebar-link
+                                <?= $active ? 'aria-current="page"' : '' ?>>
+                                <i class="bi <?= e($navItem['icon']) ?>" aria-hidden="true"></i>
+                                <span><?= e($navItem['label']) ?></span>
+                            </a>
+                        <?php endforeach; ?>
+                    </section>
+
+                    <?php foreach ($visibleNavGroups as $groupIndex => $navGroup): ?>
+                        <section class="app-sidebar-section" aria-labelledby="sidebar-group-<?= (int) $groupIndex ?>">
+                            <div class="app-sidebar-section-title" id="sidebar-group-<?= (int) $groupIndex ?>">
+                                <i class="bi <?= e($navGroup['icon']) ?>" aria-hidden="true"></i>
+                                <span><?= e($navGroup['label']) ?></span>
+                            </div>
+
+                            <?php foreach ($navGroup['items'] as $navItem): ?>
+                                <?php $active = in_array($currentPage, $navItem['active'], true); ?>
+                                <a
+                                    href="<?= e($navItem['href']) ?>"
+                                    class="app-sidebar-link <?= $active ? 'active' : '' ?>"
+                                    data-sidebar-link
+                                    <?= $active ? 'aria-current="page"' : '' ?>>
+                                    <i class="bi <?= e($navItem['icon']) ?>" aria-hidden="true"></i>
+                                    <span><?= e($navItem['label']) ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </section>
+                    <?php endforeach; ?>
+                </nav>
+            </div>
+
+            <?php if ($currentUser): ?>
+                <div class="app-sidebar-user">
+                    <span class="app-sidebar-user-avatar"><i class="bi bi-person" aria-hidden="true"></i></span>
+                    <div class="app-sidebar-user-details">
+                        <div class="app-sidebar-user-name" title="<?= e($currentUser['name'] ?? 'Usuario') ?>">
+                            <?= e($currentUser['name'] ?? 'Usuario') ?>
+                        </div>
+                        <div class="app-sidebar-user-role"><?= e(auth_role_label($currentUser['role'] ?? '')) ?></div>
+                    </div>
+                    <div class="app-sidebar-user-actions">
+                        <a href="/profile.php" aria-label="Alterar minha senha" title="Minha senha">
+                            <i class="bi bi-key" aria-hidden="true"></i>
+                        </a>
+                        <a href="/logout.php" aria-label="Sair do sistema" title="Sair">
+                            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </aside>
+
+        <div class="app-content">
+            <main class="container-fluid app-shell mb-5">

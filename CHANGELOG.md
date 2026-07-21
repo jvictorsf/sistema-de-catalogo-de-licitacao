@@ -2,6 +2,20 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.31] - 2026-07-21
+
+### Alterado
+- Menu superior substituido por sidebar fixa e rolavel no desktop, liberando largura e reduzindo a poluicao visual da navegacao.
+- Navegacao reorganizada em secoes de acesso principal, cadastros e administracao, preservando filtros por permissao e destaque da pagina atual.
+- Perfil, papel do usuario, alteracao de senha e encerramento da sessao passam a ficar no rodape da sidebar.
+
+### Responsividade
+- Em tablets e celulares, a sidebar passa a funcionar como painel lateral do Bootstrap, com cabecalho compacto, fechamento automatico ao navegar e largura limitada ao viewport.
+- Estados de foco, contraste, textos longos e rolagem ate o item ativo receberam tratamento especifico de acessibilidade e usabilidade.
+
+### Testes
+- Adicionado teste automatizado para estrutura da sidebar, permissoes, estado ativo, dimensoes responsivas, foco visivel e comportamento do offcanvas.
+
 ## [1.6.30] - 2026-07-21
 
 ### Seguranca

@@ -774,6 +774,7 @@ function direct_purchase_dod_default_header(array $project = []): array
         'logo_center_path' => municipal_logo_public_path() ?: '/assets/brasao-municipio.png',
         'logo_right_path' => direct_purchase_dod_env_text('DOD_LOGO_RIGHT_PATH', '/assets/municipio-verde-azul.png'),
         'additional_logo_paths' => [],
+        'repeat_on_every_page' => true,
     ];
 }
 
@@ -797,6 +798,7 @@ function direct_purchase_dod_default_footer(): array
             ['label' => 'Autoridade competente', 'name' => '', 'role' => '', 'collaborator_id' => null],
         ],
         'additional_fields' => [],
+        'repeat_on_every_page' => true,
     ];
 }
 
@@ -1030,6 +1032,7 @@ function direct_purchase_dod_normalize_header(mixed $header, array $project = []
 
     $header['additional_logo_paths'] = direct_purchase_dod_normalize_logo_paths($header['additional_logo_paths'] ?? []);
     $header['issue_date'] = trim((string) ($header['issue_date'] ?? date('Y-m-d'))) ?: date('Y-m-d');
+    $header['repeat_on_every_page'] = boolish($header['repeat_on_every_page'] ?? true, true);
 
     return $header;
 }
@@ -1094,6 +1097,7 @@ function direct_purchase_dod_normalize_footer(mixed $footer): array
 
     $footer['issue_date'] = trim((string) ($footer['issue_date'] ?? date('Y-m-d'))) ?: date('Y-m-d');
     unset($footer['show_page_numbers']);
+    $footer['repeat_on_every_page'] = boolish($footer['repeat_on_every_page'] ?? true, true);
     $footer['signatures'] = direct_purchase_dod_normalize_signatures($footer['signatures'] ?? [], $footer);
 
     $footer['requester_name'] = $footer['requester_name'] ?: (string) ($footer['signatures'][0]['name'] ?? '');

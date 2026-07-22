@@ -146,6 +146,13 @@ function direct_purchase_dod_export_footer_html(array $footer, bool $showPageNum
     return (string) ob_get_clean();
 }
 
+function direct_purchase_dod_export_word_pagination_html(): string
+{
+    return '<footer class="official-footer word-pagination-footer">'
+        . '<p class="word-page-number">Página ' . direct_purchase_dod_export_word_page_number() . '</p>'
+        . '</footer>';
+}
+
 $id = (int) ($_GET['id'] ?? 0);
 $format = strtolower(trim((string) ($_GET['format'] ?? 'pdf')));
 $project = find_project($id);
@@ -182,8 +189,14 @@ $marginTop = rich_text_editor_css_number($editorSettings['page_margin_top_mm']);
 $marginRight = rich_text_editor_css_number($editorSettings['page_margin_right_mm']);
 $marginBottom = rich_text_editor_css_number($editorSettings['page_margin_bottom_mm']);
 $marginLeft = rich_text_editor_css_number($editorSettings['page_margin_left_mm']);
-$printMarginTop = rich_text_editor_css_number($printLayoutMetrics['margin_top_mm']);
-$printMarginBottom = rich_text_editor_css_number($printLayoutMetrics['margin_bottom_mm']);
+$repeatHeader = boolish($header['repeat_on_every_page'] ?? true, true);
+$repeatFooter = boolish($footer['repeat_on_every_page'] ?? true, true);
+$printMarginTop = $repeatHeader
+    ? rich_text_editor_css_number($printLayoutMetrics['margin_top_mm'])
+    : $marginTop;
+$printMarginBottom = $repeatFooter
+    ? rich_text_editor_css_number($printLayoutMetrics['margin_bottom_mm'])
+    : $marginBottom;
 $headerOffset = rich_text_editor_css_number($printLayoutMetrics['header_offset_mm']);
 $footerOffset = rich_text_editor_css_number($printLayoutMetrics['footer_offset_mm']);
 $headerHeight = rich_text_editor_css_number($printLayoutMetrics['header_height_mm']);
@@ -191,7 +204,10 @@ $footerHeight = rich_text_editor_css_number($printLayoutMetrics['footer_height_m
 $showPageNumbers = (bool) $editorSettings['show_page_numbers'];
 $headerHtml = direct_purchase_dod_export_header_html($header, $additionalLogoPaths, $entityName);
 $footerHtml = direct_purchase_dod_export_footer_html($footer);
-$wordFooterHtml = direct_purchase_dod_export_footer_html($footer, $showPageNumbers, true);
+$useWordFooter = $repeatFooter || $showPageNumbers;
+$wordFooterHtml = $repeatFooter
+    ? direct_purchase_dod_export_footer_html($footer, $showPageNumbers, true)
+    : ($showPageNumbers ? direct_purchase_dod_export_word_pagination_html() : '');
 
 if ($format === 'word') {
     send_download_headers('application/msword; charset=utf-8', $filename);
@@ -291,7 +307,13 @@ if ($format === 'word') {
             html, body { background: #fff; width: auto; }
             .toolbar { display: none; }
             .page { width: auto; max-width: none; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
-            .document-screen-header, .document-screen-footer { display: none !important; }
+            <?php if ($repeatHeader): ?>
+            .document-screen-header { display: none !important; }
+            <?php endif; ?>
+            <?php if ($repeatFooter): ?>
+            .document-screen-footer { display: none !important; }
+            <?php endif; ?>
+            <?php if ($repeatHeader || $repeatFooter): ?>
             .print-running-header, .print-running-footer {
                 background: #fff;
                 display: block;
@@ -302,14 +324,19 @@ if ($format === 'word') {
                 right: 0;
                 z-index: 1;
             }
+            <?php endif; ?>
+            <?php if ($repeatHeader): ?>
             .print-running-header {
                 height: <?= e($headerHeight) ?>mm;
                 top: -<?= e($headerOffset) ?>mm;
             }
+            <?php endif; ?>
+            <?php if ($repeatFooter): ?>
             .print-running-footer {
                 bottom: -<?= e($footerOffset) ?>mm;
                 height: <?= e($footerHeight) ?>mm;
             }
+            <?php endif; ?>
             .print-running-header .official-header,
             .print-running-footer .official-footer { margin: 0; }
             .section h2, .section h3, .section h4, .signature { break-inside: avoid; page-break-inside: avoid; }
@@ -335,10 +362,14 @@ if ($format === 'word') {
         @page Section1 {
             size: 595.3pt 841.9pt;
             margin: <?= e($marginTop) ?>mm <?= e($marginRight) ?>mm <?= e($marginBottom) ?>mm <?= e($marginLeft) ?>mm;
+            <?php if ($repeatHeader): ?>
             mso-header: dodWordHeader;
             mso-header-margin: 5mm;
+            <?php endif; ?>
+            <?php if ($useWordFooter): ?>
             mso-footer: dodWordFooter;
             mso-footer-margin: 5mm;
+            <?php endif; ?>
         }
     </style>
 </head>
@@ -351,18 +382,22 @@ if ($format === 'word') {
     </div>
 <?php endif; ?>
 
-<?php if ($format === 'word'): ?>
+<?php if ($format === 'word' && $repeatHeader): ?>
     <div id="dodWordHeader" class="word-header-container"><?= $headerHtml ?></div>
+<?php endif; ?>
+<?php if ($format === 'word' && $useWordFooter): ?>
     <div id="dodWordFooter" class="word-footer-container"><?= $wordFooterHtml ?></div>
 <?php endif; ?>
 
-<?php if ($format !== 'word'): ?>
+<?php if ($format !== 'word' && $repeatHeader): ?>
     <div class="print-running-header" aria-hidden="true"><?= $headerHtml ?></div>
+<?php endif; ?>
+<?php if ($format !== 'word' && $repeatFooter): ?>
     <div class="print-running-footer" aria-hidden="true"><?= $footerHtml ?></div>
 <?php endif; ?>
 
 <main class="page document-content <?= $format === 'word' ? 'word-section' : '' ?>">
-    <?php if ($format !== 'word'): ?>
+    <?php if ($format !== 'word' || !$repeatHeader): ?>
         <div class="document-screen-header"><?= $headerHtml ?></div>
     <?php endif; ?>
 
@@ -413,7 +448,7 @@ if ($format === 'word') {
         <?php endforeach; ?>
     </section>
 
-    <?php if ($format !== 'word'): ?>
+    <?php if ($format !== 'word' || !$repeatFooter): ?>
         <div class="document-screen-footer"><?= $footerHtml ?></div>
     <?php endif; ?>
 </main>

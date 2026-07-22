@@ -174,7 +174,25 @@ require __DIR__ . '/../app/views/header.php';
                 <h2 class="h5 mb-1">Cabeçalho institucional</h2>
                 <p class="text-muted mb-0">Dados exibidos no topo da folha e na identificação do documento.</p>
             </div>
-            <span class="badge text-bg-light text-dark border">DOD</span>
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <div>
+                    <input type="hidden" name="header[repeat_on_every_page]" value="0">
+                    <div class="form-check form-switch mb-0">
+                        <input
+                            type="checkbox"
+                            class="form-check-input"
+                            role="switch"
+                            id="repeatDodHeader"
+                            name="header[repeat_on_every_page]"
+                            value="1"
+                            <?= !empty($header['repeat_on_every_page']) ? 'checked' : '' ?>
+                        >
+                        <label class="form-check-label" for="repeatDodHeader">Repetir em todas as páginas</label>
+                    </div>
+                    <div class="form-text mt-0">Desative para exibir somente no início do PDF, da impressão e do Word.</div>
+                </div>
+                <span class="badge text-bg-light text-dark border">DOD</span>
+            </div>
         </div>
 
                 <div class="row g-3">
@@ -483,6 +501,22 @@ require __DIR__ . '/../app/views/header.php';
             <div>
                 <h2 class="h5 mb-1">Rodapé e assinaturas</h2>
                 <p class="text-muted mb-0">Configure emissão, contato institucional e quantas assinaturas forem necessárias.</p>
+            </div>
+            <div>
+                <input type="hidden" name="footer[repeat_on_every_page]" value="0">
+                <div class="form-check form-switch mb-0">
+                    <input
+                        type="checkbox"
+                        class="form-check-input"
+                        role="switch"
+                        id="repeatDodFooter"
+                        name="footer[repeat_on_every_page]"
+                        value="1"
+                        <?= !empty($footer['repeat_on_every_page']) ? 'checked' : '' ?>
+                    >
+                    <label class="form-check-label" for="repeatDodFooter">Repetir em todas as páginas</label>
+                </div>
+                <div class="form-text mt-0">Desative para exibir somente no final do PDF, da impressão e do Word.</div>
             </div>
         </div>
 

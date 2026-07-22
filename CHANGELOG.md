@@ -2,6 +2,19 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.34] - 2026-07-22
+
+### Adicionado
+- DOD passa a permitir que o usuario escolha, de forma independente, se o cabecalho e o rodape institucionais devem repetir em todas as paginas.
+- As preferencias sao aplicadas na impressao/PDF e na exportacao Word; quando desativadas, o cabecalho permanece apenas no inicio e o rodape apenas no fim do documento.
+
+### Compatibilidade
+- DODs existentes continuam repetindo cabecalho e rodape por padrao, sem necessidade de migracao do banco de dados.
+- A numeracao de paginas do Word permanece funcional mesmo quando o rodape institucional nao e repetido.
+
+### Testes
+- Suite do DOD passa a validar os valores padrao, a desativacao independente e a integracao das novas opcoes com o formulario e os exportadores.
+
 ## [1.6.33] - 2026-07-22
 
 ### Corrigido

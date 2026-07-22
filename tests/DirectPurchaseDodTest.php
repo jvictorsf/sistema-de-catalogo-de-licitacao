@@ -179,6 +179,16 @@ dod_test_contains($headingFour, '<h4>', 'Saneamento deve preservar sub-subtopico
 $legacyFooter = direct_purchase_dod_normalize_footer(['show_page_numbers' => true]);
 dod_test_assert_true(!array_key_exists('show_page_numbers', $legacyFooter), 'Rodape deve descartar configuracao antiga de numeracao.');
 
+$defaultHeader = direct_purchase_dod_normalize_header([]);
+$defaultFooter = direct_purchase_dod_normalize_footer([]);
+dod_test_assert_true($defaultHeader['repeat_on_every_page'] === true, 'Cabecalho deve repetir em todas as paginas por padrao.');
+dod_test_assert_true($defaultFooter['repeat_on_every_page'] === true, 'Rodape deve repetir em todas as paginas por padrao.');
+
+$nonRepeatingHeader = direct_purchase_dod_normalize_header(['repeat_on_every_page' => '0']);
+$nonRepeatingFooter = direct_purchase_dod_normalize_footer(['repeat_on_every_page' => '0']);
+dod_test_assert_true($nonRepeatingHeader['repeat_on_every_page'] === false, 'Cabecalho deve aceitar exibicao somente na primeira pagina.');
+dod_test_assert_true($nonRepeatingFooter['repeat_on_every_page'] === false, 'Rodape deve aceitar exibicao somente ao final do documento.');
+
 $editorDefaults = rich_text_editor_default_settings();
 dod_test_assert_true($editorDefaults['default_text_align'] === 'justify', 'Editor deve usar alinhamento justificado por padrao.');
 dod_test_assert_true($editorDefaults['font_family'] === 'arial', 'Editor deve usar Arial por padrao.');
@@ -277,6 +287,11 @@ dod_test_contains($exportSource, 'document-screen-header', 'Pre-visualizacao dev
 dod_test_contains($exportSource, 'document-screen-footer', 'Pre-visualizacao deve manter seu rodape no fluxo normal.');
 dod_test_contains($exportSource, '$printMarginTop', 'Margem de impressao deve considerar a altura real do cabecalho.');
 dod_test_contains($exportSource, '$printMarginBottom', 'Margem de impressao deve considerar rodape e paginacao.');
+dod_test_contains($formSource, 'name="header[repeat_on_every_page]"', 'Formulario deve permitir configurar a repeticao do cabecalho.');
+dod_test_contains($formSource, 'name="footer[repeat_on_every_page]"', 'Formulario deve permitir configurar a repeticao do rodape.');
+dod_test_contains($exportSource, '$repeatHeader', 'Exportacao deve aplicar a escolha de repeticao do cabecalho.');
+dod_test_contains($exportSource, '$repeatFooter', 'Exportacao deve aplicar a escolha de repeticao do rodape.');
+dod_test_contains($exportSource, 'direct_purchase_dod_export_word_pagination_html', 'Word deve manter a paginacao mesmo sem repetir o rodape institucional.');
 dod_test_contains($formSource, '[methodology]', 'Formulario deve permitir editar a metodologia do topico 4.2.');
 dod_test_contains($formSource, '[requirements][delivery_days]', 'Formulario deve parametrizar o prazo de entrega.');
 dod_test_contains($formSource, '[requirements][receipt_days]', 'Formulario deve parametrizar o recebimento.');

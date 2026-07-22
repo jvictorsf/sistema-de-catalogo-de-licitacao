@@ -2,6 +2,14 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.35] - 2026-07-22
+
+### Documentacao
+- Backlog de possiveis features revisado contra o estado atual do sistema e reorganizado por prioridade critica, alta, media e estrategica.
+- Autenticacao AD/LDAP e configuracao de exemplo para Nginx/PHP-FPM foram marcadas como ja implementadas.
+- Entregas parciais agora descrevem separadamente o que existe e o escopo que ainda permanece pendente.
+- Adicionadas novas sugestoes para CSRF, rate limiting, seguranca de uploads, observabilidade, testes end-to-end, filas, notificacoes, PNCP, planejamento anual, gestao pos-compra, qualidade de dados e pesquisa global.
+
 ## [1.6.34] - 2026-07-22
 
 ### Adicionado

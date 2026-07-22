@@ -1139,6 +1139,54 @@ function direct_purchase_dod_prefill_footer_from_demands(array $footer, array $d
     return $footer;
 }
 
+function direct_purchase_dod_print_layout_metrics(array $header, array $footer, array $editorSettings): array
+{
+    $headerLineCount = 1;
+
+    foreach (['state_name', 'secretariat_name', 'department_name'] as $key) {
+        if (trim((string) ($header[$key] ?? '')) !== '') {
+            $headerLineCount++;
+        }
+    }
+
+    $footerLineCount = 0;
+
+    foreach ([
+        ['address', 'postal_code'],
+        ['phone', 'branch'],
+        ['cnpj'],
+        ['email'],
+    ] as $keys) {
+        foreach ($keys as $key) {
+            if (trim((string) ($footer[$key] ?? '')) !== '') {
+                $footerLineCount++;
+                break;
+            }
+        }
+    }
+
+    $showPageNumbers = boolish($editorSettings['show_page_numbers'] ?? true, true);
+    $headerHeight = 36.0 + (max(0, $headerLineCount - 1) * 4.5);
+    $footerHeight = max(12.0, 8.0 + ($footerLineCount * 4.5));
+    $headerPageGap = 4.0;
+    $footerPageGap = $showPageNumbers ? 9.0 : 4.0;
+    $contentGap = 4.0;
+    $marginTop = max((float) ($editorSettings['page_margin_top_mm'] ?? 50), $headerHeight + $headerPageGap + $contentGap);
+    $marginBottom = max((float) ($editorSettings['page_margin_bottom_mm'] ?? 32), $footerHeight + $footerPageGap + $contentGap);
+
+    return [
+        'margin_top_mm' => $marginTop,
+        'margin_bottom_mm' => $marginBottom,
+        'header_height_mm' => $headerHeight,
+        'footer_height_mm' => $footerHeight,
+        'header_offset_mm' => max(0.0, $marginTop - $headerPageGap),
+        'footer_offset_mm' => max(0.0, $marginBottom - $footerPageGap),
+        'header_page_gap_mm' => $headerPageGap,
+        'footer_page_gap_mm' => $footerPageGap,
+        'content_gap_mm' => $contentGap,
+    ];
+}
+
 function direct_purchase_dod_section_id(string $title, int $index): string
 {
     $base = function_exists('mb_strtolower') ? mb_strtolower(trim($title), 'UTF-8') : strtolower(trim($title));

@@ -186,6 +186,30 @@ dod_test_assert_true($editorDefaults['show_page_numbers'] === true, 'DOD deve nu
 dod_test_assert_true((float) $editorDefaults['page_margin_top_mm'] >= 50, 'Margem superior deve reservar espaco para o cabecalho.');
 dod_test_assert_true((float) $editorDefaults['page_margin_bottom_mm'] >= 25, 'Margem inferior deve reservar espaco para o rodape.');
 
+$printLayoutMetrics = direct_purchase_dod_print_layout_metrics(
+    [
+        'state_name' => 'Estado de Sao Paulo',
+        'secretariat_name' => 'Secretaria Municipal',
+        'department_name' => 'Departamento Administrativo',
+    ],
+    [
+        'address' => 'Rua de teste',
+        'postal_code' => '00000-000',
+        'phone' => '(00) 0000-0000',
+        'branch' => '100',
+        'cnpj' => '00.000.000/0001-00',
+        'email' => 'teste@example.com',
+    ],
+    $editorDefaults
+);
+dod_test_assert_true($printLayoutMetrics['margin_top_mm'] >= $printLayoutMetrics['header_height_mm'] + 8, 'Margem superior deve conter o cabecalho e uma folga antes do conteudo.');
+dod_test_assert_true($printLayoutMetrics['margin_bottom_mm'] >= $printLayoutMetrics['footer_height_mm'] + 13, 'Margem inferior deve conter rodape, paginacao e folga do conteudo.');
+dod_test_assert_true(abs(($printLayoutMetrics['margin_top_mm'] - $printLayoutMetrics['header_offset_mm']) - 4.0) < 0.001, 'Cabecalho deve manter afastamento fisico constante da borda da folha.');
+dod_test_assert_true(abs(($printLayoutMetrics['margin_bottom_mm'] - $printLayoutMetrics['footer_offset_mm']) - 9.0) < 0.001, 'Rodape deve deixar area exclusiva para a paginacao.');
+
+$printLayoutWithoutPageNumbers = direct_purchase_dod_print_layout_metrics([], ['cnpj' => '00.000.000/0001-00'], array_merge($editorDefaults, ['show_page_numbers' => false]));
+dod_test_assert_true(abs(($printLayoutWithoutPageNumbers['margin_bottom_mm'] - $printLayoutWithoutPageNumbers['footer_offset_mm']) - 4.0) < 0.001, 'Rodape sem paginacao deve usar apenas o afastamento padrao da borda.');
+
 $normalizedEditorSettings = rich_text_editor_normalize_settings([
     'default_text_align' => 'left',
     'force_text_alignment' => '0',
@@ -247,6 +271,12 @@ dod_test_contains($exportSource, 'width: 210mm', 'Pre-visualizacao do DOD deve u
 dod_test_contains($exportSource, 'table-header-group', 'Cabecalho das tabelas deve se repetir em quebras de pagina.');
 dod_test_contains($exportSource, 'page-break-inside: avoid', 'Linhas, titulos e assinaturas devem evitar cortes na impressao.');
 dod_test_contains($exportSource, '$headerHeight', 'Impressao deve reservar altura controlada para o cabecalho.');
+dod_test_contains($exportSource, 'print-running-header', 'PDF deve usar uma copia independente e repetivel do cabecalho.');
+dod_test_contains($exportSource, 'print-running-footer', 'PDF deve usar uma copia independente e repetivel do rodape.');
+dod_test_contains($exportSource, 'document-screen-header', 'Pre-visualizacao deve manter seu cabecalho no fluxo normal.');
+dod_test_contains($exportSource, 'document-screen-footer', 'Pre-visualizacao deve manter seu rodape no fluxo normal.');
+dod_test_contains($exportSource, '$printMarginTop', 'Margem de impressao deve considerar a altura real do cabecalho.');
+dod_test_contains($exportSource, '$printMarginBottom', 'Margem de impressao deve considerar rodape e paginacao.');
 dod_test_contains($formSource, '[methodology]', 'Formulario deve permitir editar a metodologia do topico 4.2.');
 dod_test_contains($formSource, '[requirements][delivery_days]', 'Formulario deve parametrizar o prazo de entrega.');
 dod_test_contains($formSource, '[requirements][receipt_days]', 'Formulario deve parametrizar o recebimento.');

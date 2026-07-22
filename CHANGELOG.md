@@ -2,6 +2,16 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.32] - 2026-07-22
+
+### Corrigido
+- Cabecalho e rodape do PDF do DOD deixam de compartilhar o mesmo elemento usado na pre-visualizacao, evitando posicionamento instavel e sobreposicao durante a fragmentacao em varias paginas.
+- Margens superior e inferior de impressao passam a considerar a quantidade real de linhas institucionais, dados do rodape e espaco exclusivo da numeracao de paginas.
+- Elementos repetidos ficam posicionados fora do fluxo paginado, enquanto a visualizacao em tela preserva o layout e a aparencia anteriores.
+
+### Testes
+- Suite do DOD passa a validar a geometria reservada, afastamento das bordas, area da paginacao e separacao entre os elementos de tela e de impressao.
+
 ## [1.6.31] - 2026-07-21
 
 ### Alterado

@@ -2,6 +2,15 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.33] - 2026-07-22
+
+### Corrigido
+- Corrigidos todos os textos com acentuacao substituida por `?` na tela do comparativo anual de precos, incluindo titulos, indicadores, tabelas, mensagens e legendas dos graficos.
+- Exportacao Excel do comparativo recebeu as mesmas correcoes em cabecalhos, resumo, serie mensal e observacoes de preco.
+
+### Testes
+- Suite do BI passa a validar UTF-8, ausencia de interrogacoes no lugar de acentos e os principais textos da tela e da exportacao.
+
 ## [1.6.32] - 2026-07-22
 
 ### Corrigido

@@ -48,7 +48,7 @@ function annual_export_date(?string $value): string
       xmlns:x="urn:schemas-microsoft-com:office:excel">
 <head>
     <meta charset="utf-8">
-    <title>Comparativo anual de pre?os</title>
+    <title>Comparativo anual de preços</title>
     <style>
         body { color: #111827; font-family: Arial, sans-serif; font-size: 10pt; }
         h1 { color: #17365d; font-size: 18pt; margin: 0 0 8px; }
@@ -66,16 +66,16 @@ function annual_export_date(?string $value): string
     </style>
 </head>
 <body>
-    <h1>Comparativo anual de pre?os</h1>
+    <h1>Comparativo anual de preços</h1>
 
     <table class="meta">
-        <tr><td>Per?odo</td><td><?= (int) $filters['year_from'] ?> a <?= (int) $filters['year_to'] ?></td></tr>
+        <tr><td>Período</td><td><?= (int) $filters['year_from'] ?> a <?= (int) $filters['year_to'] ?></td></tr>
         <tr><td>Agrupamento</td><td><?= e($dimensionLabel) ?></td></tr>
-        <tr><td>Pre?os analisados</td><td class="number" x:num="<?= (int) ($summary['count'] ?? 0) ?>"><?= (int) ($summary['count'] ?? 0) ?></td></tr>
-        <tr><td>M?dia unit?ria</td><td class="money" x:num="<?= e((string) ($summary['average'] ?? 0)) ?>"><?= e(annual_export_money($summary['average'])) ?></td></tr>
+        <tr><td>Preços analisados</td><td class="number" x:num="<?= (int) ($summary['count'] ?? 0) ?>"><?= (int) ($summary['count'] ?? 0) ?></td></tr>
+        <tr><td>Média unitária</td><td class="money" x:num="<?= e((string) ($summary['average'] ?? 0)) ?>"><?= e(annual_export_money($summary['average'])) ?></td></tr>
         <tr><td>Mediana</td><td class="money" x:num="<?= e((string) ($summary['median'] ?? 0)) ?>"><?= e(annual_export_money($summary['median'])) ?></td></tr>
-        <tr><td>Menor pre?o</td><td class="money" x:num="<?= e((string) ($summary['min'] ?? 0)) ?>"><?= e(annual_export_money($summary['min'])) ?></td></tr>
-        <tr><td>Maior pre?o</td><td class="money" x:num="<?= e((string) ($summary['max'] ?? 0)) ?>"><?= e(annual_export_money($summary['max'])) ?></td></tr>
+        <tr><td>Menor preço</td><td class="money" x:num="<?= e((string) ($summary['min'] ?? 0)) ?>"><?= e(annual_export_money($summary['min'])) ?></td></tr>
+        <tr><td>Maior preço</td><td class="money" x:num="<?= e((string) ($summary['max'] ?? 0)) ?>"><?= e(annual_export_money($summary['max'])) ?></td></tr>
         <tr><td>Outliers</td><td class="number" x:num="<?= (int) ($summary['outlier_count'] ?? 0) ?>"><?= (int) ($summary['outlier_count'] ?? 0) ?></td></tr>
     </table>
 
@@ -84,14 +84,14 @@ function annual_export_date(?string $value): string
         <thead>
             <tr>
                 <th>Ano</th>
-                <th>Pre?os</th>
-                <th>M?dia</th>
+                <th>Preços</th>
+                <th>Média</th>
                 <th>Mediana</th>
                 <th>Moda</th>
                 <th>Menor</th>
                 <th>Maior</th>
-                <th>Desvio padr?o</th>
-                <th>Coeficiente de varia??o</th>
+                <th>Desvio padrão</th>
+                <th>Coeficiente de variação</th>
                 <th>Outliers</th>
             </tr>
         </thead>
@@ -119,12 +119,12 @@ function annual_export_date(?string $value): string
             <tr>
                 <th><?= e($dimensionLabel) ?></th>
                 <th>Ano</th>
-                <th>Pre?os</th>
-                <th>M?dia</th>
+                <th>Preços</th>
+                <th>Média</th>
                 <th>Mediana</th>
                 <th>Menor</th>
                 <th>Maior</th>
-                <th>Coeficiente de varia??o</th>
+                <th>Coeficiente de variação</th>
                 <th>Outliers</th>
             </tr>
         </thead>
@@ -145,14 +145,14 @@ function annual_export_date(?string $value): string
         </tbody>
     </table>
 
-    <h2>S?rie mensal</h2>
+    <h2>Série mensal</h2>
     <table>
         <thead>
             <tr>
-                <th>M?s</th>
-                <th>Pre?os</th>
-                <th>M?dia</th>
-                <th>M?dia m?vel (3 meses)</th>
+                <th>Mês</th>
+                <th>Preços</th>
+                <th>Média</th>
+                <th>Média móvel (3 meses)</th>
                 <th>Menor</th>
                 <th>Maior</th>
                 <th>Outliers</th>
@@ -173,20 +173,20 @@ function annual_export_date(?string $value): string
         </tbody>
     </table>
 
-    <h2>Observa??es de pre?o</h2>
+    <h2>Observações de preço</h2>
     <table>
         <thead>
             <tr>
                 <th>Data</th>
-                <th>C?digo</th>
+                <th>Código</th>
                 <th>Item</th>
                 <th>Fornecedor</th>
                 <th>CNPJ/CPF</th>
                 <th>Categoria</th>
                 <th>Secretaria</th>
                 <th>Projeto</th>
-                <th>N? or?amento</th>
-                <th>Pre?o unit?rio</th>
+                <th>Nº orçamento</th>
+                <th>Preço unitário</th>
                 <th>Resultado</th>
             </tr>
         </thead>

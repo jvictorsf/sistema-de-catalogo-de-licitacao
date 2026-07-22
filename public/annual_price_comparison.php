@@ -72,8 +72,8 @@ require __DIR__ . '/../app/views/header.php';
 
 <div class="page-header d-flex justify-content-between align-items-start mb-4">
     <div class="page-title">
-        <h1 class="h3 mb-1">Comparativo anual de pre?os</h1>
-        <p class="text-muted mb-0">Evolu??o hist?rica de pre?os por item, fornecedor, categoria e secretaria.</p>
+        <h1 class="h3 mb-1">Comparativo anual de preços</h1>
+        <p class="text-muted mb-0">Evolução histórica de preços por item, fornecedor, categoria e secretaria.</p>
     </div>
 
     <div class="page-actions d-flex gap-2 flex-wrap justify-content-end">
@@ -81,7 +81,7 @@ require __DIR__ . '/../app/views/header.php';
             <i class="bi bi-file-earmark-spreadsheet"></i>Exportar Excel
         </a>
         <a href="/project_bi.php" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i>Gest?o de projetos
+            <i class="bi bi-arrow-left"></i>Gestão de projetos
         </a>
     </div>
 </div>
@@ -180,7 +180,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card card-body dashboard-kpi h-100">
             <div class="dashboard-kpi-icon text-bg-primary"><i class="bi bi-receipt"></i></div>
             <div>
-                <div class="text-muted small">Pre?os analisados</div>
+                <div class="text-muted small">Preços analisados</div>
                 <div class="h3 mb-0"><?= (int) ($summary['count'] ?? 0) ?></div>
             </div>
         </div>
@@ -189,7 +189,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card card-body dashboard-kpi h-100">
             <div class="dashboard-kpi-icon text-bg-success"><i class="bi bi-calculator"></i></div>
             <div>
-                <div class="text-muted small">M?dia unit?ria</div>
+                <div class="text-muted small">Média unitária</div>
                 <div class="h5 mb-0"><?= e(annual_price_money($summary['average'])) ?></div>
             </div>
         </div>
@@ -198,7 +198,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card card-body dashboard-kpi h-100">
             <div class="dashboard-kpi-icon text-bg-info"><i class="bi bi-arrow-down"></i></div>
             <div>
-                <div class="text-muted small">Menor pre?o</div>
+                <div class="text-muted small">Menor preço</div>
                 <div class="h5 mb-0"><?= e(annual_price_money($summary['min'])) ?></div>
             </div>
         </div>
@@ -207,7 +207,7 @@ require __DIR__ . '/../app/views/header.php';
         <div class="card card-body dashboard-kpi h-100">
             <div class="dashboard-kpi-icon text-bg-warning"><i class="bi bi-arrow-up"></i></div>
             <div>
-                <div class="text-muted small">Maior pre?o</div>
+                <div class="text-muted small">Maior preço</div>
                 <div class="h5 mb-0"><?= e(annual_price_money($summary['max'])) ?></div>
             </div>
         </div>
@@ -226,7 +226,7 @@ require __DIR__ . '/../app/views/header.php';
 <div class="row g-4 mb-4">
     <div class="col-xl-8">
         <div class="card h-100">
-            <div class="card-header fw-semibold">Tend?ncia mensal e m?dia m?vel</div>
+            <div class="card-header fw-semibold">Tendência mensal e média móvel</div>
             <div class="card-body">
                 <div class="project-bi-chart project-bi-chart-wide"><canvas id="trendChart"></canvas></div>
             </div>
@@ -234,12 +234,12 @@ require __DIR__ . '/../app/views/header.php';
     </div>
     <div class="col-xl-4">
         <div class="card h-100">
-            <div class="card-header fw-semibold">Indicadores estat?sticos</div>
+            <div class="card-header fw-semibold">Indicadores estatísticos</div>
             <div class="card-body project-bi-stat-grid">
                 <div><span>Mediana</span><strong><?= e(annual_price_money($summary['median'])) ?></strong></div>
                 <div><span>Moda</span><strong><?= e(annual_price_money($summary['mode'])) ?></strong></div>
-                <div><span>Desvio padr?o</span><strong><?= e(annual_price_money($summary['stddev'])) ?></strong></div>
-                <div><span>Coef. varia??o</span><strong><?= e(annual_price_percent($summary['coefficient_variation'])) ?></strong></div>
+                <div><span>Desvio padrão</span><strong><?= e(annual_price_money($summary['stddev'])) ?></strong></div>
+                <div><span>Coef. variação</span><strong><?= e(annual_price_percent($summary['coefficient_variation'])) ?></strong></div>
                 <div><span>Itens</span><strong><?= (int) ($summary['item_count'] ?? 0) ?></strong></div>
                 <div><span>Fornecedores</span><strong><?= (int) ($summary['supplier_count'] ?? 0) ?></strong></div>
                 <div><span>Categorias</span><strong><?= (int) ($summary['category_count'] ?? 0) ?></strong></div>
@@ -261,8 +261,8 @@ require __DIR__ . '/../app/views/header.php';
     <div class="col-xl-7">
         <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
-                <span class="fw-semibold">Evolu??o por <?= e(mb_strtolower($dimensionLabel)) ?></span>
-                <span class="badge text-bg-secondary">6 maiores s?ries</span>
+                <span class="fw-semibold">Evolução por <?= e(mb_strtolower($dimensionLabel)) ?></span>
+                <span class="badge text-bg-secondary">6 maiores séries</span>
             </div>
             <div class="card-body">
                 <div class="project-bi-chart"><canvas id="groupChart"></canvas></div>
@@ -282,18 +282,18 @@ require __DIR__ . '/../app/views/header.php';
                 <tr>
                     <th><?= e($dimensionLabel) ?></th>
                     <th>Ano</th>
-                    <th>Pre?os</th>
-                    <th>M?dia</th>
+                    <th>Preços</th>
+                    <th>Média</th>
                     <th>Mediana</th>
                     <th>Menor</th>
                     <th>Maior</th>
-                    <th>Varia??o</th>
+                    <th>Variação</th>
                     <th>Outliers</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (!$visibleGroups): ?>
-                    <tr><td colspan="9" class="text-center text-muted py-4">Nenhum pre?o encontrado para os filtros informados.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">Nenhum preço encontrado para os filtros informados.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($visibleGroups as $group): ?>
                     <tr>
@@ -321,8 +321,8 @@ require __DIR__ . '/../app/views/header.php';
 
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
-        <span class="fw-semibold">Pre?os discrepantes</span>
-        <span class="text-muted small">Crit?rio IQR por item e ano</span>
+        <span class="fw-semibold">Preços discrepantes</span>
+        <span class="text-muted small">Critério IQR por item e ano</span>
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0 price-comparison-table">
@@ -334,12 +334,12 @@ require __DIR__ . '/../app/views/header.php';
                     <th>Categoria</th>
                     <th>Secretaria</th>
                     <th>Projeto</th>
-                    <th>Pre?o unit?rio</th>
+                    <th>Preço unitário</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (!$visibleOutliers): ?>
-                    <tr><td colspan="7" class="text-center text-muted py-4">Nenhum outlier identificado no per?odo.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-4">Nenhum outlier identificado no período.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($visibleOutliers as $row): ?>
                     <tr>
@@ -392,8 +392,8 @@ document.addEventListener('DOMContentLoaded', function() {
             data: {
                 labels: trend.labels,
                 datasets: [
-                    { label: 'M?dia', data: trend.average, borderColor: '#0d6efd', backgroundColor: '#0d6efd', tension: .2, spanGaps: true },
-                    { label: 'M?dia m?vel (3 meses)', data: trend.moving_average, borderColor: '#fd7e14', backgroundColor: '#fd7e14', borderWidth: 3, tension: .25, spanGaps: true },
+                    { label: 'Média', data: trend.average, borderColor: '#0d6efd', backgroundColor: '#0d6efd', tension: .2, spanGaps: true },
+                    { label: 'Média móvel (3 meses)', data: trend.moving_average, borderColor: '#fd7e14', backgroundColor: '#fd7e14', borderWidth: 3, tension: .25, spanGaps: true },
                     { label: 'Menor', data: trend.min, borderColor: '#198754', backgroundColor: '#198754', borderDash: [6, 5], pointRadius: 2, spanGaps: true },
                     { label: 'Maior', data: trend.max, borderColor: '#6f42c1', backgroundColor: '#6f42c1', borderDash: [6, 5], pointRadius: 2, spanGaps: true },
                     { label: 'Outlier', data: trend.outlier_average, borderColor: '#dc3545', backgroundColor: '#dc3545', showLine: false, pointRadius: 6, spanGaps: false }
@@ -411,7 +411,7 @@ document.addEventListener('DOMContentLoaded', function() {
             data: {
                 labels: annual.labels,
                 datasets: [
-                    { label: 'M?dia', data: annual.average, backgroundColor: '#0d6efd' },
+                    { label: 'Média', data: annual.average, backgroundColor: '#0d6efd' },
                     { label: 'Menor', data: annual.min, backgroundColor: '#198754' },
                     { label: 'Maior', data: annual.max, backgroundColor: '#6f42c1' }
                 ]

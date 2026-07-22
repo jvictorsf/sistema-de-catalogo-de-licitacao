@@ -40,9 +40,9 @@ $historyRow = static function (array $overrides): array {
         'supplier_name' => 'Fornecedor A',
         'supplier_document' => '00000000000100',
         'category_id' => 10,
-        'category_name' => 'Inform?tica',
+        'category_name' => 'Informática',
         'secretariat_id' => 20,
-        'secretariat_name' => 'Secretaria de Administra??o',
+        'secretariat_name' => 'Secretaria de Administração',
         'project_id' => 30,
         'project_name' => 'Projeto 2025',
         'quote_number' => 'ORC-001',
@@ -55,7 +55,7 @@ $historyRows = [
     $historyRow([
         'quote_item_id' => 2,
         'secretariat_id' => 21,
-        'secretariat_name' => 'Secretaria de Sa?de',
+        'secretariat_name' => 'Secretaria de Saúde',
     ]),
     $historyRow([
         'quote_item_id' => 3,
@@ -166,6 +166,37 @@ project_bi_test_assert_true(
         && $normalizedFilters['dimension'] === 'item',
     'Filtros devem normalizar periodo invertido e dimensao invalida.'
 );
+
+$comparisonPageSource = (string) file_get_contents(__DIR__ . '/../public/annual_price_comparison.php');
+$comparisonExportSource = (string) file_get_contents(__DIR__ . '/../public/annual_price_comparison_export.php');
+
+foreach ([$comparisonPageSource, $comparisonExportSource] as $source) {
+    project_bi_test_assert_true(
+        mb_check_encoding($source, 'UTF-8'),
+        'Arquivos do comparativo anual devem permanecer em UTF-8 valido.'
+    );
+
+    $visibleText = preg_replace('/<\?(?:php|=)?[\s\S]*?\?>/', '', $source) ?? $source;
+    $visibleText = strip_tags($visibleText);
+    project_bi_test_assert_true(
+        preg_match('/\p{L}\?+\p{L}/u', $visibleText) !== 1,
+        'Textos visiveis do comparativo anual nao devem conter acentuacao substituida por interrogacao.'
+    );
+}
+
+foreach (['Comparativo anual de preços', 'Tendência mensal e média móvel', 'Indicadores estatísticos'] as $expectedText) {
+    project_bi_test_assert_true(
+        str_contains($comparisonPageSource, $expectedText),
+        'Tela do comparativo deve preservar o texto: ' . $expectedText
+    );
+}
+
+foreach (['Observações de preço', 'Nº orçamento', 'Média móvel (3 meses)'] as $expectedText) {
+    project_bi_test_assert_true(
+        str_contains($comparisonExportSource, $expectedText),
+        'Exportacao do comparativo deve preservar o texto: ' . $expectedText
+    );
+}
 
 
 echo "ProjectBiTest: OK\n";

@@ -1027,7 +1027,7 @@ function direct_purchase_dod_normalize_header(mixed $header, array $project = []
     }
 
     foreach (['entity_name', 'state_name', 'place', 'logo_left_path', 'logo_center_path', 'logo_right_path'] as $key) {
-        $header[$key] = trim((string) ($defaults[$key] ?? ''));
+        $header[$key] = trim((string) ($header[$key] ?? $defaults[$key] ?? ''));
     }
 
     $header['additional_logo_paths'] = direct_purchase_dod_normalize_logo_paths($header['additional_logo_paths'] ?? []);
@@ -1170,23 +1170,30 @@ function direct_purchase_dod_print_layout_metrics(array $header, array $footer, 
     }
 
     $showPageNumbers = boolish($editorSettings['show_page_numbers'] ?? true, true);
-    $headerHeight = 36.0 + (max(0, $headerLineCount - 1) * 4.5);
-    $footerHeight = max(12.0, 8.0 + ($footerLineCount * 4.5));
-    $headerPageGap = 4.0;
-    $footerPageGap = $showPageNumbers ? 9.0 : 4.0;
+    $headerHeight = 39.0 + (max(0, $headerLineCount - 1) * 4.5);
+    $footerHeight = max(14.0, 10.0 + ($footerLineCount * 4.5));
+    $headerTop = 4.0;
+    $footerBottom = $showPageNumbers ? 9.0 : 4.0;
     $contentGap = 4.0;
-    $marginTop = max((float) ($editorSettings['page_margin_top_mm'] ?? 50), $headerHeight + $headerPageGap + $contentGap);
-    $marginBottom = max((float) ($editorSettings['page_margin_bottom_mm'] ?? 32), $footerHeight + $footerPageGap + $contentGap);
+    // Reservas totais usadas pelos espacadores repetidos do fluxo paginado.
+    $marginTop = max(
+        (float) ($editorSettings['page_margin_top_mm'] ?? 50),
+        $headerTop + $headerHeight + $contentGap
+    );
+    $marginBottom = max(
+        (float) ($editorSettings['page_margin_bottom_mm'] ?? 32),
+        $footerBottom + $footerHeight + $contentGap
+    );
 
     return [
         'margin_top_mm' => $marginTop,
         'margin_bottom_mm' => $marginBottom,
         'header_height_mm' => $headerHeight,
         'footer_height_mm' => $footerHeight,
-        'header_offset_mm' => max(0.0, $marginTop - $headerPageGap),
-        'footer_offset_mm' => max(0.0, $marginBottom - $footerPageGap),
-        'header_page_gap_mm' => $headerPageGap,
-        'footer_page_gap_mm' => $footerPageGap,
+        'header_top_mm' => $headerTop,
+        'footer_bottom_mm' => $footerBottom,
+        'header_page_gap_mm' => $headerTop,
+        'footer_page_gap_mm' => $footerBottom,
         'content_gap_mm' => $contentGap,
     ];
 }

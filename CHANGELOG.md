@@ -2,6 +2,22 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.36] - 2026-07-22
+
+### Corrigido
+- Impressao/PDF do DOD deixa de usar offsets verticais negativos que faziam o Chromium fragmentar cabecalho e rodape em paginas ou regioes incorretas.
+- Cabecalho institucional, conteudo e rodape passam a ocupar faixas separadas em todas as paginas, sem corte ou sobreposicao.
+- Normalizacao do cabecalho passa a preservar entidade, estado, local e caminhos de logos ja configurados no documento.
+
+### Alterado
+- Metricas de impressao passam a expor posicoes fisicas claras para topo do cabecalho e base do rodape, mantendo area exclusiva para a numeracao.
+- Grupos de cabecalho e rodape de uma tabela estrutural reservam o espaco necessario em cada pagina do Chromium, enquanto os elementos fixos usam somente coordenadas nao negativas.
+- Alturas recebem margem de seguranca para logos, linhas institucionais, faixas e quatro linhas de contato; visualizacao em tela e cabecalhos/rodapes nativos do Word permanecem inalterados.
+
+### Testes
+- Suite do DOD valida coordenadas, relacoes entre margens e alturas, ausencia dos offsets antigos, valores personalizados e espacos repetidos.
+- PDF realista de 22 paginas gerado no Chrome foi validado quanto a logos, cabecalho, rodape, numeracao, conteudo, tabelas, titulos, paginas em branco e cores institucionais.
+
 ## [1.6.35] - 2026-07-22
 
 ### Documentacao

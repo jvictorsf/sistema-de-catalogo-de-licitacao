@@ -189,6 +189,19 @@ $nonRepeatingFooter = direct_purchase_dod_normalize_footer(['repeat_on_every_pag
 dod_test_assert_true($nonRepeatingHeader['repeat_on_every_page'] === false, 'Cabecalho deve aceitar exibicao somente na primeira pagina.');
 dod_test_assert_true($nonRepeatingFooter['repeat_on_every_page'] === false, 'Rodape deve aceitar exibicao somente ao final do documento.');
 
+$customHeaderValues = [
+    'entity_name' => 'Entidade personalizada',
+    'state_name' => 'Estado personalizado',
+    'place' => 'Municipio personalizado',
+    'logo_left_path' => '/assets/logo-esquerda.png',
+    'logo_center_path' => '/assets/logo-central.png',
+    'logo_right_path' => '/assets/logo-direita.png',
+];
+$customHeader = direct_purchase_dod_normalize_header($customHeaderValues);
+foreach ($customHeaderValues as $key => $expectedValue) {
+    dod_test_assert_true($customHeader[$key] === $expectedValue, 'Cabecalho deve preservar o valor personalizado de ' . $key . '.');
+}
+
 $editorDefaults = rich_text_editor_default_settings();
 dod_test_assert_true($editorDefaults['default_text_align'] === 'justify', 'Editor deve usar alinhamento justificado por padrao.');
 dod_test_assert_true($editorDefaults['font_family'] === 'arial', 'Editor deve usar Arial por padrao.');
@@ -212,13 +225,42 @@ $printLayoutMetrics = direct_purchase_dod_print_layout_metrics(
     ],
     $editorDefaults
 );
-dod_test_assert_true($printLayoutMetrics['margin_top_mm'] >= $printLayoutMetrics['header_height_mm'] + 8, 'Margem superior deve conter o cabecalho e uma folga antes do conteudo.');
-dod_test_assert_true($printLayoutMetrics['margin_bottom_mm'] >= $printLayoutMetrics['footer_height_mm'] + 13, 'Margem inferior deve conter rodape, paginacao e folga do conteudo.');
-dod_test_assert_true(abs(($printLayoutMetrics['margin_top_mm'] - $printLayoutMetrics['header_offset_mm']) - 4.0) < 0.001, 'Cabecalho deve manter afastamento fisico constante da borda da folha.');
-dod_test_assert_true(abs(($printLayoutMetrics['margin_bottom_mm'] - $printLayoutMetrics['footer_offset_mm']) - 9.0) < 0.001, 'Rodape deve deixar area exclusiva para a paginacao.');
+dod_test_assert_true($printLayoutMetrics['header_top_mm'] === 4.0, 'Cabecalho deve manter afastamento fisico constante da borda da folha.');
+dod_test_assert_true($printLayoutMetrics['footer_bottom_mm'] === 9.0, 'Rodape deve deixar area exclusiva para a paginacao.');
+dod_test_assert_true(
+    $printLayoutMetrics['margin_top_mm'] >= $printLayoutMetrics['header_top_mm'] + $printLayoutMetrics['header_height_mm'] + $printLayoutMetrics['content_gap_mm'],
+    'Margem superior deve conter posicao, altura do cabecalho e folga antes do conteudo.'
+);
+dod_test_assert_true(
+    $printLayoutMetrics['margin_bottom_mm'] >= $printLayoutMetrics['footer_bottom_mm'] + $printLayoutMetrics['footer_height_mm'] + $printLayoutMetrics['content_gap_mm'],
+    'Margem inferior deve conter paginacao, rodape e folga antes do conteudo.'
+);
+dod_test_assert_true(!array_key_exists('header_offset_mm', $printLayoutMetrics), 'Metrica nao deve expor offset ambiguo do cabecalho.');
+dod_test_assert_true(!array_key_exists('footer_offset_mm', $printLayoutMetrics), 'Metrica nao deve expor offset ambiguo do rodape.');
 
 $printLayoutWithoutPageNumbers = direct_purchase_dod_print_layout_metrics([], ['cnpj' => '00.000.000/0001-00'], array_merge($editorDefaults, ['show_page_numbers' => false]));
-dod_test_assert_true(abs(($printLayoutWithoutPageNumbers['margin_bottom_mm'] - $printLayoutWithoutPageNumbers['footer_offset_mm']) - 4.0) < 0.001, 'Rodape sem paginacao deve usar apenas o afastamento padrao da borda.');
+dod_test_assert_true($printLayoutWithoutPageNumbers['footer_bottom_mm'] === 4.0, 'Rodape sem paginacao deve usar apenas o afastamento padrao da borda.');
+
+$threeHeaderLinesAndFourFooterLines = direct_purchase_dod_print_layout_metrics(
+    [
+        'state_name' => 'Estado de Sao Paulo',
+        'secretariat_name' => 'Secretaria Municipal',
+        'department_name' => '',
+    ],
+    [
+        'address' => 'Rua de teste',
+        'postal_code' => '00000-000',
+        'phone' => '(00) 0000-0000',
+        'branch' => '100',
+        'cnpj' => '00.000.000/0001-00',
+        'email' => 'teste@example.com',
+    ],
+    $editorDefaults
+);
+dod_test_assert_true($threeHeaderLinesAndFourFooterLines['header_height_mm'] === 48.0, 'Tres linhas institucionais devem reservar 48 mm para o cabecalho.');
+dod_test_assert_true($threeHeaderLinesAndFourFooterLines['footer_height_mm'] === 28.0, 'Quatro linhas devem reservar 28 mm para o rodape.');
+dod_test_assert_true($threeHeaderLinesAndFourFooterLines['margin_top_mm'] === 56.0, 'Exemplo deve reservar margem logica superior de 56 mm.');
+dod_test_assert_true($threeHeaderLinesAndFourFooterLines['margin_bottom_mm'] === 41.0, 'Exemplo deve reservar margem logica inferior de 41 mm.');
 
 $normalizedEditorSettings = rich_text_editor_normalize_settings([
     'default_text_align' => 'left',
@@ -292,6 +334,15 @@ dod_test_contains($formSource, 'name="footer[repeat_on_every_page]"', 'Formulari
 dod_test_contains($exportSource, '$repeatHeader', 'Exportacao deve aplicar a escolha de repeticao do cabecalho.');
 dod_test_contains($exportSource, '$repeatFooter', 'Exportacao deve aplicar a escolha de repeticao do rodape.');
 dod_test_contains($exportSource, 'direct_purchase_dod_export_word_pagination_html', 'Word deve manter a paginacao mesmo sem repetir o rodape institucional.');
+dod_test_contains($exportSource, '$headerTop', 'Exportacao deve usar posicao fisica clara para o cabecalho.');
+dod_test_contains($exportSource, '$footerBottom', 'Exportacao deve usar posicao fisica clara para o rodape.');
+dod_test_contains($exportSource, 'print-header-spacer', 'Chromium deve reservar a altura repetida do cabecalho no fluxo paginado.');
+dod_test_contains($exportSource, 'print-footer-spacer', 'Chromium deve reservar a altura repetida do rodape no fluxo paginado.');
+dod_test_contains($exportSource, 'display: table-footer-group', 'Rodape deve possuir espaco repetido em todas as paginas.');
+dod_test_not_contains($exportSource, '$headerOffset', 'Exportacao nao deve reutilizar margem como offset do cabecalho.');
+dod_test_not_contains($exportSource, '$footerOffset', 'Exportacao nao deve reutilizar margem como offset do rodape.');
+dod_test_not_contains($exportSource, 'top: -<?=', 'Cabecalho nao deve usar coordenada vertical negativa.');
+dod_test_not_contains($exportSource, 'bottom: -<?=', 'Rodape nao deve usar coordenada vertical negativa.');
 dod_test_contains($formSource, '[methodology]', 'Formulario deve permitir editar a metodologia do topico 4.2.');
 dod_test_contains($formSource, '[requirements][delivery_days]', 'Formulario deve parametrizar o prazo de entrega.');
 dod_test_contains($formSource, '[requirements][receipt_days]', 'Formulario deve parametrizar o recebimento.');

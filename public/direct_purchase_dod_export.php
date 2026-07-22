@@ -197,10 +197,19 @@ $printMarginTop = $repeatHeader
 $printMarginBottom = $repeatFooter
     ? rich_text_editor_css_number($printLayoutMetrics['margin_bottom_mm'])
     : $marginBottom;
-$headerOffset = rich_text_editor_css_number($printLayoutMetrics['header_offset_mm']);
-$footerOffset = rich_text_editor_css_number($printLayoutMetrics['footer_offset_mm']);
+$headerTop = rich_text_editor_css_number($printLayoutMetrics['header_top_mm']);
+$footerBottom = rich_text_editor_css_number($printLayoutMetrics['footer_bottom_mm']);
 $headerHeight = rich_text_editor_css_number($printLayoutMetrics['header_height_mm']);
 $footerHeight = rich_text_editor_css_number($printLayoutMetrics['footer_height_mm']);
+$headerSpacerHeight = $repeatHeader
+    ? rich_text_editor_css_number(max(0.0, (float) $printMarginTop - (float) $headerTop))
+    : '0';
+$footerSpacerHeight = $repeatFooter
+    ? rich_text_editor_css_number(max(0.0, (float) $printMarginBottom - (float) $footerBottom))
+    : '0';
+// No Chromium, fixed usa a area do @page; os grupos da tabela reservam o restante sem offsets negativos.
+$pageMarginTop = $repeatHeader ? $headerTop : $marginTop;
+$pageMarginBottom = $repeatFooter ? $footerBottom : $marginBottom;
 $showPageNumbers = (bool) $editorSettings['show_page_numbers'];
 $headerHtml = direct_purchase_dod_export_header_html($header, $additionalLogoPaths, $entityName);
 $footerHtml = direct_purchase_dod_export_footer_html($footer);
@@ -280,6 +289,11 @@ if ($format === 'word') {
         .official-footer .stripes { margin-bottom: 1.5mm; }
         .official-footer p { margin: .5mm 0; }
         .print-running-header, .print-running-footer { display: none; }
+        .print-page-frame { border: 0; border-collapse: collapse; display: block; width: 100%; }
+        .print-page-frame > thead, .print-page-frame > tfoot { display: none; }
+        .print-page-frame > tbody,
+        .print-page-frame > tbody > tr,
+        .print-page-frame > tbody > tr > td { display: block; padding: 0; width: 100%; }
         .word-header-container { mso-element: header; }
         .word-footer-container { mso-element: footer; }
         .word-section { page: Section1; }
@@ -307,6 +321,23 @@ if ($format === 'word') {
             html, body { background: #fff; width: auto; }
             .toolbar { display: none; }
             .page { width: auto; max-width: none; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+            .print-page-frame { border-collapse: collapse; display: table; table-layout: fixed; width: 100%; }
+            .print-page-frame > thead { display: table-header-group; }
+            .print-page-frame > tfoot { display: table-footer-group; }
+            .print-page-frame > tbody { display: table-row-group; }
+            .print-page-frame > thead > tr,
+            .print-page-frame > tfoot > tr,
+            .print-page-frame > tbody > tr { display: table-row; }
+            .print-page-frame > thead > tr > td,
+            .print-page-frame > tfoot > tr > td,
+            .print-page-frame > tbody > tr > td {
+                border: 0;
+                display: table-cell;
+                padding: 0;
+                width: 100%;
+            }
+            .print-header-spacer { height: <?= e($headerSpacerHeight) ?>mm; }
+            .print-footer-spacer { height: <?= e($footerSpacerHeight) ?>mm; }
             <?php if ($repeatHeader): ?>
             .document-screen-header { display: none !important; }
             <?php endif; ?>
@@ -319,21 +350,20 @@ if ($format === 'word') {
                 display: block;
                 left: 0;
                 margin: 0;
-                overflow: hidden;
                 position: fixed;
                 right: 0;
-                z-index: 1;
+                z-index: 2;
             }
             <?php endif; ?>
             <?php if ($repeatHeader): ?>
             .print-running-header {
                 height: <?= e($headerHeight) ?>mm;
-                top: -<?= e($headerOffset) ?>mm;
+                top: 0;
             }
             <?php endif; ?>
             <?php if ($repeatFooter): ?>
             .print-running-footer {
-                bottom: -<?= e($footerOffset) ?>mm;
+                bottom: 0;
                 height: <?= e($footerHeight) ?>mm;
             }
             <?php endif; ?>
@@ -348,7 +378,7 @@ if ($format === 'word') {
         }
         @page {
             size: A4;
-            margin: <?= e($printMarginTop) ?>mm <?= e($marginRight) ?>mm <?= e($printMarginBottom) ?>mm <?= e($marginLeft) ?>mm;
+            margin: <?= e($pageMarginTop) ?>mm <?= e($marginRight) ?>mm <?= e($pageMarginBottom) ?>mm <?= e($marginLeft) ?>mm;
             <?php if ($showPageNumbers): ?>
             @bottom-left {
                 content: "Página " counter(page) " de " counter(pages);
@@ -394,6 +424,21 @@ if ($format === 'word') {
 <?php endif; ?>
 <?php if ($format !== 'word' && $repeatFooter): ?>
     <div class="print-running-footer" aria-hidden="true"><?= $footerHtml ?></div>
+<?php endif; ?>
+
+<?php if ($format !== 'word' && ($repeatHeader || $repeatFooter)): ?>
+<table class="print-page-frame" role="presentation">
+    <?php if ($repeatHeader): ?>
+    <thead>
+        <tr><td><div class="print-header-spacer" aria-hidden="true"></div></td></tr>
+    </thead>
+    <?php endif; ?>
+    <?php if ($repeatFooter): ?>
+    <tfoot>
+        <tr><td><div class="print-footer-spacer" aria-hidden="true"></div></td></tr>
+    </tfoot>
+    <?php endif; ?>
+    <tbody><tr><td>
 <?php endif; ?>
 
 <main class="page document-content <?= $format === 'word' ? 'word-section' : '' ?>">
@@ -452,5 +497,10 @@ if ($format === 'word') {
         <div class="document-screen-footer"><?= $footerHtml ?></div>
     <?php endif; ?>
 </main>
+
+<?php if ($format !== 'word' && ($repeatHeader || $repeatFooter)): ?>
+    </td></tr></tbody>
+</table>
+<?php endif; ?>
 </body>
 </html>

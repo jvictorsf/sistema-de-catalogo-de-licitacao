@@ -1174,6 +1174,7 @@ function direct_purchase_dod_print_layout_metrics(array $header, array $footer, 
     $footerHeight = max(14.0, 10.0 + ($footerLineCount * 4.5));
     $headerTop = 4.0;
     $footerBottom = $showPageNumbers ? 9.0 : 4.0;
+    $footerInset = 6.0;
     $contentGap = 4.0;
     // Reservas totais usadas pelos espacadores repetidos do fluxo paginado.
     $marginTop = max(
@@ -1182,7 +1183,7 @@ function direct_purchase_dod_print_layout_metrics(array $header, array $footer, 
     );
     $marginBottom = max(
         (float) ($editorSettings['page_margin_bottom_mm'] ?? 32),
-        $footerBottom + $footerHeight + $contentGap
+        $footerBottom + $footerInset + $footerHeight + $contentGap
     );
 
     return [
@@ -1192,6 +1193,7 @@ function direct_purchase_dod_print_layout_metrics(array $header, array $footer, 
         'footer_height_mm' => $footerHeight,
         'header_top_mm' => $headerTop,
         'footer_bottom_mm' => $footerBottom,
+        'footer_inset_mm' => $footerInset,
         'header_page_gap_mm' => $headerTop,
         'footer_page_gap_mm' => $footerBottom,
         'content_gap_mm' => $contentGap,

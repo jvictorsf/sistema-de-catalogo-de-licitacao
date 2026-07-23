@@ -227,13 +227,14 @@ $printLayoutMetrics = direct_purchase_dod_print_layout_metrics(
 );
 dod_test_assert_true($printLayoutMetrics['header_top_mm'] === 4.0, 'Cabecalho deve manter afastamento fisico constante da borda da folha.');
 dod_test_assert_true($printLayoutMetrics['footer_bottom_mm'] === 9.0, 'Rodape deve deixar area exclusiva para a paginacao.');
+dod_test_assert_true($printLayoutMetrics['footer_inset_mm'] === 6.0, 'Rodape deve permanecer dentro da area imprimivel do navegador.');
 dod_test_assert_true(
     $printLayoutMetrics['margin_top_mm'] >= $printLayoutMetrics['header_top_mm'] + $printLayoutMetrics['header_height_mm'] + $printLayoutMetrics['content_gap_mm'],
     'Margem superior deve conter posicao, altura do cabecalho e folga antes do conteudo.'
 );
 dod_test_assert_true(
-    $printLayoutMetrics['margin_bottom_mm'] >= $printLayoutMetrics['footer_bottom_mm'] + $printLayoutMetrics['footer_height_mm'] + $printLayoutMetrics['content_gap_mm'],
-    'Margem inferior deve conter paginacao, rodape e folga antes do conteudo.'
+    $printLayoutMetrics['margin_bottom_mm'] >= $printLayoutMetrics['footer_bottom_mm'] + $printLayoutMetrics['footer_inset_mm'] + $printLayoutMetrics['footer_height_mm'] + $printLayoutMetrics['content_gap_mm'],
+    'Margem inferior deve conter paginacao, recuo imprimivel, rodape e folga antes do conteudo.'
 );
 dod_test_assert_true(!array_key_exists('header_offset_mm', $printLayoutMetrics), 'Metrica nao deve expor offset ambiguo do cabecalho.');
 dod_test_assert_true(!array_key_exists('footer_offset_mm', $printLayoutMetrics), 'Metrica nao deve expor offset ambiguo do rodape.');
@@ -260,7 +261,7 @@ $threeHeaderLinesAndFourFooterLines = direct_purchase_dod_print_layout_metrics(
 dod_test_assert_true($threeHeaderLinesAndFourFooterLines['header_height_mm'] === 48.0, 'Tres linhas institucionais devem reservar 48 mm para o cabecalho.');
 dod_test_assert_true($threeHeaderLinesAndFourFooterLines['footer_height_mm'] === 28.0, 'Quatro linhas devem reservar 28 mm para o rodape.');
 dod_test_assert_true($threeHeaderLinesAndFourFooterLines['margin_top_mm'] === 56.0, 'Exemplo deve reservar margem logica superior de 56 mm.');
-dod_test_assert_true($threeHeaderLinesAndFourFooterLines['margin_bottom_mm'] === 41.0, 'Exemplo deve reservar margem logica inferior de 41 mm.');
+dod_test_assert_true($threeHeaderLinesAndFourFooterLines['margin_bottom_mm'] === 47.0, 'Exemplo deve reservar margem logica inferior de 47 mm.');
 
 $normalizedEditorSettings = rich_text_editor_normalize_settings([
     'default_text_align' => 'left',
@@ -336,6 +337,8 @@ dod_test_contains($exportSource, '$repeatFooter', 'Exportacao deve aplicar a esc
 dod_test_contains($exportSource, 'direct_purchase_dod_export_word_pagination_html', 'Word deve manter a paginacao mesmo sem repetir o rodape institucional.');
 dod_test_contains($exportSource, '$headerTop', 'Exportacao deve usar posicao fisica clara para o cabecalho.');
 dod_test_contains($exportSource, '$footerBottom', 'Exportacao deve usar posicao fisica clara para o rodape.');
+dod_test_contains($exportSource, '$footerInset', 'Exportacao deve recuar o rodape para dentro da area imprimivel.');
+dod_test_contains($exportSource, 'visibility: visible !important', 'Rodape repetido deve permanecer visivel no modo de impressao.');
 dod_test_contains($exportSource, 'print-header-spacer', 'Chromium deve reservar a altura repetida do cabecalho no fluxo paginado.');
 dod_test_contains($exportSource, 'print-footer-spacer', 'Chromium deve reservar a altura repetida do rodape no fluxo paginado.');
 dod_test_contains($exportSource, 'display: table-footer-group', 'Rodape deve possuir espaco repetido em todas as paginas.');

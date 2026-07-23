@@ -2,6 +2,15 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.37] - 2026-07-23
+
+### Corrigido
+- Rodape institucional do DOD passa a ser recuado para dentro da area imprimivel, evitando que navegadores o cortem ou ocultem ao imprimir e exportar para PDF.
+- Reserva inferior de cada pagina considera o novo recuo do rodape e mantem o conteudo sem sobreposicao.
+
+### Testes
+- Suite do DOD valida o recuo de seguranca, a reserva inferior completa e a visibilidade explicita do rodape na impressao.
+
 ## [1.6.36] - 2026-07-22
 
 ### Corrigido

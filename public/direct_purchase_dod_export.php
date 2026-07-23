@@ -201,6 +201,7 @@ $headerTop = rich_text_editor_css_number($printLayoutMetrics['header_top_mm']);
 $footerBottom = rich_text_editor_css_number($printLayoutMetrics['footer_bottom_mm']);
 $headerHeight = rich_text_editor_css_number($printLayoutMetrics['header_height_mm']);
 $footerHeight = rich_text_editor_css_number($printLayoutMetrics['footer_height_mm']);
+$footerInset = rich_text_editor_css_number($printLayoutMetrics['footer_inset_mm']);
 $headerSpacerHeight = $repeatHeader
     ? rich_text_editor_css_number(max(0.0, (float) $printMarginTop - (float) $headerTop))
     : '0';
@@ -350,9 +351,11 @@ if ($format === 'word') {
                 display: block;
                 left: 0;
                 margin: 0;
+                overflow: visible;
                 position: fixed;
                 right: 0;
-                z-index: 2;
+                visibility: visible !important;
+                z-index: 10;
             }
             <?php endif; ?>
             <?php if ($repeatHeader): ?>
@@ -363,7 +366,7 @@ if ($format === 'word') {
             <?php endif; ?>
             <?php if ($repeatFooter): ?>
             .print-running-footer {
-                bottom: 0;
+                bottom: <?= e($footerInset) ?>mm;
                 height: <?= e($footerHeight) ?>mm;
             }
             <?php endif; ?>

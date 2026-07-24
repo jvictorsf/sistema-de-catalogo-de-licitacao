@@ -338,7 +338,10 @@ dod_test_contains($exportSource, 'direct_purchase_dod_export_word_pagination_htm
 dod_test_contains($exportSource, '$headerTop', 'Exportacao deve usar posicao fisica clara para o cabecalho.');
 dod_test_contains($exportSource, '$footerBottom', 'Exportacao deve usar posicao fisica clara para o rodape.');
 dod_test_contains($exportSource, '$footerInset', 'Exportacao deve recuar o rodape para dentro da area imprimivel.');
+dod_test_contains($exportSource, '$contentGap', 'Exportacao deve formatar a folga do rodape como medida CSS segura.');
 dod_test_contains($exportSource, 'visibility: visible !important', 'Rodape repetido deve permanecer visivel no modo de impressao.');
+dod_test_contains($exportSource, 'print-footer-fallback', 'Exportacao deve possuir rodape alternativo no grupo repetido da tabela.');
+dod_test_contains($exportSource, '@supports (-moz-appearance: none)', 'Firefox deve usar o rodape repetido da tabela como fallback de impressao.');
 dod_test_contains($exportSource, 'print-header-spacer', 'Chromium deve reservar a altura repetida do cabecalho no fluxo paginado.');
 dod_test_contains($exportSource, 'print-footer-spacer', 'Chromium deve reservar a altura repetida do rodape no fluxo paginado.');
 dod_test_contains($exportSource, 'display: table-footer-group', 'Rodape deve possuir espaco repetido em todas as paginas.');

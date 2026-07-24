@@ -202,6 +202,7 @@ $footerBottom = rich_text_editor_css_number($printLayoutMetrics['footer_bottom_m
 $headerHeight = rich_text_editor_css_number($printLayoutMetrics['header_height_mm']);
 $footerHeight = rich_text_editor_css_number($printLayoutMetrics['footer_height_mm']);
 $footerInset = rich_text_editor_css_number($printLayoutMetrics['footer_inset_mm']);
+$contentGap = rich_text_editor_css_number($printLayoutMetrics['content_gap_mm']);
 $headerSpacerHeight = $repeatHeader
     ? rich_text_editor_css_number(max(0.0, (float) $printMarginTop - (float) $headerTop))
     : '0';
@@ -290,6 +291,7 @@ if ($format === 'word') {
         .official-footer .stripes { margin-bottom: 1.5mm; }
         .official-footer p { margin: .5mm 0; }
         .print-running-header, .print-running-footer { display: none; }
+        .print-footer-fallback { display: none; }
         .print-page-frame { border: 0; border-collapse: collapse; display: block; width: 100%; }
         .print-page-frame > thead, .print-page-frame > tfoot { display: none; }
         .print-page-frame > tbody,
@@ -372,6 +374,15 @@ if ($format === 'word') {
             <?php endif; ?>
             .print-running-header .official-header,
             .print-running-footer .official-footer { margin: 0; }
+            @supports (-moz-appearance: none) {
+                .print-running-footer { display: none !important; }
+                .print-footer-spacer {
+                    height: <?= e($footerSpacerHeight) ?>mm;
+                    padding: <?= e($contentGap) ?>mm 0 <?= e($footerInset) ?>mm;
+                }
+                .print-footer-fallback { display: block; }
+                .print-footer-fallback .official-footer { margin: 0; }
+            }
             .section h2, .section h3, .section h4, .signature { break-inside: avoid; page-break-inside: avoid; }
             .section h2, .section h3, .section h4 { break-after: avoid-page; page-break-after: avoid; }
             .stripe { background: transparent !important; border-top: 1mm solid transparent; height: 0; }
@@ -438,7 +449,13 @@ if ($format === 'word') {
     <?php endif; ?>
     <?php if ($repeatFooter): ?>
     <tfoot>
-        <tr><td><div class="print-footer-spacer" aria-hidden="true"></div></td></tr>
+        <tr>
+            <td>
+                <div class="print-footer-spacer" aria-hidden="true">
+                    <div class="print-footer-fallback"><?= $footerHtml ?></div>
+                </div>
+            </td>
+        </tr>
     </tfoot>
     <?php endif; ?>
     <tbody><tr><td>

@@ -2,6 +2,15 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.38] - 2026-07-24
+
+### Corrigido
+- Impressao do DOD recebe um rodape alternativo para Firefox/Gecko, repetido pelo grupo de rodape da tabela paginada quando o elemento fixo nao e renderizado pelo navegador.
+- O fallback reutiliza as mesmas informacoes institucionais, faixas coloridas, altura reservada e recuo de seguranca do rodape principal.
+
+### Compatibilidade
+- Chrome e Edge mantem o rodape fixo validado, sem duplicacao visual; Firefox passa a usar o mecanismo compativel com sua paginacao.
+
 ## [1.6.37] - 2026-07-23
 
 ### Corrigido

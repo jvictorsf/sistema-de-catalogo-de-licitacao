@@ -101,6 +101,7 @@ $expectedLotAnnexTitles = [
     'lot_annex_ii' => "Anexo II - Planilha de Pesquisa e Estimativa de Pre\u{00E7}os por lote",
     'lot_annex_iii' => 'Anexo III - Quadro de agrupamento dos lotes',
     'lot_annex_iv' => 'Anexo IV - Quadro resumido da estimativa por lote',
+    'lot_annex_v' => "Anexo V - Rela\u{00E7}\u{00E3}o simplificada de itens, quantidades e valores por lote",
 ];
 $annexTypes = project_annex_types();
 
@@ -118,6 +119,16 @@ reports_test_assert_contains('<th style="width: 18%;">Quantidade</th>', $simpleA
 
 $schemaSource = file_get_contents(__DIR__ . '/../database/schema.sql') ?: '';
 reports_test_assert_contains("'annex_iv'", $schemaSource, 'Schema deve permitir o versionamento do anexo simplificado.');
+reports_test_assert_contains("'lot_annex_v'", $schemaSource, 'Schema deve permitir o versionamento do anexo simplificado por lote.');
+
+$simpleLotAnnexSource = file_get_contents(__DIR__ . '/../public/project_lot_annex_v.php') ?: '';
+reports_test_assert_contains("register_project_annex_version(\$id, 'lot_annex_v')", $simpleLotAnnexSource, 'Anexo V deve registrar versao e hash.');
+reports_test_assert_contains('get_project_lot_licitation_annex_iii_groups($id)', $simpleLotAnnexSource, 'Anexo V deve usar o consolidado financeiro por lote.');
+reports_test_assert_contains('<th style="width: 52%;">Item</th>', $simpleLotAnnexSource, 'Anexo V deve identificar numero e nome do item.');
+reports_test_assert_contains('<th style="width: 16%;">Quantidade</th>', $simpleLotAnnexSource, 'Anexo V deve exibir quantidade.');
+reports_test_assert_contains('<th style="width: 16%;">Valor unit&aacute;rio</th>', $simpleLotAnnexSource, 'Anexo V deve exibir valor unitario.');
+reports_test_assert_contains('<th style="width: 16%;">Valor total</th>', $simpleLotAnnexSource, 'Anexo V deve exibir valor total.');
+reports_test_assert_contains('Valor total do lote', $simpleLotAnnexSource, 'Anexo V deve exibir o total de cada lote.');
 
 $repositorySource = file_get_contents(__DIR__ . '/../app/repository.php') ?: '';
 reports_test_assert_contains(

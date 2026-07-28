@@ -377,7 +377,7 @@ function auth_route_policies(): array
             'project_pdf.php', 'project_report.php', 'project_licitation_annex_i.php',
             'project_licitation_annex_ii.php', 'project_licitation_annex_iii.php',
             'project_licitation_annex_iv.php', 'project_lot_annex_i.php', 'project_lot_annex_ii.php',
-            'project_lot_annex_iii.php', 'project_lot_annex_iv.php', 'project_quote_request.php',
+            'project_lot_annex_iii.php', 'project_lot_annex_iv.php', 'project_lot_annex_v.php', 'project_quote_request.php',
             'project_quote_request_denominations.php', 'project_quote_request_excel.php',
             'project_quote_request_excel_grouped.php',
         ],

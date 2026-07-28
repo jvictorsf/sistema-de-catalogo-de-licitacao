@@ -2,6 +2,17 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.39] - 2026-07-28
+
+### Adicionado
+- Anexo V por lote com relacao simplificada do numero e nome do item, quantidade, valor unitario estimado e valor total estimado.
+- Cada lote possui cabecalho com numero e denominacao, tabela propria e valor total do lote.
+- Novo anexo disponivel em PDF institucional, Word e Excel no menu de anexos por lote.
+
+### Integridade
+- Anexo V participa do versionamento, hash, contagem de itens, total financeiro e invalidacao automatica dos documentos do projeto.
+- Schema e permissoes de relatorios passam a reconhecer o novo tipo `lot_annex_v`.
+
 ## [1.6.38] - 2026-07-24
 
 ### Corrigido

@@ -3681,6 +3681,7 @@ function project_annex_types(): array
         'lot_annex_ii' => "Anexo II - Planilha de Pesquisa e Estimativa de Pre\u{00E7}os por lote",
         'lot_annex_iii' => 'Anexo III - Quadro de agrupamento dos lotes',
         'lot_annex_iv' => 'Anexo IV - Quadro resumido da estimativa por lote',
+        'lot_annex_v' => "Anexo V - Rela\u{00E7}\u{00E3}o simplificada de itens, quantidades e valores por lote",
     ];
 }
 
@@ -4838,6 +4839,32 @@ function project_annex_payload(int $projectId, string $annexType): array
         ];
     }
 
+    if ($annexType === 'lot_annex_v') {
+        $annex = get_project_lot_licitation_annex_iii_groups($projectId);
+
+        return [
+            'type' => $annexType,
+            'global_total' => (float) ($annex['global_total'] ?? 0),
+            'lots' => array_map(static fn (array $lot): array => [
+                'lot_number' => $lot['lot_number'] !== null ? (int) $lot['lot_number'] : null,
+                'name' => (string) ($lot['name'] ?? ''),
+                'items' => array_map(static fn (array $item): array => [
+                    'sequence' => (int) ($item['sequence'] ?? 0),
+                    'procurement_item_id' => (int) ($item['procurement_item_id'] ?? 0),
+                    'item_name' => (string) ($item['item_name'] ?? ''),
+                    'quantity' => (float) ($item['annex_quantity'] ?? 0),
+                    'estimated_unit_price' => ($item['estimated_unit_price'] ?? null) !== null
+                        ? (float) $item['estimated_unit_price']
+                        : null,
+                    'estimated_total' => ($item['estimated_total'] ?? null) !== null
+                        ? (float) $item['estimated_total']
+                        : null,
+                ], $lot['items'] ?? []),
+                'subtotal' => (float) ($lot['subtotal'] ?? 0),
+            ], $annex['lots'] ?? []),
+        ];
+    }
+
     throw new InvalidArgumentException('Tipo de anexo invalido.');
 }
 
@@ -4865,7 +4892,7 @@ function project_annex_payload_item_count(string $annexType, array $payload): in
         return $count;
     }
 
-    if (in_array($annexType, ['lot_annex_i', 'lot_annex_iii', 'lot_annex_iv'], true)) {
+    if (in_array($annexType, ['lot_annex_i', 'lot_annex_iii', 'lot_annex_iv', 'lot_annex_v'], true)) {
         $count = 0;
 
         foreach ($payload['lots'] ?? [] as $lot) {
@@ -4880,7 +4907,7 @@ function project_annex_payload_item_count(string $annexType, array $payload): in
 
 function project_annex_payload_total(string $annexType, array $payload): ?float
 {
-    if (in_array($annexType, ['annex_ii', 'annex_iii', 'lot_annex_ii', 'lot_annex_iv'], true)) {
+    if (in_array($annexType, ['annex_ii', 'annex_iii', 'lot_annex_ii', 'lot_annex_iv', 'lot_annex_v'], true)) {
         return (float) ($payload['global_total'] ?? 0);
     }
 

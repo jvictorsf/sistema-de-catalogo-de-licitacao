@@ -57,6 +57,7 @@ $primaryNavItems = [
             'project_lot_annex_ii.php',
             'project_lot_annex_iii.php',
             'project_lot_annex_iv.php',
+            'project_lot_annex_v.php',
             'project_lots.php',
             'project_lot_form.php',
             'project_lot_assignments.php',

@@ -350,6 +350,24 @@ require __DIR__ . '/../app/views/header.php';
                         Exportar Excel
                     </a>
                 </li>
+
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header"><?= e(project_annex_types()['lot_annex_v']) ?></h6></li>
+                <li>
+                    <a href="/project_lot_annex_v.php?id=<?= (int) $project['id'] ?>&format=pdf" target="_blank" class="dropdown-item">
+                        PDF institucional
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_lot_annex_v.php?id=<?= (int) $project['id'] ?>&format=word" class="dropdown-item">
+                        Exportar Word
+                    </a>
+                </li>
+                <li>
+                    <a href="/project_lot_annex_v.php?id=<?= (int) $project['id'] ?>&format=excel" class="dropdown-item">
+                        Exportar Excel
+                    </a>
+                </li>
             </ul>
         </div>
 

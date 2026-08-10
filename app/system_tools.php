@@ -7,7 +7,7 @@ require_once __DIR__ . '/helpers.php';
 
 function app_required_php_extensions(): array
 {
-    $extensions = ['pdo', 'pdo_pgsql', 'mbstring', 'fileinfo', 'curl', 'json', 'openssl', 'session'];
+    $extensions = ['pdo', 'pdo_pgsql', 'mbstring', 'fileinfo', 'curl', 'json', 'openssl', 'session', 'zip'];
 
     if (defined('AUTH_LDAP_ENABLED') && AUTH_LDAP_ENABLED) {
         $extensions[] = 'ldap';

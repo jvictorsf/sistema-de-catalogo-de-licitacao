@@ -94,7 +94,7 @@ require __DIR__ . '/../app/views/header.php';
             <div class="card-body">
                 <div class="text-muted small">Extensoes PHP</div>
                 <div class="fs-5 fw-semibold"><?= count($missingExtensions) === 0 ? 'Todas OK' : count($missingExtensions) . ' ausente(s)' ?></div>
-                <div class="small text-muted">pdo_pgsql, mbstring, fileinfo, curl e demais</div>
+                <div class="small text-muted">pdo_pgsql, mbstring, fileinfo, curl, zip e demais</div>
             </div>
         </div>
     </div>

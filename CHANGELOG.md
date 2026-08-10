@@ -2,6 +2,19 @@
 
 Todas as alteracoes relevantes deste sistema serao registradas aqui.
 
+## [1.6.40] - 2026-08-10
+
+### Adicionado
+- Tela de dados passa a exportar todos os escopos administrativos em JSON, PDF, CSV e XLSX.
+- Exportacao XLSX cria uma aba por tabela, com cabecalho fixo, filtros e preservacao de codigos textuais.
+- Escopos CSV com varias tabelas sao entregues em um pacote ZIP com manifesto; escopos simples continuam como arquivo CSV direto.
+- Relatorio PDF administrativo apresenta resumo, tabelas paginadas e visualizacao pronta para imprimir ou salvar como PDF.
+
+### Seguranca e compatibilidade
+- Conteudos textuais de CSV e XLSX sao protegidos contra interpretacao indevida como formulas de planilha.
+- Nova rota de exportacao utiliza a permissao administrativa de gerenciamento de dados e mantem a exportacao JSON anterior compativel.
+- Documentada e adicionada ao diagnostico a extensao PHP `zip`, necessaria para XLSX e pacotes CSV compostos.
+
 ## [1.6.39] - 2026-07-28
 
 ### Adicionado

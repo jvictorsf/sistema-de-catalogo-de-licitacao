@@ -330,7 +330,7 @@ function auth_route_policies(): array
 
     $permissionGroups = [
         'system.manage_users' => ['users.php', 'user_form.php', 'user_toggle.php'],
-        'system.manage_data' => ['data.php', 'export_json.php', 'import_json.php', 'import_template_json.php'],
+        'system.manage_data' => ['data.php', 'export_data.php', 'export_json.php', 'import_json.php', 'import_template_json.php'],
         'system.view_diagnostics' => ['environment_diagnostics.php'],
         'system.view_logs' => ['system_logs.php'],
         'system.manage_editor_settings' => ['editor_settings.php'],

@@ -47,6 +47,7 @@ auth_test_assert_same('projects.view', auth_route_required_permission('project_q
 auth_test_assert_same('projects.manage', auth_route_required_permission('project_quantity_memory_form.php', 'POST'), 'Edicao da memoria quantitativa deve exigir gestao.');
 auth_test_assert_same('reports.view', auth_route_required_permission('project_lot_annex_iv.php', 'GET'), 'Anexo deve exigir permissao de relatorio.');
 auth_test_assert_same('reports.view', auth_route_required_permission('project_lot_annex_v.php', 'GET'), 'Anexo simplificado por lote deve exigir permissao de relatorio.');
+auth_test_assert_same('system.manage_data', auth_route_required_permission('export_data.php', 'GET'), 'Exportacao de dados deve exigir permissao administrativa.');
 auth_test_assert_same('budgets.view', auth_route_required_permission('supplier_quote_file.php', 'GET'), 'Anexo privado de orcamento deve exigir consulta de orcamentos.');
 auth_test_assert_true(auth_route_is_registered('dashboard.php'), 'Dashboard deve constar no registro de rotas autenticadas.');
 auth_test_assert_true(!auth_route_is_registered('pagina_inexistente.php'), 'Rota nao cadastrada deve ser negada por padrao.');

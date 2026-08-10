@@ -28,7 +28,7 @@ Departamento solicitante
 
 ## Dependencias
 - PHP 8.x
-- Extensoes PHP `pdo_pgsql`, `mbstring`, `fileinfo`, `curl`, `dom` e `ldap` quando AD/LDAP estiver habilitado
+- Extensoes PHP `pdo_pgsql`, `mbstring`, `fileinfo`, `curl`, `dom`, `zip` e `ldap` quando AD/LDAP estiver habilitado
 - PostgreSQL 13+
 - Nginx
 - Bootstrap Icons via CDN
